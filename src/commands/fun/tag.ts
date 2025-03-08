@@ -22,6 +22,7 @@ import {
 import TagSchema from "../../models/TagSchema";
 import { CommandOptions, SlashCommandProps } from "commandkit";
 import BasicEmbed from "../../utils/BasicEmbed";
+import { env } from "process";
 const COMMAND_NAME = "tag";
 const COMMAND_NAME_TITLE = "Tag";
 
@@ -220,6 +221,6 @@ async function listTags(
 
 function cleanCacheForGuild(guildId: string): Promise<Array<any>> {
   const db = new Database();
-  const cleaned = db.cleanCache(`TagSchema:guildId:${guildId}`);
+  const cleaned = db.cleanCache(`${env.MONGODB_DATABASE}:TagSchema:guildId:${guildId}`);
   return cleaned;
 }

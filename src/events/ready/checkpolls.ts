@@ -5,16 +5,20 @@ import Database from "../../utils/data/database";
 import { ThingGetter, debugMsg, sleep } from "../../utils/TinyUtils";
 import { endPoll } from "../interactionCreate/poll-interaction";
 import log from "../../utils/log";
+import FetchEnvs from "../../utils/FetchEnvs";
 /**
  *
  * @param {Client} c
  * @param {Client} client
  */
+
+const env = FetchEnvs();
+
 export default async (c: Client<true>, client: Client<true>, handler: CommandKit) => {
   await sleep(500);
 
   const db = new Database();
-  db.cleanCache("Polls:*");
+  db.cleanCache(`${env.MONGODB_DATABASE}:Polls:*`);
   const getter = new ThingGetter(client);
   const polls = await PollsSchema.find();
   if (!polls) return log.info("No polls found in the database.");
