@@ -1,27 +1,23 @@
-FROM node:latest
+FROM oven/bun:latest
 
-# # Install Yarn
-# RUN npm install -g yarn
-
-# Install FFmpeg & redis
+# Install FFmpeg
 RUN apt-get update && \
   apt-get install -y ffmpeg
 
 # Set the working directory
 WORKDIR /app
 
-# Copy the package.json and package-lock.json files
-COPY package*.json ./
+# Copy the package.json and bun.lockb files
+COPY package.json bun.lock ./
 
-
-# Install the dependencies
-RUN yarn install
+# Install dependencies
+RUN bun install
 
 # Copy the rest of the application files
 COPY . .
 
 # Compile TypeScript to JavaScript
-RUN npx tsc
+RUN bun run build
 
 # Set the command to start the app
-CMD [ "node", "dist/Bot.js" ]
+CMD [ "bun", "run", "start" ]
