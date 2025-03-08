@@ -9,13 +9,19 @@ const ONE_HOUR = 1 * 60 * 60; // Redis uses seconds.
 export default class Database {
   // TODO This needs work to find & add the correct types
   /**
-   *
-   * @param {Schema} schema
-   * @param {Map} model
-   * @param {boolean} [saveNull=false] - Optional, save null values to cache
-   * @param {number} [cacheTime=ONE_HOUR] - Optional, cache time in seconds
+   * Find one document matching the query
+   * @generic T - The document type to return
+   * @param schema - Mongoose model
+   * @param model - Query parameters
+   * @param saveNull - Whether to save null values to cache
+   * @param cacheTime - Cache time in seconds
    */
-  async findOne(schema: any, model: any, saveNull = false, cacheTime = ONE_HOUR) {
+  async findOne<T>(
+    schema: Model<T>,
+    model: any,
+    saveNull = false,
+    cacheTime = ONE_HOUR
+  ): Promise<T | null> {
     var start = env.DEBUG_LOG ? Date.now() : undefined;
     if (!schema || !model) {
       throw new Error("Missing schema or model");
@@ -24,7 +30,6 @@ export default class Database {
     const redisKey =
       env.MONGODB_DATABASE + ":" + schema.modelName + ":" + mongoKey + ":" + model[mongoKey];
     debugMsg(`Key: ${mongoKey} -> ${redisKey}`);
-    // The value of this map is the key for redis because it's unique
 
     debugMsg(`Fetching from cache: ${redisKey}`);
     var data = await redisClient.get(redisKey);
@@ -35,29 +40,33 @@ export default class Database {
       data = await schema.findOne(model);
       if (!data) {
         debugMsg(`Database miss no data found`);
-        // Return to stop the redis cache from being set
         if (!saveNull) return null;
-        // TODO: Make this a less confusing return
       }
       await redisClient.set(redisKey, JSON.stringify(data));
       await redisClient.expire(redisKey, cacheTime);
       if (env.DEBUG_LOG) debugMsg(`DB - findOne - Time taken: ${Date.now() - start!}ms`);
-      return data;
+      return data as T;
     }
 
     debugMsg(`Cache hit: ${redisKey} -> ${data}`);
     if (env.DEBUG_LOG) debugMsg(`DB - findOne - Time taken: ${Date.now() - start!}ms`);
-    return JSON.parse(data);
+    return JSON.parse(data) as T;
   }
 
   /**
-   * @param {Schema} schema
-   * @param {Map} model
-   * @param {boolean} [saveNull=false] - Optional, save null values to cache
-   * @param {number} [cacheTime=ONE_HOUR] - Optional, cache time in seconds
-   * @description Finds all the documents in the database that match the model
+   * Find multiple documents matching the query
+   * @generic T - The document type to return
+   * @param schema - Mongoose model
+   * @param model - Query parameters
+   * @param saveNull - Whether to save null values to cache
+   * @param cacheTime - Cache time in seconds
    */
-  async find(schema: any, model: any, saveNull = false, cacheTime = ONE_HOUR) {
+  async find<T>(
+    schema: Model<T>,
+    model: any,
+    saveNull = false,
+    cacheTime = ONE_HOUR
+  ): Promise<T[] | null> {
     var start = env.DEBUG_LOG ? Date.now() : undefined;
     if (!schema || !model) {
       throw new Error("Missing schema or model");
@@ -68,7 +77,7 @@ export default class Database {
     debugMsg(`Key: ${mongoKey} -> ${redisKey}`);
 
     debugMsg(`Fetching from cache: ${redisKey}`);
-    var data = (await redisClient.get(redisKey)) as any;
+    var data = await redisClient.get(redisKey);
 
     if (!data || data.length == 0) {
       debugMsg(model);
@@ -80,31 +89,32 @@ export default class Database {
       await redisClient.set(redisKey, JSON.stringify(data));
       await redisClient.expire(redisKey, cacheTime);
       if (env.DEBUG_LOG) debugMsg(`DB - find - Time taken: ${Date.now() - start!}ms`);
-      return data;
+      return data as T[];
     }
     debugMsg(`Cache hit: ${redisKey} -> ${data}`);
     if (env.DEBUG_LOG) debugMsg(`DB - find - Time taken: ${Date.now() - start!}ms`);
-    return JSON.parse(data);
+    return JSON.parse(data) as T[];
   }
 
   /**
-   *
-   * @param {Schema} schema
-   * @param {Map} model
-   * @param {Map} object
-   * @param {QueryOptions} [options={ upsert: true, new: true }] - Optional parameter with default value
-   * @param {number} [cacheTime=ONE_HOUR] - Optional, cache time in seconds
+   * Find and update a document matching the query
+   * @generic T - The document type to return
+   * @param schema - Mongoose model
+   * @param model - Query parameters
+   * @param object - Update data
+   * @param options - Query options
+   * @param cacheTime - Cache time in seconds
    */
-  async findOneAndUpdate(
-    schema: any,
-    model: any, // This is probably unsafe but I don't know how to fix it
+  async findOneAndUpdate<T>(
+    schema: Model<T>,
+    model: any,
     object: any,
     options = {
       upsert: true,
       new: true,
     },
     cacheTime = ONE_HOUR
-  ) {
+  ): Promise<T | null> {
     var start = env.DEBUG_LOG ? Date.now() : undefined;
     if (!schema || !model) {
       throw new Error("Missing schema or model");
@@ -113,20 +123,22 @@ export default class Database {
     const redisKey =
       env.MONGODB_DATABASE + ":" + schema.modelName + ":" + mongoKey + ":" + model[mongoKey];
 
-    await schema.findOneAndUpdate(model, object, options);
-    await redisClient.set(redisKey, JSON.stringify(object));
+    const result = await schema.findOneAndUpdate(model, object, options);
+    await redisClient.set(redisKey, JSON.stringify(result));
     await redisClient.expire(redisKey, cacheTime);
 
     if (env.DEBUG_LOG) debugMsg(`DB - update - Time taken: ${Date.now() - start!}ms`);
     debugMsg(`Updated key: ${mongoKey} -> ${redisKey}`);
+    return result as T;
   }
 
   /**
-   *
-   * @param {Schema} schema
-   * @param {Map} model
+   * Delete a document matching the query
+   * @generic T - The document type
+   * @param schema - Mongoose model
+   * @param model - Query parameters
    */
-  async deleteOne(schema: any, model: any) {
+  async deleteOne<T>(schema: Model<T>, model: any): Promise<void> {
     var start = env.DEBUG_LOG ? Date.now() : undefined;
     if (!schema || !model) {
       throw new Error("Missing schema or model");
@@ -141,8 +153,14 @@ export default class Database {
     if (env.DEBUG_LOG) debugMsg(`DB - delete - Time taken: ${Date.now() - start!}ms`);
   }
 
-  async findOneAndDelete(schema: any, model: any) {
-    this.deleteOne(schema, model);
+  /**
+   * Find and delete a document matching the query
+   * @generic T - The document type
+   * @param schema - Mongoose model
+   * @param model - Query parameters
+   */
+  async findOneAndDelete<T>(schema: Model<T>, model: any): Promise<void> {
+    return this.deleteOne<T>(schema, model);
   }
 
   /**
@@ -163,8 +181,15 @@ export default class Database {
     return keys;
   }
 
-  getCacheKeys(Schema: any, keyQuery: string) {
-    return `${env.MONGODB_DATABASE}:${Schema.name}:${keyQuery}`;
+  /**
+   * Get cache keys for a schema
+   * @generic T - The document type
+   * @param Schema - Mongoose model
+   * @param keyQuery - Key query string
+   * @returns Formatted cache key
+   */
+  getCacheKeys<T>(Schema: Model<T>, keyQuery: string): string {
+    return `${env.MONGODB_DATABASE}:${Schema.modelName}:${keyQuery}`;
   }
 
   /**

@@ -24,12 +24,7 @@ import RoleButtons from "../../models/RoleButtons";
 import { ROLE_BUTTON_PREFIX, globalCooldownKey, setCommandCooldown, waitingEmoji } from "../../Bot";
 import Database from "../../utils/data/database";
 import { CommandOptions, SlashCommandProps } from "commandkit";
-import {
-  ThingGetter,
-  getValidUrl,
-  modalTimedOutFollowUp,
-  pastebinUrlToJson,
-} from "../../utils/TinyUtils";
+import { ThingGetter, getValidUrl, pastebinUrlToJson } from "../../utils/TinyUtils";
 
 export const data = new SlashCommandBuilder()
   .setName("createrolebutton")

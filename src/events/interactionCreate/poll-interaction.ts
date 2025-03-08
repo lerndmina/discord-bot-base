@@ -106,7 +106,7 @@ export async function endPoll(
   interaction?: StringSelectMenuInteraction
 ) {
   const poll = await db.findOne(PollsSchema, { pollId });
-  if (poll.hasFinished) return;
+  if (!poll || poll.hasFinished) return;
   poll.hasFinished = true;
   await db.findOneAndUpdate(PollsSchema, { pollId }, poll);
   if (interaction) interaction.reply({ content: "Ending the poll.", ephemeral: true });

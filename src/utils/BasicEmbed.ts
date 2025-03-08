@@ -1,6 +1,15 @@
 import { Client, EmbedBuilder, Embed, ColorResolvable, EmbedField } from "discord.js";
 import { BOT_MESSAGES } from "../Bot";
 
+/**
+ * @description Create a basic embed with a title, description, fields, and color.
+ * @param client The Discord client object.
+ * @param title The title of the embed.
+ * @param description The description of the embed.
+ * @param fields The fields of the embed.
+ * @param color The color of the embed.
+ * @returns The embed object.
+ */
 export default function (
   client: Client<true>,
   title: string,
