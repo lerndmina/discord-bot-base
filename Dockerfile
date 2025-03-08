@@ -16,8 +16,5 @@ RUN bun install
 # Copy the rest of the application files
 COPY . .
 
-# Compile TypeScript to JavaScript
-RUN bun run build
-
 # Set the command to start the app
 CMD [ "bun", "run", "start" ]
