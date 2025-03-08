@@ -82,7 +82,7 @@ async function handleDM(message: Message, client: Client<true>, user: User) {
   const db = new Database();
   const requestId = message.id;
   // const mail = await Modmail.findOne({ userId: user.id });
-  const mail = await db.findOne(Modmail, { userId: user.id });
+  const mail = await db.findOne(Modmail, { userId: user.id }, true);
   const customIds = [`create-${requestId}`, `cancel-${requestId}`];
   if (!mail) {
     await newModmail(customIds, message, finalContent, user, client);
