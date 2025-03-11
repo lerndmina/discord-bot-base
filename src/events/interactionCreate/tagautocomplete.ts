@@ -12,7 +12,6 @@ export default async (interaction: AutocompleteInteraction, client: Client<true>
   if (!interaction.guild) return;
 
   const rawFocusedValue = interaction.options.getFocused();
-  if (!rawFocusedValue) return interaction.respond([]);
   const focusedValue = rawFocusedValue ? rawFocusedValue.trim().toLowerCase() : "";
 
   debugMsg(`Autocomplete call for: ${focusedValue}`);
@@ -22,10 +21,13 @@ export default async (interaction: AutocompleteInteraction, client: Client<true>
   const tags = await db.find(TagSchema, { guildId: interaction.guild.id }, false, 15);
 
   const data: { name: string; value: string }[] = [];
-  if (tags && tags.length > 0 && focusedValue) {
+  if (tags && tags.length > 0) {
     for (const tag of tags) {
       const tagName = getTagName(tag.key);
-      if (!tagName.includes(focusedValue)) continue;
+
+      // Only filter by search term if it's not empty
+      if (focusedValue && !tagName.includes(focusedValue)) continue;
+
       data.push({
         name: tagName,
         value: tagName,
