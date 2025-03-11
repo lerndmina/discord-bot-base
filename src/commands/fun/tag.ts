@@ -8,7 +8,7 @@ import {
   userMention,
   PermissionFlagsBits,
 } from "discord.js";
-import { waitingEmoji } from "../../Bot";
+import { globalCooldownKey, setCommandCooldown, userCooldownKey, waitingEmoji } from "../../Bot";
 import Database from "../../utils/data/database";
 import {
   returnMessage,
@@ -73,6 +73,7 @@ export const data = new SlashCommandBuilder()
 export const options: CommandOptions = {
   devOnly: false,
   deleted: false,
+  userPermissions: ["ManageMessages"],
 };
 
 export async function run({ interaction, client, handler }: SlashCommandProps) {
@@ -178,10 +179,14 @@ async function sendTag(
       `This tag doesn't exist in the database.`
     );
   }
+
+  setCommandCooldown(globalCooldownKey(COMMAND_NAME), 15);
+  /* 15 seconds cooldown for the tag command */
+
   returnMessage(interaction, client, COMMAND_NAME_TITLE, `Sending tag \`${name}\`...`);
   return interaction.channel!.send({
     content: user ? userMention(user.id) : "",
-    embeds: [BasicEmbed(client, `${COMMAND_NAME_TITLE}: ${upperCaseFirstLetter(name)}`, tag.tag)],
+    embeds: [BasicEmbed(client, `Tags`, tag.tag)],
   });
 }
 
