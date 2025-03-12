@@ -21,14 +21,8 @@ export const data = new SlashCommandBuilder()
   .addStringOption((option) =>
     option
       .setName("type")
-      .setDescription("The type of attachment to block/allow")
+      .setDescription("The types of attachment to block/allow")
       .setRequired(true)
-      .addChoices(
-        { name: "image", value: "image" },
-        { name: "video", value: "video" },
-        { name: "audio", value: "audio" },
-        { name: "file", value: "file" }
-      )
   )
   .addStringOption((option) =>
     option
