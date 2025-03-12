@@ -83,7 +83,7 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
             `Successfully cleared all attachment blocks in ${channel}`
           ),
         ],
-        components: [buttons],
+        components: buttons,
       });
     }
 
@@ -130,7 +130,7 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
               } in ${channel}`
             ),
           ],
-          components: [buttons],
+          components: buttons,
         });
       }
 
@@ -181,7 +181,7 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
           ]
         ),
       ],
-      components: [buttons],
+      components: buttons,
     });
   } catch (error) {
     console.error("Error in attachmentblocker command:", error);
