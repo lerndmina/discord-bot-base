@@ -40,8 +40,8 @@ export const data = new SlashCommandBuilder()
   .setDMPermission(false);
 
 export const options: CommandOptions = {
-  devOnly: true,
-  deleted: true,
+  devOnly: false,
+  deleted: false,
   botPermissions: ["ManageMessages"],
   userPermissions: ["ManageChannels", "ManageMessages"],
 };
