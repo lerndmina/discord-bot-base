@@ -83,6 +83,7 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
             `Successfully cleared all attachment blocks in ${channel}`
           ),
         ],
+        components: [buttons],
       });
     }
 
