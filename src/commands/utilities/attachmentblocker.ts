@@ -21,8 +21,14 @@ export const data = new SlashCommandBuilder()
   .addStringOption((option) =>
     option
       .setName("type")
-      .setDescription("The types of attachment to block/allow")
+      .setDescription("The type of attachment to block/allow")
       .setRequired(true)
+      .addChoices(
+        { name: "image", value: "image" },
+        { name: "video", value: "video" },
+        { name: "audio", value: "audio" },
+        { name: "file", value: "file" }
+      )
   )
   .addStringOption((option) =>
     option
@@ -41,7 +47,7 @@ export const data = new SlashCommandBuilder()
 
 export const options: CommandOptions = {
   devOnly: false,
-  deleted: false,
+  deleted: true,
   botPermissions: ["ManageMessages"],
   userPermissions: ["ManageChannels", "ManageMessages"],
 };
