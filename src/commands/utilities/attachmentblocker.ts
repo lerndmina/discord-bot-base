@@ -9,6 +9,7 @@ import Database from "../../utils/data/database";
 import { waitingEmoji } from "../../Bot";
 import BasicEmbed from "../../utils/BasicEmbed";
 import ButtonWrapper from "../../utils/ButtonWrapper";
+import { DELETEME_BUTTON_PREFIX } from "../../events/interactionCreate/deleteMeButton";
 
 export const data = new SlashCommandBuilder()
   .setName("attachmentblocker")
@@ -65,7 +66,7 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
     // Deleteme button component
     const buttons = ButtonWrapper([
       new ButtonBuilder()
-        .setCustomId("deleteme-" + interactionMessage.id)
+        .setCustomId(DELETEME_BUTTON_PREFIX + interactionMessage.id)
         .setLabel("Delete")
         .setStyle(ButtonStyle.Danger)
         .setEmoji("🗑️"),

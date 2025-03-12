@@ -8,13 +8,15 @@ import {
 import { waitingEmoji } from "../../Bot";
 import { ThingGetter, debugMsg, returnMessage } from "../../utils/TinyUtils";
 
+export const DELETEME_BUTTON_PREFIX = "deleteMe-";
+
 export default async (interaction: MessageComponentInteraction, client: Client<true>) => {
   if (interaction.type !== InteractionType.MessageComponent) return;
   if (!interaction.isButton()) return;
   if (!interaction.guild) return;
   if (!interaction.message.author.bot) return;
   if (interaction.message.author.id !== client.user?.id) return;
-  if (!interaction.customId.startsWith("deleteMe-")) return;
+  if (!interaction.customId.startsWith(DELETEME_BUTTON_PREFIX)) return;
 
   const userId = interaction.customId.split("-")[1];
 
