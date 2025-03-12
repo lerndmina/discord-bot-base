@@ -1,7 +1,6 @@
 import { ButtonBuilder, ButtonStyle, GuildTextBasedChannel, SlashCommandBuilder } from "discord.js";
 import { CommandOptions, SlashCommandProps } from "commandkit";
 import AttachmentBlocker, {
-  BlockType,
   AttachmentType,
   AttachmentBlockerType,
 } from "../../models/AttachmentBlocker";
@@ -17,29 +16,19 @@ export const data = new SlashCommandBuilder()
   .addChannelOption((option) =>
     option
       .setName("channel")
-      .setDescription("The channel to block/allow attachments in")
+      .setDescription("The channel to block attachments in")
       .setRequired(true)
   )
   .addStringOption((option) =>
     option
       .setName("type")
-      .setDescription("The type of attachment to block/allow")
+      .setDescription("The type of attachment to allow (whitelist)")
       .setRequired(true)
       .addChoices(
         { name: "image", value: "image" },
         { name: "video", value: "video" },
         { name: "audio", value: "audio" },
-        { name: "file", value: "file" }
-      )
-  )
-  .addStringOption((option) =>
-    option
-      .setName("blocktype")
-      .setDescription("The type of block to apply")
-      .setRequired(true)
-      .addChoices(
-        { name: "whitelist", value: "whitelist" },
-        { name: "blacklist", value: "blacklist" }
+        { name: "all", value: "all" }
       )
   )
   .addBooleanOption((option) =>
@@ -98,16 +87,6 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
       });
     }
 
-    // Get block type and validate
-    const blockType = interaction.options.getString("blocktype") as BlockType;
-    if (!Object.values(BlockType).includes(blockType as BlockType)) {
-      return interaction.editReply({
-        content: `Invalid block type: ${blockType}. Must be one of: ${Object.values(BlockType).join(
-          ", "
-        )}`,
-      });
-    }
-
     // Check if config exists for this channel
     const existingConfig = await db.findOne<AttachmentBlockerType>(AttachmentBlocker, {
       channelId: channel.id,
@@ -126,9 +105,7 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
             BasicEmbed(
               client,
               "Attachment Blocker",
-              `${type} is already ${
-                blockType === BlockType.WHITELIST ? "whitelisted" : "blacklisted"
-              } in ${channel}`
+              `${type} is already ${"whitelisted"} in ${channel}`
             ),
           ],
           components: buttons,
@@ -143,7 +120,6 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
         { channelId: channel.id },
         {
           attachmentTypes,
-          blockType, // Update the block type
           createdBy: interaction.user.id,
         }
       );
@@ -155,7 +131,6 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
         {
           channelId: channel.id,
           attachmentTypes: [type],
-          blockType,
           createdBy: interaction.user.id,
         },
         { upsert: true, new: true }
@@ -168,9 +143,7 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
         BasicEmbed(
           client,
           "Attachment Blocker",
-          `Successfully ${
-            blockType === BlockType.WHITELIST ? "whitelisted" : "blacklisted"
-          } ${type} attachments in ${channel}`,
+          `Successfully ${"whitelisted"} ${type} attachments in ${channel}`,
           [
             {
               name: "Configuration",

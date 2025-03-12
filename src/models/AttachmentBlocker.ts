@@ -1,22 +1,33 @@
 import { InferSchemaType, Schema, model } from "mongoose";
 
-export enum BlockType {
-  WHITELIST = "whitelist",
-  BLACKLIST = "blacklist",
-}
-
 export enum AttachmentType {
   IMAGE = "image",
   VIDEO = "video",
   AUDIO = "audio",
-  FILE = "file",
+  ALL = "all",
 }
 
 export const AttachmentTypesResolved = {
-  [AttachmentType.IMAGE]: ["jpg", "jpeg", "png", "gif", "webp", "bmp", "tiff", "svg"],
-  [AttachmentType.VIDEO]: ["mp4", "mov", "avi", "mkv", "webm"],
-  [AttachmentType.AUDIO]: ["mp3", "wav", "ogg", "flac", "m4a", "aac", "wma"],
-  [AttachmentType.FILE]: ["all"],
+  [AttachmentType.IMAGE]: [
+    "image/png",
+    "image/jpeg",
+    "image/gif",
+    "image/webp",
+    "image/bmp",
+    "image/tiff",
+    "image/svg+xml",
+  ],
+  [AttachmentType.VIDEO]: ["video/mp4", "video/webm", "video/ogg", "video/quicktime"],
+  [AttachmentType.AUDIO]: [
+    "audio/mpeg",
+    "audio/wav",
+    "audio/ogg",
+    "audio/flac",
+    "audio/x-m4a",
+    "audio/aac",
+    "audio/x-ms-wma",
+  ],
+  [AttachmentType.ALL]: ["all"],
 };
 
 const AttachmentBlocker = new Schema({
@@ -30,11 +41,6 @@ const AttachmentBlocker = new Schema({
     type: [String],
     enum: Object.values(AttachmentType),
     default: [],
-  },
-  blockType: {
-    type: String,
-    enum: Object.values(BlockType),
-    default: BlockType.WHITELIST,
   },
   createdBy: {
     type: String,

@@ -2,7 +2,6 @@ import { Message, Client, ChannelType } from "discord.js";
 import Database from "../../utils/data/database";
 import log from "../../utils/log";
 import AttachmentBlocker, {
-  BlockType,
   AttachmentType,
   AttachmentTypesResolved,
 } from "../../models/AttachmentBlocker";
@@ -20,11 +19,7 @@ export default async (message: Message, client: Client<true>) => {
 
   // Get channel configuration
   const config = await db.findOne(AttachmentBlocker, { channelId }, true);
-  if (!config || !config.blockType || config.attachmentTypes.length < 1) return;
-
-  // Extract configuration
-  const blockedTypes = config.attachmentTypes;
-  const blockType = config.blockType;
+  if (!config || config.attachmentTypes.length < 1) return;
 
   // Track if message should be deleted
   let shouldDelete = false;
@@ -36,48 +31,24 @@ export default async (message: Message, client: Client<true>) => {
     const fileExtension = attachment.name?.split(".").pop()?.toLowerCase() || "";
     const mimeType = attachment.contentType?.toLowerCase() || "";
 
-    // Determine attachment category
-    let matchedType: AttachmentType | null = null;
-
-    // Check which category this file belongs to
-    for (const [type, extensions] of Object.entries(AttachmentTypesResolved)) {
-      // Special case for the "all" extension
-      if (type === AttachmentType.FILE && blockedTypes.includes(AttachmentType.FILE)) {
-        matchedType = AttachmentType.FILE;
-        break;
-      }
-
-      // Check if extension or mime type matches this category
+    // Check if attachment type is allowed
+    let isAllowed = false;
+    for (const type of config.attachmentTypes) {
       if (
-        extensions.includes(fileExtension) ||
-        (mimeType && mimeType.startsWith(type.toLowerCase()))
+        AttachmentTypesResolved[type].includes(mimeType) ||
+        AttachmentTypesResolved[type].includes("all")
       ) {
-        matchedType = type as AttachmentType;
+        isAllowed = true;
         break;
       }
     }
 
-    if (!matchedType) continue;
-
-    // Apply whitelist/blacklist logic
-    if (blockType === BlockType.WHITELIST) {
-      // In whitelist mode, block if NOT in the allowed types
-
-      if (blockedTypes.includes(AttachmentType.FILE)) {
-        break; // If all files are allowed, no need to check further, this essentially allows all attachments
-      }
-
-      if (!blockedTypes.includes(matchedType)) {
-        shouldDelete = true;
-        blockedReasons.push(`${matchedType} attachments are not allowed`);
-        break; // One blocked attachment is enough to delete the message
-      }
-    } else if (blockType === BlockType.BLACKLIST) {
-      // In blacklist mode, block if IN the blocked types or all files are blocked
-      if (blockedTypes.includes(matchedType) || blockedTypes.includes(AttachmentType.FILE)) {
-        shouldDelete = true;
-        blockedReasons.push(`${matchedType} attachments are not allowed`);
-        break; // One blocked attachment is enough to delete the message
+    if (!isAllowed) {
+      shouldDelete = true;
+      if (blockedReasons.length < 1) {
+        blockedReasons.push(`Attachment type(s) not allowed ${mimeType}`);
+      } else {
+        blockedReasons.push(`, ${mimeType}`);
       }
     }
   }
