@@ -62,6 +62,15 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
 
     const db = new Database();
 
+    // Deleteme button component
+    const buttons = ButtonWrapper([
+      new ButtonBuilder()
+        .setCustomId("deleteme-" + interactionMessage.id)
+        .setLabel("Delete")
+        .setStyle(ButtonStyle.Danger)
+        .setEmoji("🗑️"),
+    ]);
+
     // Handle clear option first
     if (interaction.options.getBoolean("clear")) {
       await db.findOneAndDelete(AttachmentBlocker, { channelId: channel.id });
@@ -96,15 +105,6 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
         )}`,
       });
     }
-
-    // Deleteme button component
-    const buttons = ButtonWrapper([
-      new ButtonBuilder()
-        .setCustomId("deleteme-" + interactionMessage.id)
-        .setLabel("Delete")
-        .setStyle(ButtonStyle.Danger)
-        .setEmoji("🗑️"),
-    ]);
 
     // Check if config exists for this channel
     const existingConfig = await db.findOne<AttachmentBlockerType>(AttachmentBlocker, {
