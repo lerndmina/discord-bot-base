@@ -53,7 +53,7 @@ export const options: CommandOptions = {
 };
 
 export async function run({ interaction, client, handler }: SlashCommandProps) {
-  await interaction.reply({ content: waitingEmoji, ephemeral: true });
+  await interaction.reply({ content: waitingEmoji, ephemeral: false });
 
   try {
     const channel = (interaction.options.getChannel("channel") ||
