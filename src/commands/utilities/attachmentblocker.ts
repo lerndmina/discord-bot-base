@@ -1,4 +1,4 @@
-import { GuildTextBasedChannel, SlashCommandBuilder } from "discord.js";
+import { ButtonBuilder, ButtonStyle, GuildTextBasedChannel, SlashCommandBuilder } from "discord.js";
 import { CommandOptions, SlashCommandProps } from "commandkit";
 import AttachmentBlocker, {
   BlockType,
@@ -8,6 +8,7 @@ import AttachmentBlocker, {
 import Database from "../../utils/data/database";
 import { waitingEmoji } from "../../Bot";
 import BasicEmbed from "../../utils/BasicEmbed";
+import ButtonWrapper from "../../utils/ButtonWrapper";
 
 export const data = new SlashCommandBuilder()
   .setName("attachmentblocker")
@@ -53,7 +54,7 @@ export const options: CommandOptions = {
 };
 
 export async function run({ interaction, client, handler }: SlashCommandProps) {
-  await interaction.reply({ content: waitingEmoji, ephemeral: false });
+  const interactionMessage = await interaction.reply({ content: waitingEmoji, ephemeral: false });
 
   try {
     const channel = (interaction.options.getChannel("channel") ||
@@ -96,6 +97,15 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
       });
     }
 
+    // Deleteme button component
+    const buttons = ButtonWrapper([
+      new ButtonBuilder()
+        .setCustomId("deleteme-" + interactionMessage.id)
+        .setLabel("Delete")
+        .setStyle(ButtonStyle.Danger)
+        .setEmoji("🗑️"),
+    ]);
+
     // Check if config exists for this channel
     const existingConfig = await db.findOne<AttachmentBlockerType>(AttachmentBlocker, {
       channelId: channel.id,
@@ -119,6 +129,7 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
               } in ${channel}`
             ),
           ],
+          components: [buttons],
         });
       }
 
@@ -169,6 +180,7 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
           ]
         ),
       ],
+      components: [buttons],
     });
   } catch (error) {
     console.error("Error in attachmentblocker command:", error);
