@@ -102,8 +102,8 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
       .setLabel("Role Name|Role ID|Emoji|Button Type")
       .setStyle(TextInputStyle.Paragraph);
 
-    const modalActionRow = new ActionRowBuilder().addComponents(input);
-    modal.addComponents(modalActionRow as any);
+    const modalActionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(input);
+    modal.addComponents(modalActionRow);
 
     await interaction.showModal(modal);
     const filter = (i: ModalSubmitInteraction) => i.customId === modalId;
