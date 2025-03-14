@@ -42,7 +42,7 @@ export default async (interaction: MessageComponentInteraction, client: Client<t
         BasicEmbed(
           client,
           "Modmail",
-          "Hey, please reply with your message and I'll start the process for opening a modmail thread for you. Please make sure to include as much detail as possible! If you're reporting a user, please include their username and ID. If you're reporting a message, please include the message ID and a screenshot if possible. You can obtain message/user IDs by right-clicking on the message/user and selecting 'Copy ID'. If you don't see this option, please [enable Developer Mode](<https://www.howtogeek.com/714348/how-to-enable-or-disable-developer-mode-on-discord/>) in your Discord settings."
+          "Hey, please reply with your message and I'll start the process for opening a modmail thread for you.\n\nPlease make sure to include as much detail as possible!\nIf you're reporting a user, please include their username and ID.\nIf you're reporting a message, please include the message ID and a screenshot if possible.\n\nYou can obtain message/user IDs by right-clicking on the message/user and selecting 'Copy ID'.\nIf you don't see this option, please [enable Developer Mode](<https://www.howtogeek.com/714348/how-to-enable-or-disable-developer-mode-on-discord/>) in your Discord settings."
         ),
       ],
     });
