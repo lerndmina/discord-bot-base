@@ -52,7 +52,7 @@ const AttachmentBlocker = new Schema({
   },
   timeoutDuration: {
     type: Number,
-    default: 5 * 60 * 1000, // 5 minutes
+    default: 0,
   },
 });
 
