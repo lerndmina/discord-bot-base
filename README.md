@@ -12,6 +12,11 @@ This bot relies on two key dependencies: FFmpeg and Redis.
 
 2. **Redis**: This is an open-source, in-memory data structure store, used as a database, cache, and message broker. The bot uses Redis for tasks related to data storage and retrieval. To install Redis, you can follow the instructions on the [official Redis website](https://redis.io/download). Once installed, you should set the `REDIS_URL` environment variable to the URL of your Redis server.
 
+3. **Bun**: This bot uses [Bun](https://bun.sh/) as a package manager. Install from [here](https://bun.sh/).
+
+4. **Node.js**: This bot is built using Node.js, a JavaScript runtime built on Chrome's V8 JavaScript engine. You can download Node.js from the [official Node.js website](https://nodejs.org/). The bot requires Node.js version 16 or higher. Authough we are using Bun we still require Node.js to run the bot.
+
+
 Please ensure that both FFmpeg and Redis are correctly installed and configured before running the bot. The bot will not function correctly without these dependencies.
 
 ## Installation
@@ -22,7 +27,7 @@ git clone https://github.com/lerndmina/discord.js-Bot.git
 
 Install dependencies:
 ```bash
-yarn install
+bun install
 ```
 
 Copy the `.env.example` file to `.env` and fill in the provided variables.
@@ -32,7 +37,7 @@ cp .env.example .env
 
 Start the bot
 ```bash
-yarn start
+bun start
 ```
 
 ## Usage
