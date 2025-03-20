@@ -22,6 +22,7 @@ export default function () {
     DEBUG_LOG: boolean;
     MODMAIL_TABLE: string;
     DEFAULT_TIMEZONE: string;
+    STAFF_ROLE: string;
   } = {
     BOT_TOKEN: process.env.BOT_TOKEN || "",
     OWNER_IDS: (process.env.OWNER_IDS || "").split(","),
@@ -34,6 +35,7 @@ export default function () {
     DEBUG_LOG: process.env.DEBUG_LOG === "true",
     MODMAIL_TABLE: process.env.MODMAIL_TABLE || "",
     DEFAULT_TIMEZONE: process.env.DEFAULT_TIMEZONE || "Europe/London",
+    STAFF_ROLE: process.env.STAFF_ROLE || OPTIONAL_STRING,
   };
 
   var missingKeys: string[] = [];
@@ -47,11 +49,11 @@ export default function () {
     }
     if (env[key as keyof typeof env] === OPTIONAL_STRING) {
       if (accessedCount > 0) continue;
-      log.warn(`Env ${key} is optional and is not set.`);
+      console.warn(`Env ${key} is optional and is not set.`);
     }
   }
   if (missingKeys.length > 0) {
-    log.error(`ENV ${missingKeys.join(", ")} are missing and are required.`);
+    console.error(`ENV ${missingKeys.join(", ")} are missing and are required.`);
     process.exit(1);
   }
 
@@ -61,7 +63,7 @@ export default function () {
     const snowflake = SnowflakeUtil.deconstruct(id);
     if (snowflake.timestamp < DISCORD_EPOCH) {
       // Discord Epoch (2015-01-01)
-      log.error(`Env TEST_SERVERS contains an invalid snowflake: ${id}`);
+      console.error(`Env TEST_SERVERS contains an invalid snowflake: ${id}`);
       process.exit(1);
     }
   });
@@ -70,7 +72,7 @@ export default function () {
     const snowflake = SnowflakeUtil.deconstruct(id);
     if (snowflake.timestamp < DISCORD_EPOCH) {
       // Discord Epoch (2015-01-01)
-      log.error(`Env OWNER_IDS contains an invalid snowflake: ${id}`);
+      console.error(`Env OWNER_IDS contains an invalid snowflake: ${id}`);
       process.exit(1);
     }
   });
