@@ -37,6 +37,7 @@ import { Url } from "url";
 import FetchEnvs from "../../utils/FetchEnvs";
 import { debug } from "console";
 import log from "../../utils/log";
+import { tryCatch } from "../../utils/trycatch";
 const env = FetchEnvs();
 
 const MAX_TITLE_LENGTH = 50;
@@ -237,21 +238,40 @@ async function newModmail(
       const channel = (await getter.getChannel(channelId)) as unknown as ForumChannel; // TODO: This is unsafe
       const threads = channel.threads;
       const noMentionsMessage = removeMentions(message.content);
-      const thread = await threads.create({
-        name: `${
-          noMentionsMessage.length >= MAX_TITLE_LENGTH
-            ? `${noMentionsMessage.slice(0, MAX_TITLE_LENGTH)}...`
-            : noMentionsMessage
-        } - ${memberName}`,
-        autoArchiveDuration: ThreadAutoArchiveDuration.OneWeek,
-        message: {
-          content: `Modmail thread for ${memberName} | ${
-            i.user.id
-          }\n\n Original message: ${noMentionsMessage}${
-            member.pending ? "\n\nUser has not fully joined the guild." : ""
-          }`,
-        },
-      });
+      const { data: thread, error: threadCreateError } = await tryCatch(
+        threads.create({
+          name: `${
+            noMentionsMessage.length >= MAX_TITLE_LENGTH
+              ? `${noMentionsMessage.slice(0, MAX_TITLE_LENGTH)}...`
+              : noMentionsMessage
+          } - ${memberName}`,
+          autoArchiveDuration: ThreadAutoArchiveDuration.OneWeek,
+          message: {
+            content: `Modmail thread for ${memberName} | ${
+              i.user.id
+            }\n\n Original message: ${noMentionsMessage}${
+              member.pending ? "\n\nUser has not fully joined the guild." : ""
+            }`,
+          },
+        })
+      );
+
+      if (threadCreateError) {
+        log.error(threadCreateError);
+        return reply.edit({
+          content: "",
+          embeds: [
+            BasicEmbed(
+              client,
+              "Modmail",
+              `An error occured while trying to create a modmail thread. Please contact the bot developer. I've logged the error for them.\n\nHere's the error: \`\`\`${threadCreateError}\`\`\``,
+              undefined,
+              "Red"
+            ),
+          ],
+          components: [],
+        });
+      }
 
       const webhook = await channel.createWebhook({
         name: memberName,
