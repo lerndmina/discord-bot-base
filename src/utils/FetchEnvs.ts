@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 import log from "./log";
 dotenv.config();
 
-const OPTIONAL_STRING = "optional";
+export const DEFAULT_OPTIONAL_STRING = "optional";
 
 var accessedCount = 0;
 
@@ -35,7 +35,7 @@ export default function () {
     DEBUG_LOG: process.env.DEBUG_LOG === "true",
     MODMAIL_TABLE: process.env.MODMAIL_TABLE || "",
     DEFAULT_TIMEZONE: process.env.DEFAULT_TIMEZONE || "Europe/London",
-    STAFF_ROLE: process.env.STAFF_ROLE || OPTIONAL_STRING,
+    STAFF_ROLE: process.env.STAFF_ROLE || DEFAULT_OPTIONAL_STRING,
   };
 
   var missingKeys: string[] = [];
@@ -47,7 +47,7 @@ export default function () {
     ) {
       missingKeys.push(key);
     }
-    if (env[key as keyof typeof env] === OPTIONAL_STRING) {
+    if (env[key as keyof typeof env] === DEFAULT_OPTIONAL_STRING) {
       if (accessedCount > 0) continue;
       console.warn(`Env ${key} is optional and is not set.`);
     }
