@@ -78,7 +78,7 @@ export default async (message: Message, client: Client<true>) => {
     const nowMs = Date.now();
     const nowSeconds = Math.floor(nowMs / 1000);
     const deleteInSeconds = 15;
-    const deleteTimeInFutureSeconds = nowSeconds + (deleteInSeconds - 1); // Subtract 1 second for delays when deleting the message
+    const deleteTimeInFutureSeconds = nowSeconds + deleteInSeconds;
 
     replyString =
       replyString + `\n\nThis message will be deleted <t:${deleteTimeInFutureSeconds}:R>.`;
@@ -87,7 +87,7 @@ export default async (message: Message, client: Client<true>) => {
       embeds: [embed],
       allowedMentions: { repliedUser: true, parse: [] },
     });
-    await sleep(1000 * deleteInSeconds);
+    await sleep(1000 * deleteInSeconds - 1000); // Delete one second early
     try {
       await sentMessage.delete();
     } catch (error) {
