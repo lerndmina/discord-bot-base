@@ -23,25 +23,26 @@ const log = Object.assign(
   },
   {
     info: (...args: unknown[]) => {
-      console.log(
+      console.info(
         `${colors.dim}[${formatTime()}]${colors.reset} ${colors.info}[INFO]${
           colors.reset
         } ${formatMessage(...args)}`
       );
     },
     warn: (...args: unknown[]) => {
-      console.log(
+      console.warn(
         `${colors.dim}[${formatTime()}]${colors.reset} ${colors.warn}[WARN]${
           colors.reset
         } ${formatMessage(...args)}`
       );
     },
     error: (...args: unknown[]) => {
-      console.log(
+      console.error(
         `${colors.dim}[${formatTime()}]${colors.reset} ${colors.error}[ERROR]${
           colors.reset
-        } ${formatMessage(...args)}`
+        } ${formatMessage(...args)}\n\nDetailed Error Duplicated Below`
       );
+      console.error(args);
     },
     debug: (...args: unknown[]) => {
       if (process.env.DEBUG_LOG !== "true") return;
