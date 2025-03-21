@@ -1,11 +1,11 @@
 import { Message, Client, ChannelType } from "discord.js";
 import Database from "../../utils/data/database";
-import { ThingGetter, debugMsg } from "../../utils/TinyUtils";
+import { ThingGetter, debugMsg, sleep } from "../../utils/TinyUtils";
 import RoleButtons from "../../models/RoleButtons";
 import DontAtMeRole from "../../models/DontAtMeRole";
 import BasicEmbed from "../../utils/BasicEmbed";
 
-import fetchEnvs from "../../utils/FetchEnvs";
+import fetchEnvs, { DEFAULT_OPTIONAL_STRING } from "../../utils/FetchEnvs";
 import { redisClient } from "../../Bot";
 import { debug, error } from "console";
 import log from "../../utils/log";
@@ -21,20 +21,18 @@ export default async (message: Message, client: Client<true>) => {
   if (message.author.bot) return;
   if (message.mentions.users.size < 1) return;
   if (message.channel.type === ChannelType.DM) return;
-  if (message.mentions.users.has(message.author.id) && message.mentions.users.size === 1) return;
+  // if (message.mentions.users.has(message.author.id) && message.mentions.users.size === 1) return; // !Commented out for debugging purposes
 
   const db = new Database();
   const guildId = message.guild!.id; // This is safe because we check for DMs above
   const fetchedRole = await db.findOne(DontAtMeRole, { guildId: guildId }, true);
   debugMsg(`Fetched role ${fetchedRole}`);
-
-  // If the role is not found, we can safely assume that the feature is not enabled so we cache this for faster response times
   if (!fetchedRole) {
-    redisClient.set("DontAtMeRole:guildId:" + guildId, "false");
+    debugMsg({ message: "No Dont @ Me Role found", guildId });
     return false;
   }
 
-  const roleId = fetchedRole.roleId;
+  const dontAtMeRoleId = fetchedRole.roleId;
   const getter = new ThingGetter(client);
   debugMsg(`Getting guild ${guildId}`);
   const guild = await getter.getGuild(guildId);
@@ -42,29 +40,58 @@ export default async (message: Message, client: Client<true>) => {
     log.error("Guild not found " + guildId);
     return false;
   }
-  const role = guild.roles.cache.get(roleId);
+  const dontAtMeRole = await getter.getRole(guild, dontAtMeRoleId);
 
-  if (!role) {
-    log.info("Don't @ Me Role is setup but not found " + roleId);
+  if (!dontAtMeRole) {
+    log.info("Don't @ Me Role is setup but not found " + dontAtMeRoleId);
     return false;
   }
-  var hasRole = false;
-  message.mentions.users.forEach((user) => {
-    const member = guild.members.cache.get(user.id);
-    if (!member) return;
-    if (member.roles.cache.has(roleId)) {
+  var isUserImmune = false;
+  var isStaffMentioned = false;
+  await message.mentions.users.forEach(async (user) => {
+    const mentionMember = await getter.getMember(guild, user.id);
+    const authorMember = await getter.getMember(guild, message.author.id);
+    if (!mentionMember) return;
+    if (mentionMember.roles.cache.has(dontAtMeRoleId)) {
       if (env.OWNER_IDS.includes(message.author.id)) {
-        message.react("<:pepewtf:1183908617871700078>");
-        return;
+        isUserImmune = true;
+        debugMsg({ message: "Owner is immune to dontatmerole", userId: message.author.id });
+      } else if (authorMember && authorMember.roles.cache.has(env.STAFF_ROLE)) {
+        isUserImmune = true;
+        debugMsg({ message: "Staff are immune to dontatmerole", userId: message.author.id });
       }
-      hasRole = true;
+      if (mentionMember.roles.cache.has(env.STAFF_ROLE)) {
+        isStaffMentioned = true;
+        debugMsg({ message: "Staff are mentioned", userId: user.id });
+      }
     }
   });
-  if (!hasRole) return;
-  message.reply({
-    embeds: [
-      BasicEmbed(client, "Hey!", `Please don't mention users who have the <@&${roleId}> role!`),
-    ],
-  });
-  return true;
+  if (isUserImmune) return;
+  else {
+    let replyString = `Hey there!\n\nOne of the users mentioned in your message have requested not to be mentioned. Please respect their wishes and avoid mentioning them in the future.`;
+    if (env.STAFF_ROLE !== DEFAULT_OPTIONAL_STRING && isStaffMentioned) {
+      replyString =
+        replyString +
+        `\n\n👀 Oop! Looks like you mentioned a staff member. If you need help, please DM this bot to open a modmail ticket. Thank you!`;
+    }
+
+    const nowMs = Date.now();
+    const nowSeconds = Math.floor(nowMs / 1000);
+    const deleteInSeconds = 15;
+    const deleteTimeInFutureSeconds = nowSeconds + (deleteInSeconds - 1); // Subtract 1 second for delays when deleting the message
+
+    replyString =
+      replyString + `\n\nThis message will be deleted <t:${deleteTimeInFutureSeconds}:R>.`;
+    const embed = BasicEmbed(client, "Dont @ Me", replyString);
+    const sentMessage = await message.reply({
+      embeds: [embed],
+      allowedMentions: { repliedUser: true, parse: [] },
+    });
+    await sleep(1000 * deleteInSeconds);
+    try {
+      await sentMessage.delete();
+    } catch (error) {
+      log.error({ message: "Error deleting dont @ me message", error });
+    }
+  }
 };
