@@ -47,21 +47,27 @@ export default async function (message: Message, client: Client<true>) {
   if (message.author.bot) return;
   const user = message.author;
 
-  try {
-    if (message.guildId) {
-      if (message.channel instanceof ThreadChannel) {
-        if (isVoiceMessage(message)) {
-          message.reply("I don't support voice messages in modmail threads.");
-          return;
-        }
+  const { data, error } = await tryCatch(
+    (async () => {
+      if (message.guildId) {
+        if (message.channel instanceof ThreadChannel) {
+          if (isVoiceMessage(message)) {
+            await message.reply("I don't support voice messages in modmail threads.");
+            return;
+          }
 
-        await handleReply(message, client, user);
+          await handleReply(message, client, user);
+        }
+      } else {
+        await handleDM(message, client, user);
       }
-    } else {
-      await handleDM(message, client, user);
-    }
-  } catch (error) {
-    message.reply({
+
+      return { data: "Success" };
+    })()
+  );
+
+  if (error) {
+    await message.reply({
       embeds: [
         BasicEmbed(
           client,
@@ -72,7 +78,7 @@ export default async function (message: Message, client: Client<true>) {
         ),
       ],
     });
-    log.error(error as string);
+    log.error(error);
   }
 }
 
