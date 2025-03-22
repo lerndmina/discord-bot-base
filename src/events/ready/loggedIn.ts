@@ -13,7 +13,7 @@ export default async (c: Client<true>, client: Client<true>, handler: CommandKit
   log(`Logged in as ${client.user?.tag}`);
 
   const db = new Database();
-  const settings = (await db.findOne(Settings, { botId: client.user?.id }, false)) as SettingsType;
+  const settings = (await db.findOne(Settings, { botId: client.user?.id }, true)) as SettingsType;
 
   if (settings && settings.activityText) {
     debugMsg(`Setting activity to ${settings.activityText} with type ${settings.activityType}`);
