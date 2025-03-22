@@ -104,6 +104,17 @@ async function checkMentionedUsers(
   let doesMentionHaveRole = false;
   let isStaffMentioned = false;
 
+  // Get the replied user ID if this is a reply
+  let repliedUserId: string = "";
+  if (message.type === MessageType.Reply && message.reference?.messageId) {
+    try {
+      const repliedMessage = await message.channel.messages.fetch(message.reference.messageId);
+      repliedUserId = repliedMessage?.author.id;
+    } catch (error) {
+      log.error({ message: "Error fetching replied message", error });
+    }
+  }
+
   // Get the author's member object to check for staff role
   const authorMember = await getter.getMember(guild, message.author.id);
   const isAuthorStaff = authorMember?.roles.cache.has(env.STAFF_ROLE) || false;
@@ -111,6 +122,12 @@ async function checkMentionedUsers(
 
   // Check all mentioned users
   for (const [userId, user] of message.mentions.users) {
+    // Skip the replied user if this is a reply (Discord adds them automatically)
+    if (repliedUserId.length > 0 && userId === repliedUserId) {
+      debugMsg({ message: "Skipping replied user", userId });
+      continue;
+    }
+
     const mentionMember = await getter.getMember(guild, userId);
     if (!mentionMember) continue;
 
