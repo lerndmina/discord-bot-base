@@ -82,6 +82,7 @@ export const data = new SlashCommandBuilder()
 export const options: CommandOptions = {
   devOnly: true,
   deleted: false,
+  userPermissions: ["ManageMessages"],
 };
 
 export async function run({ interaction, client, handler }: SlashCommandProps) {
@@ -142,6 +143,7 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
       const serverName = interaction.options.getString("server-name")!;
       const server = await db.findOne(McServerStatus, { id: serverName.toLowerCase() });
       if (!server) return "Server not found";
+      setCommandCooldown(globalCooldownKey(interaction.commandName), 120);
       const { data: serverData, error } = await tryCatch(pingMcServer(server));
       if (error) return error.message;
       return {
