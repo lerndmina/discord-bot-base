@@ -1,4 +1,4 @@
-import { Message, Client, ChannelType } from "discord.js";
+import { Message, Client, ChannelType, MessageType } from "discord.js";
 import Database from "../../utils/data/database";
 import { ThingGetter, debugMsg, sleep } from "../../utils/TinyUtils";
 import RoleButtons from "../../models/RoleButtons";
@@ -21,7 +21,8 @@ export default async (message: Message, client: Client<true>) => {
   if (message.author.bot) return;
   if (message.mentions.users.size < 1) return;
   if (message.channel.type === ChannelType.DM) return;
-  // if (message.mentions.users.has(message.author.id) && message.mentions.users.size === 1) return; // !Commented out for debugging purposes
+  if (message.mentions.users.has(message.author.id) && message.mentions.users.size === 1) return;
+  if (message.type === MessageType.Reply && message.mentions.users.size === 1) return;
 
   const db = new Database();
   const guildId = message.guild!.id; // This is safe because we check for DMs above
