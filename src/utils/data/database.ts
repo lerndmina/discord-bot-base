@@ -89,11 +89,14 @@ export default class Database {
       await redisClient.set(redisKey, JSON.stringify(data));
       await redisClient.expire(redisKey, cacheTime);
       if (env.DEBUG_LOG) debugMsg(`DB - find - Time taken: ${Date.now() - start!}ms`);
-      return data as T[];
+      // Ensure we always return an array
+      return Array.isArray(data) ? (data as T[]) : [data as T];
     }
     debugMsg(`Cache hit: ${redisKey} -> ${data}`);
     if (env.DEBUG_LOG) debugMsg(`DB - find - Time taken: ${Date.now() - start!}ms`);
-    return JSON.parse(data) as T[];
+    // Parse the data and ensure it's always an array
+    const parsedData = JSON.parse(data);
+    return Array.isArray(parsedData) ? (parsedData as T[]) : [parsedData as T];
   }
 
   /**
