@@ -16,6 +16,7 @@ import BasicEmbed from "../../utils/BasicEmbed";
 import ButtonWrapper from "../../utils/ButtonWrapper";
 import { DELETEME_BUTTON_PREFIX } from "../../events/interactionCreate/deleteMeButton";
 import { tryCatch } from "../../utils/trycatch";
+import log from "../../utils/log";
 
 export const data = new SlashCommandBuilder()
   .setName("attachmentblocker")
@@ -145,7 +146,12 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
       );
     }
 
-    tryCatch(setOrRemovePerms(channel, true));
+    const { data: _, error: permError } = await tryCatch(setOrRemovePerms(channel, true));
+    if (permError) {
+      log.error("Error setting permissions for attachment blocker:");
+      log.error(permError);
+    }
+
     return interaction.editReply({
       content: "",
       embeds: [
