@@ -1,4 +1,10 @@
-import { ButtonBuilder, ButtonStyle, GuildTextBasedChannel, SlashCommandBuilder } from "discord.js";
+import {
+  ButtonBuilder,
+  ButtonStyle,
+  GuildTextBasedChannel,
+  SlashCommandBuilder,
+  TextChannel,
+} from "discord.js";
 import { CommandOptions, SlashCommandProps } from "commandkit";
 import AttachmentBlocker, {
   AttachmentType,
@@ -9,6 +15,7 @@ import { waitingEmoji } from "../../Bot";
 import BasicEmbed from "../../utils/BasicEmbed";
 import ButtonWrapper from "../../utils/ButtonWrapper";
 import { DELETEME_BUTTON_PREFIX } from "../../events/interactionCreate/deleteMeButton";
+import { tryCatch } from "../../utils/trycatch";
 
 export const data = new SlashCommandBuilder()
   .setName("attachmentblocker")
@@ -48,7 +55,7 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
 
   try {
     const channel = (interaction.options.getChannel("channel") ||
-      interaction.channel) as GuildTextBasedChannel;
+      interaction.channel) as TextChannel;
 
     const db = new Database();
 
@@ -64,6 +71,7 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
     // Handle clear option first
     if (interaction.options.getBoolean("clear")) {
       await db.findOneAndDelete(AttachmentBlocker, { channelId: channel.id });
+      tryCatch(setOrRemovePerms(channel, false));
       return interaction.editReply({
         content: "",
         embeds: [
@@ -92,7 +100,7 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
       channelId: channel.id,
     });
 
-    let result;
+    let result: AttachmentBlockerType | null;
     if (existingConfig) {
       // Update existing configuration
       let attachmentTypes = [...existingConfig.attachmentTypes];
@@ -137,6 +145,7 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
       );
     }
 
+    tryCatch(setOrRemovePerms(channel, true));
     return interaction.editReply({
       content: "",
       embeds: [
@@ -147,9 +156,7 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
           [
             {
               name: "Configuration",
-              value: `**Mode:** ${result?.blockType}\n**Types:** ${result?.attachmentTypes.join(
-                ", "
-              )}`,
+              value: `**Mode:** Whitelist\n**Types:** ${result?.attachmentTypes.join(", ")}`,
               inline: false,
             },
           ]
@@ -163,4 +170,15 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
       content: "An error occurred while configuring attachment blocking. Please try again.",
     });
   }
+}
+
+/**
+ *
+ * @param channel The TextChannel to set or remove permissions for
+ * @param allow Whether to allow or remove permissions
+ */
+async function setOrRemovePerms(channel: TextChannel, allow: boolean) {
+  channel.permissionOverwrites.edit(channel.guild.roles.everyone, {
+    AttachFiles: allow,
+  });
 }
