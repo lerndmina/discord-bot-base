@@ -81,7 +81,7 @@ export const data = new SlashCommandBuilder()
 
 export const options: CommandOptions = {
   devOnly: true,
-  deleted: false,
+  deleted: true,
   userPermissions: ["ManageMessages"],
 };
 
