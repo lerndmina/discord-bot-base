@@ -50,18 +50,19 @@ export const Start = async () => {
  * @description Random funny bot messages for a footer.
  */
 export const BOT_MESSAGES: string[] = [
-  "Got Kleptomania? Take something for it!",
-  "while (!asleep()) sheep++;",
-  "Took an hour to bury the cat... damn thing kept moving.",
-  "Apart from that Mrs Kennedy, how was the parade?",
-  "No sense being pessimistic. It wouldn't work anyway.",
-  "I'm not a complete idiot, some parts are missing.",
-  "In nuclear warfare all men are cremated equal.",
-  "If idiots could fly, this place would be an airport!",
-  "If ignorance is bliss, you must be orgasmic.",
-  "File not found. Should I fake it? (Y/N)",
-  "A wok is what you throw at a wabbit.",
-  "Never play leap-frog with a unicorn!",
+  "To contact the staff team, DM this bot and I'll open a ticket for you.",
+  // "Got Kleptomania? Take something for it!",
+  // "while (!asleep()) sheep++;",
+  // "Took an hour to bury the cat... damn thing kept moving.",
+  // "Apart from that Mrs Kennedy, how was the parade?",
+  // "No sense being pessimistic. It wouldn't work anyway.",
+  // "I'm not a complete idiot, some parts are missing.",
+  // "In nuclear warfare all men are cremated equal.",
+  // "If idiots could fly, this place would be an airport!",
+  // "If ignorance is bliss, you must be orgasmic.",
+  // "File not found. Should I fake it? (Y/N)",
+  // "A wok is what you throw at a wabbit.",
+  // "Never play leap-frog with a unicorn!",
 ];
 
 export const ROLE_BUTTON_PREFIX = "roleGive-";
