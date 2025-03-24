@@ -226,6 +226,6 @@ async function listTags(
 
 function cleanCacheForGuild(guildId: string): Promise<Array<any>> {
   const db = new Database();
-  const cleaned = db.cleanCache(`${env.MONGODB_DATABASE}:TagSchema:guildId:${guildId}`);
+  const cleaned = db.cleanCache(db.getCacheKeys(TagSchema, `guildId:${guildId}`));
   return cleaned;
 }

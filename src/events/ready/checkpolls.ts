@@ -18,7 +18,7 @@ export default async (c: Client<true>, client: Client<true>, handler: CommandKit
   await sleep(500);
 
   const db = new Database();
-  db.cleanCache(`${env.MONGODB_DATABASE}:Polls:*`);
+  db.cleanCache(db.getCacheKeys(PollsSchema, `*`));
   const getter = new ThingGetter(client);
   const polls = await PollsSchema.find();
   if (!polls) return log.info("No polls found in the database.");
