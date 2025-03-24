@@ -25,8 +25,8 @@ export default function () {
     STAFF_ROLE: string;
   } = {
     BOT_TOKEN: process.env.BOT_TOKEN || "",
-    OWNER_IDS: (process.env.OWNER_IDS || "").split(","),
-    TEST_SERVERS: (process.env.TEST_SERVERS || "").split(","),
+    OWNER_IDS: (process.env.OWNER_IDS || "").trim().split(","),
+    TEST_SERVERS: (process.env.TEST_SERVERS || "").trim().split(","),
     PREFIX: process.env.PREFIX || "",
     MONGODB_URI: process.env.MONGODB_URI || "",
     MONGODB_DATABASE: process.env.MONGODB_DATABASE || "test",
