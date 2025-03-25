@@ -1,13 +1,15 @@
 FROM oven/bun:latest
 
-# Install FFmpeg
+# Install FFmpeg and Node.js
 RUN apt-get update && \
-  apt-get install -y ffmpeg
+  apt-get install -y ffmpeg curl && \
+  curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
+  apt-get install -y nodejs
 
 # Set the working directory
 WORKDIR /app
 
-# Copy the package.json and bun.lockb files
+# Copy the package.json and bun.lock files
 COPY package.json bun.lock ./
 
 # Install dependencies
