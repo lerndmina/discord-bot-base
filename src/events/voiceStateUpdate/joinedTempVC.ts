@@ -7,12 +7,14 @@ import {
   ButtonBuilder,
   ButtonStyle,
 } from "discord.js";
-import GuildNewVC from "../../models/GuildNewVC";
+import { GuildNewVC } from "../../models/GuildNewVC";
 import ActiveTempChannels from "../../models/ActiveTempChannels";
 import BasicEmbed from "../../utils/BasicEmbed";
 import ButtonWrapper from "../../utils/ButtonWrapper";
 import ms from "ms";
 import log from "../../utils/log";
+import Database from "../../utils/data/database";
+import { redisClient } from "../../Bot";
 
 /**
  *
@@ -24,10 +26,11 @@ import log from "../../utils/log";
 
 export default async (oldState: VoiceState, newState: VoiceState, client: Client<true>) => {
   if (newState.channelId == null) return;
+  const db = new Database();
   const joinedChannelId = newState.channelId;
   const guildId = newState.guild.id;
 
-  const vcList = await GuildNewVC.findOne({ guildID: guildId });
+  const vcList = await db.findOne(GuildNewVC, { guildID: guildId }, true);
 
   if (!vcList) return;
 
@@ -47,9 +50,15 @@ export default async (oldState: VoiceState, newState: VoiceState, client: Client
 
   if (!newState.member) return;
 
+  const channelNumber = await fetchChannelNumber(category.id);
+
+  const newChannelName = vc.useSequentialNames
+    ? `${vc.channelName} #${channelNumber}`
+    : `- ${newState.member.displayName}'s VC`;
+
   try {
     var newChannel = await newState.guild.channels.create({
-      name: `- ${newState.member.displayName}'s VC`,
+      name: newChannelName,
       type: ChannelType.GuildVoice,
       parent: category.id,
       permissionOverwrites: [
@@ -63,6 +72,8 @@ export default async (oldState: VoiceState, newState: VoiceState, client: Client
     });
 
     await newState.setChannel(newChannel);
+
+    setChannelNumberCache(category.id, channelNumber + 1);
 
     const buttons = [
       new ButtonBuilder()
@@ -127,3 +138,22 @@ export default async (oldState: VoiceState, newState: VoiceState, client: Client
     log.error(error as string);
   }
 };
+
+export function getChannelNumberCacheKey(categoryId: string) {
+  return `tempvc-${categoryId}-channelNum`;
+}
+
+export async function fetchChannelNumber(categoryId: string) {
+  const number = redisClient.get(getChannelNumberCacheKey(categoryId));
+
+  if (!number || isNaN(parseInt(number))) {
+    return 1;
+  }
+
+  return parseInt(number);
+}
+
+export async function setChannelNumberCache(categoryId: string, channelNumber?: number) {
+  const currentChannelNumber = channelNumber ? channelNumber : await fetchChannelNumber(categoryId);
+  return redisClient.set(getChannelNumberCacheKey(categoryId), currentChannelNumber.toString());
+}

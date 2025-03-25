@@ -8,10 +8,11 @@ import BasicEmbed from "../../utils/BasicEmbed";
 import { ChannelType } from "discord.js";
 import { Channel } from "diagnostics_channel";
 
-import GuildNewVC from "../../models/GuildNewVC";
+import { GuildNewVC } from "../../models/GuildNewVC";
 import { ThingGetter } from "../../utils/TinyUtils";
 import { CommandData, CommandOptions, CommandProps, SlashCommandProps } from "commandkit";
 import log from "../../utils/log";
+import Database from "../../utils/data/database";
 
 export const data = new SlashCommandBuilder()
   .setName("tempvc")
@@ -30,6 +31,19 @@ export const data = new SlashCommandBuilder()
           .setDescription("What category to put the temp VCs in.")
           .setRequired(true)
           .setMinLength(17)
+      )
+      .addBooleanOption((option) =>
+        option
+          .setName("use-sequential-names")
+          .setDescription("Use sequential names for the temp VCs.")
+          .setRequired(false)
+      )
+      .addStringOption((option) =>
+        option
+          .setName("name")
+          .setDescription("The name of the temp VC if using sequential names.")
+          .setRequired(false)
+          .setMinLength(1)
       );
   })
   .addSubcommand((subcommand) => {
@@ -65,6 +79,8 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
 
   if (subcommand === "create") {
     var channel = i.options.getChannel("channel");
+    const useSequentialNames = i.options.getBoolean("use-sequential-names") as boolean;
+    const channelName = i.options.getString("name") as string;
     if (!channel) return log.error("Channel is missing on a required command option.");
 
     const category = i.options.getString("category") as string;
@@ -79,11 +95,11 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
       return;
     }
 
-    const channelName = "name" in categoryChannel ? categoryChannel.name : "`Name Missing`";
+    const categoryChannelName = "name" in categoryChannel ? categoryChannel.name : "`Name Missing`";
 
     if (categoryChannel.type !== ChannelType.GuildCategory) {
       await i.reply({
-        content: `The channel \`${channelName}\` is not a category.`,
+        content: `The channel \`${categoryChannelName}\` is not a category.`,
         ephemeral: true,
       });
       return;
@@ -92,11 +108,22 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
     // Check if the channel is a voice channel
     if (channel.type !== ChannelType.GuildVoice) {
       await i.reply({
-        content: `The channel \`${channelName}\` is not a voice channel.`,
+        content: `The channel \`${categoryChannelName}\` is not a voice channel.`,
         ephemeral: true,
       });
 
       return;
+    }
+
+    if (useSequentialNames) {
+      // Check if the name is at least 1 character
+      if (channelName.length < 1) {
+        await i.reply({
+          content: `If selecting to use sequential names, you must include a channel name.`,
+          ephemeral: true,
+        });
+        return;
+      }
     }
 
     await i.reply({
@@ -106,14 +133,16 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
     });
 
     try {
-      const vcList = await GuildNewVC.findOne(query);
-
+      const db = new Database();
+      const vcList = await db.findOne(GuildNewVC, query, true);
       if (vcList) {
         vcList.guildChannelIDs.push({
           channelID: channel.id,
           categoryID: category,
+          useSequentialNames,
+          channelName,
         });
-        await vcList.save();
+        await db.findOneAndUpdate(GuildNewVC, query, vcList);
       } else {
         const newVCList = new GuildNewVC({
           guildID: i.guild.id,
@@ -121,10 +150,12 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
             {
               channelID: channel.id,
               categoryID: category,
+              useSequentialNames,
+              channelName,
             },
           ],
         });
-        await newVCList.save();
+        await db.findOneAndUpdate(GuildNewVC, query, newVCList, { upsert: true, new: true });
       }
 
       await i.editReply({

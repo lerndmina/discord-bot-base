@@ -81,7 +81,7 @@ function shouldSkipProcessing(message: Message): boolean {
     (message.mentions.users.has(message.author.id) && message.mentions.users.size === 1) ||
     (message.type === MessageType.Reply && message.mentions.users.size === 1);
   if (bailOut) {
-    debugMsg({ message: "Skipping message", bailOut });
+    debugMsg({ message: "Dontatme: Skipping message", bailOut });
   }
   return bailOut;
 }
