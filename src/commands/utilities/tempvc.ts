@@ -189,7 +189,8 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
     var channel = i.options.getChannel("channel");
     if (!channel) return log.error("Channel is missing on a required command option.");
 
-    const vcList = await GuildNewVC.findOne(query);
+    const db = new Database();
+    const vcList = await db.findOne(GuildNewVC, query, true);
 
     if (!vcList) {
       await i.reply({
@@ -215,7 +216,7 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
 
     try {
       vcList.guildChannelIDs = vcList.guildChannelIDs.filter((vc) => vc.channelID !== channel!.id);
-      await vcList.save();
+      await db.findOneAndUpdate(GuildNewVC, query, vcList);
 
       await i.editReply({
         embeds: [
