@@ -54,7 +54,7 @@ export default async (interaction: MessageComponentInteraction, client: Client<t
         BasicEmbed(
           client,
           "Failed!",
-          `I was unable to send you a DM, please make sure your dms are open!\n\nIf you don't know how to do this, you can check [this video](https://imgur.com/a/IHaidjd)\n\nIf you're still having issues, please contact <@${env.OWNER_IDS[0]}>`,
+          `I was unable to send you a DM, please make sure your dms are open!\n\nIf you don't know how to do this, you can check [this video](https://imgur.com/MmLpnac)\n\nIf you're still having issues, please contact <@${env.OWNER_IDS[0]}>`,
           undefined,
           "DarkRed"
         ),
