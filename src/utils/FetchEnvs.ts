@@ -8,7 +8,7 @@ export const DEFAULT_OPTIONAL_STRING = "optional";
 
 var accessedCount = 0;
 
-export default function () {
+function getter() {
   // Key value array to store the environment variables
   var env: {
     BOT_TOKEN: string;
@@ -79,4 +79,9 @@ export default function () {
 
   accessedCount++;
   return env;
+}
+
+const cachedEnvs = getter();
+export default function () {
+  return cachedEnvs;
 }
