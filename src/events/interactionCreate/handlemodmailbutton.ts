@@ -5,7 +5,7 @@ import {
   EmbedBuilder,
   MessageComponentInteraction,
 } from "discord.js";
-import { MODMAIL_BUTTON_ID } from "../../commands/modmail/modmailbutton";
+import { MODMAIL_BUTTON_ID } from "../../subcommands/modmail/sendbuttonModmail";
 import {
   globalCooldownKey,
   redisClient,

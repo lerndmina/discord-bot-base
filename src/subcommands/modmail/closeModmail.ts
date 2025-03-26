@@ -10,24 +10,7 @@ import FetchEnvs from "../../utils/FetchEnvs";
 
 const env = FetchEnvs();
 
-export const data = new SlashCommandBuilder()
-  .setName("close")
-  .setDescription("Close a modmail thread")
-  .setDMPermission(true)
-  .addStringOption((option) =>
-    option
-      .setName("reason")
-      .setDescription("The reason for closing the modmail thread")
-      .setRequired(false)
-  );
-
-export const options: CommandOptions = {
-  devOnly: false,
-  deleted: false,
-  // userPermissions: ["ManageMessages"],
-};
-
-export async function run({ interaction, client, handler }: SlashCommandProps) {
+export default async function ({ interaction, client, handler }: SlashCommandProps) {
   if (!interaction.channel)
     return log.error("Request made to slash command without required values - close.ts");
 

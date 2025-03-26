@@ -10,26 +10,15 @@ import { globalCooldownKey, setCommandCooldown, waitingEmoji } from "../../Bot";
 import ButtonWrapper from "../../utils/ButtonWrapper";
 import BasicEmbed from "../../utils/BasicEmbed";
 
-export const data = new SlashCommandBuilder()
-  .setName("modmailbutton")
-  .setDescription("Setup buttons to trigger a modmail dm to the user")
-  .addChannelOption((option) =>
-    option
-      .setName("channel")
-      .setDescription("The channel to send the modmail button to")
-      .setRequired(true)
-  )
-  .setDMPermission(false);
-
-export const options: CommandOptions = {
+export const sendModmailButtonOptions: CommandOptions = {
   devOnly: false,
-  deleted: false,
+  deleted: true,
   userPermissions: ["ManageMessages"],
 };
 
 export const MODMAIL_BUTTON_ID = "modmail-button-";
 
-export async function run({ interaction, client, handler }: SlashCommandProps) {
+export default async function ({ interaction, client, handler }: SlashCommandProps) {
   await interaction.reply({ content: waitingEmoji, ephemeral: true });
 
   const channel = interaction.options.getChannel("channel")! as TextChannel;

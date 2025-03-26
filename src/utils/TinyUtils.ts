@@ -366,3 +366,26 @@ export async function fetchWithRedirectCheck(url: URL) {
   }
   return response.url;
 }
+
+/**
+ * - **DATE**: The short date format (e.g. mm/dd/yyyy or dd/mm/yyyy depending on the locale)<br>
+ * - **DATE_TEXT**: The long date format (e.g. DD Month yyyy)
+ * - **TIME**: The short time format (e.g. hh:mm:ss AM/PM or 24-hour time depending on the locale)
+ * - **TIME_FULL**: The long time format (e.g. hh:mm:ss AM/PM or 24-hour time depending on the locale)
+ * - **FULL_SHORT**: DATE_TEXT and the time (e.g. DD Month yyyy hh:mm AM/PM)
+ * - **FULL_LONG**: DATE_TEXT and the short time (e.g. DayWeek DD Month yyyy hh:mm AM/PM)
+ * - **RELATIVE**: A relative time (e.g. 3 hours ago)
+ */
+export enum TimeType {
+  DATE = "d",
+  DATE_TEXT = "D",
+  TIME = "t",
+  TIME_FULL = "T",
+  FULL_SHORT = "f",
+  FULL_LONG = "F",
+  RELATIVE = "R",
+}
+
+export function getDiscordDate(date: Date, type: TimeType): string {
+  return `<t:${Math.floor(new Date(date).getTime() / 1000)}:${type}>`;
+}

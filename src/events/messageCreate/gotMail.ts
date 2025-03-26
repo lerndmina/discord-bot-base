@@ -18,6 +18,7 @@ import {
   Guild,
   ForumChannel,
   Snowflake,
+  EmbedBuilder,
 } from "discord.js";
 import { ButtonBuilder, ButtonStyle, SlashCommandBuilder } from "discord.js";
 import BasicEmbed from "../../utils/BasicEmbed";
@@ -27,10 +28,12 @@ import ButtonWrapper from "../../utils/ButtonWrapper";
 import { redisClient, removeMentions, waitingEmoji } from "../../Bot";
 import {
   debugMsg,
+  getDiscordDate,
   isVoiceMessage,
   postWebhookToThread,
   prepModmailMessage,
   ThingGetter,
+  TimeType,
 } from "../../utils/TinyUtils";
 import Database from "../../utils/data/database";
 import { Url } from "url";
@@ -38,6 +41,7 @@ import FetchEnvs from "../../utils/FetchEnvs";
 import { debug } from "console";
 import log from "../../utils/log";
 import { tryCatch } from "../../utils/trycatch";
+import ModmailBanModel from "../../models/ModmailBans";
 const env = FetchEnvs();
 
 const MAX_TITLE_LENGTH = 50;
@@ -92,6 +96,26 @@ async function handleDM(message: Message, client: Client<true>, user: User) {
   const mail = await db.findOne(Modmail, { userId: user.id }, true);
   const customIds = [`create-${requestId}`, `cancel-${requestId}`];
   if (!mail) {
+    const banned = await db.findOne(ModmailBanModel, { userId: user.id });
+    if (banned) {
+      return message.reply({
+        embeds: [
+          new EmbedBuilder()
+            .setTitle("Modmail")
+            .setDescription(
+              `You are banned from using modmail ${
+                banned.permanent
+                  ? "permanently"
+                  : `until ${getDiscordDate(banned.expiresAt, TimeType.FULL_LONG)}`
+              }.`
+            )
+            .setColor("Red")
+            .setFooter({
+              text: "I'd normally say you can DM me for support. Sucks to be you I guess.",
+            }),
+        ],
+      });
+    }
     await newModmail(customIds, message, finalContent, user, client);
   } else {
     await sendMessage(mail, message, finalContent, client);

@@ -4,31 +4,14 @@ import ModmailConfig from "../../models/ModmailConfig";
 import { CommandOptions, SlashCommandProps } from "commandkit";
 import { waitingEmoji } from "../../Bot";
 
-export const data = new SlashCommandBuilder()
-  .setName("setupmodmail")
-  .setDMPermission(false)
-  .setDescription("Setup modail for this discord server.")
-  .addChannelOption((option) =>
-    option
-      .setName("channel")
-      .setDescription("The forum channel to put the modmail channels in.")
-      .setRequired(true)
-  )
-  .addRoleOption((option) =>
-    option
-      .setName("role")
-      .setDescription("The role to ping when a new modmail is created.")
-      .setRequired(true)
-  );
-
-export const options: CommandOptions = {
+export const setupModmailOptions: CommandOptions = {
   devOnly: false,
-  deleted: false,
+  deleted: true,
   userPermissions: ["ManageChannels", "ManageGuild", "ManageThreads"],
   botPermissions: ["ManageWebhooks", "ManageChannels", "ManageThreads"],
 };
 
-export async function run({ interaction, client, handler }: SlashCommandProps) {
+export default async function ({ interaction, client, handler }: SlashCommandProps) {
   const channel = interaction.options.getChannel("channel")!;
   const role = interaction.options.getRole("role")!;
   if (!(channel instanceof ForumChannel)) {

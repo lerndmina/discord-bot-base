@@ -22,21 +22,13 @@ import ModmailConfig from "../../models/ModmailConfig";
 import Modmail from "../../models/Modmail";
 import FetchEnvs from "../../utils/FetchEnvs";
 
-export const data = new SlashCommandBuilder()
-  .setName("openmodmail")
-  .setDescription("Forces a modmail thread to be opened for a particular user")
-  .addUserOption((option) =>
-    option.setName("user").setDescription("The user to open a modmail thread for").setRequired(true)
-  )
-  .setDMPermission(false);
-
-export const options: CommandOptions = {
+export const openModmailOptions: CommandOptions = {
   devOnly: false,
-  deleted: false,
+  deleted: true,
   userPermissions: ["ManageMessages", "KickMembers", "BanMembers"], // This is a mod command
 };
 
-export async function run({ interaction, client, handler }: SlashCommandProps) {
+export default async function ({ interaction, client, handler }: SlashCommandProps) {
   const guild = interaction.guild;
   if (!guild) return interaction.reply("This command can only be used in a server");
 
