@@ -241,24 +241,34 @@ export function createStatusEmbed(
     { name: "Status", value: data.online ? "Online" : "Offline", inline: true },
   ];
 
+  let isMaintenance = false;
+
   if (data.online) {
     fields.push({
       name: "Players",
       value: `${data.players.online}/${data.players.max}`,
       inline: true,
     });
+    if (data.motd.clean.includes("maintenance")) {
+      isMaintenance = true;
+      fields.push({
+        name: "Maintenance",
+        value: "The server is in maintenance mode.",
+        inline: true,
+      });
+    }
   }
 
   const nowSeconds = Math.floor(Date.now() / 1000);
   const nextUpdate = data.nextPingInSeconds + nowSeconds;
 
   if (dbData.persistData) {
-    fields.push({ name: "Next Update", value: `<t:${nextUpdate}:R>`, inline: true });
+    fields.push({ name: "Next Update", value: `<t:${nextUpdate}:R>`, inline: false });
   }
 
   const embed = new EmbedBuilder()
     .setTitle(`Server Status for ${dbData.serverName}`)
-    .setColor(data.online ? "Green" : "Red")
+    .setColor(data.online ? (isMaintenance ? "DarkOrange" : "Green") : "Red")
     .setDescription(data.online ? data.motd.clean : "Server is offline")
     .setURL(`https://mcstatus.io/status/java/${dbData.serverIp}:${dbData.serverPort}`)
     .setFooter({ text: "Last updated", iconURL: client.user?.displayAvatarURL() })
