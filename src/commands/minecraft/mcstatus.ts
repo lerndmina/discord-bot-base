@@ -249,6 +249,11 @@ export function createStatusEmbed(
       value: `${data.players.online}/${data.players.max}`,
       inline: true,
     });
+    fields.push({
+      name: "Version",
+      value: data.version.name_clean,
+      inline: true,
+    });
     if (data.motd.clean.includes("maintenance")) {
       isMaintenance = true;
       fields.push({
