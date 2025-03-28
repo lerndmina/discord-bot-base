@@ -256,11 +256,6 @@ export function createStatusEmbed(
     });
     if (data.motd.clean.includes("maintenance")) {
       isMaintenance = true;
-      fields.push({
-        name: "Maintenance",
-        value: "The server is in maintenance mode.",
-        inline: true,
-      });
     }
   }
 
