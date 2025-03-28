@@ -23,6 +23,7 @@ function getter() {
     MODMAIL_TABLE: string;
     DEFAULT_TIMEZONE: string;
     STAFF_ROLE: string;
+    OPENAI_API_KEY: string;
   } = {
     BOT_TOKEN: process.env.BOT_TOKEN || "",
     OWNER_IDS: (process.env.OWNER_IDS || "").trim().split(","),
@@ -36,6 +37,7 @@ function getter() {
     MODMAIL_TABLE: process.env.MODMAIL_TABLE || "",
     DEFAULT_TIMEZONE: process.env.DEFAULT_TIMEZONE || "Europe/London",
     STAFF_ROLE: process.env.STAFF_ROLE || DEFAULT_OPTIONAL_STRING,
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY || "",
   };
 
   var missingKeys: string[] = [];
