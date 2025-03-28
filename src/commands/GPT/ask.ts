@@ -30,9 +30,9 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
     return returnMessage(
       interaction,
       client,
-      "Error",
-      "AI integration is not enabled. Please contact the server owner and tell them that env.OPENAI_API_KEY is not set.",
-      { error: true, firstMsg: true }
+      "Disabled",
+      "The AI integration is disabled. If you think this is a mistake, please contact the server owner.",
+      { error: false, firstMsg: true, ephemeral: true }
     );
   }
   await setCommandCooldown(globalCooldownKey(interaction.commandName), 60);

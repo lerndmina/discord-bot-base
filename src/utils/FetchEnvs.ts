@@ -89,6 +89,5 @@ export default function () {
 }
 
 export function isOptionalUnset(key: string) {
-  // Check if the environment variable is optional and not set
-  return cachedEnvs[key as keyof typeof cachedEnvs] === DEFAULT_OPTIONAL_STRING;
+  return key === DEFAULT_OPTIONAL_STRING;
 }

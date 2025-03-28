@@ -22,7 +22,7 @@ import {
   ChannelType,
   GuildTextBasedChannel,
 } from "discord.js";
-import FetchEnvs from "./FetchEnvs";
+import FetchEnvs, { isOptionalUnset } from "./FetchEnvs";
 import BasicEmbed from "./BasicEmbed";
 import { Url } from "url";
 import chalk from "chalk";
@@ -388,4 +388,15 @@ export enum TimeType {
 
 export function getDiscordDate(date: Date, type: TimeType): string {
   return `<t:${Math.floor(new Date(date).getTime() / 1000)}:${type}>`;
+}
+
+export function getOpenaiApiKey() {
+  const env = FetchEnvs();
+  console.log(chalk.yellow("Fetching OpenAI API Key..."));
+  if (isOptionalUnset(env.OPENAI_API_KEY)) {
+    console.log(chalk.red("OpenAI API Key is not set!"));
+    throw new Error("OPENAI_API_KEY is not set");
+  }
+  console.log(chalk.green("OpenAI API Key is set!"));
+  return env.OPENAI_API_KEY;
 }
