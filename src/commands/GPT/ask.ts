@@ -1,7 +1,7 @@
 import { SlashCommandBuilder, Client } from "discord.js";
 import OpenAI from "openai";
 import BasicEmbed from "../../utils/BasicEmbed";
-import FetchEnvs from "../../utils/FetchEnvs";
+import FetchEnvs, { isOptionalUnset } from "../../utils/FetchEnvs";
 import { SlashCommandProps } from "commandkit";
 import systemPrompt from "../../utils/SystemPrompt";
 import ResponsePlugins from "../../utils/ResponsePlugins";
@@ -26,6 +26,15 @@ export const options = {
 };
 
 export async function run({ interaction, client, handler }: SlashCommandProps) {
+  if (isOptionalUnset(env.OPENAI_API_KEY)) {
+    return returnMessage(
+      interaction,
+      client,
+      "Error",
+      "AI integration is not enabled. Please contact the server owner and tell them that env.OPENAI_API_KEY is not set.",
+      { error: true, firstMsg: true }
+    );
+  }
   await setCommandCooldown(globalCooldownKey(interaction.commandName), 60);
   await setCommandCooldown(userCooldownKey(interaction.user.id, interaction.commandName), 300);
   const requestMessage = interaction.options.getString("message");

@@ -37,7 +37,7 @@ function getter() {
     MODMAIL_TABLE: process.env.MODMAIL_TABLE || "",
     DEFAULT_TIMEZONE: process.env.DEFAULT_TIMEZONE || "Europe/London",
     STAFF_ROLE: process.env.STAFF_ROLE || DEFAULT_OPTIONAL_STRING,
-    OPENAI_API_KEY: process.env.OPENAI_API_KEY || "",
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY || DEFAULT_OPTIONAL_STRING,
   };
 
   var missingKeys: string[] = [];
@@ -86,4 +86,9 @@ function getter() {
 const cachedEnvs = getter();
 export default function () {
   return cachedEnvs;
+}
+
+export function isOptionalUnset(key: string) {
+  // Check if the environment variable is optional and not set
+  return cachedEnvs[key as keyof typeof cachedEnvs] === DEFAULT_OPTIONAL_STRING;
 }
