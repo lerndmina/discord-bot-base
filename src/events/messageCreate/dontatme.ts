@@ -175,7 +175,7 @@ async function sendWarningMessage(
 ): Promise<void> {
   // Calculate deletion time
   const nowMs = Date.now();
-  const deleteInSeconds = 15;
+  const deleteInSeconds = 60 * 5;
   const deleteTimeInFutureSeconds = Math.floor(nowMs / 1000) + deleteInSeconds;
 
   // Build the message text
