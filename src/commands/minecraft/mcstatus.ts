@@ -20,6 +20,7 @@ import { beginPersistantLoop, McPingResponse, pingMcServer } from "../../events/
 import log from "../../utils/log";
 import { debugMsg, stripMotdColor, ThingGetter } from "../../utils/TinyUtils";
 import { connect } from "http2";
+import { initialReply } from "../../utils/initialReply";
 
 export const data = new SlashCommandBuilder()
   .setName("mcstatus")
@@ -86,7 +87,7 @@ export const options: CommandOptions = {
 };
 
 export async function run({ interaction, client, handler }: SlashCommandProps) {
-  await interaction.reply({ content: waitingEmoji, ephemeral: true });
+  await initialReply(interaction, true);
 
   const subcommand = interaction.options.getSubcommand();
   const db = new Database();

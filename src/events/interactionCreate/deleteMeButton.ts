@@ -7,6 +7,7 @@ import {
 } from "discord.js";
 import { waitingEmoji } from "../../Bot";
 import { ThingGetter, debugMsg, returnMessage } from "../../utils/TinyUtils";
+import { initialReply } from "../../utils/initialReply";
 
 export const DELETEME_BUTTON_PREFIX = "deleteMe-";
 
@@ -53,7 +54,7 @@ export default async (interaction: MessageComponentInteraction, client: Client<t
     return;
   }
 
-  await interaction.reply({ content: waitingEmoji, ephemeral: true });
+  await initialReply(interaction, true);
   try {
     await interaction.message.delete();
   } catch (error) {

@@ -25,6 +25,7 @@ import { ROLE_BUTTON_PREFIX, globalCooldownKey, setCommandCooldown, waitingEmoji
 import Database from "../../utils/data/database";
 import { CommandOptions, SlashCommandProps } from "commandkit";
 import { ThingGetter, getValidUrl, pastebinUrlToJson } from "../../utils/TinyUtils";
+import { initialReply } from "../../utils/initialReply";
 
 export const data = new SlashCommandBuilder()
   .setName("createrolebutton")
@@ -110,7 +111,7 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
     interaction
       .awaitModalSubmit({ filter, time: 5 * 60 * 1000 })
       .then(async (i: ModalSubmitInteraction) => {
-        await i.reply({ content: waitingEmoji, ephemeral: true });
+        await initialReply(i, true);
 
         const raw = i.fields.getTextInputValue(inputId) as string;
         type ButtonData = {

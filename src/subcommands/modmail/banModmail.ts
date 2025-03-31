@@ -22,7 +22,7 @@ export default async function ({ interaction, client, handler }: SlashCommandPro
   const isPermanent = interaction.options.getBoolean("permanent") || false;
   const reason = interaction.options.getString("reason");
   const getter = new ThingGetter(client);
-  await interaction.reply(waitingEmoji);
+  await 
 
   if (!user || (!durationString && !isPermanent) || !guild || !reason) {
     const missingArgs: string[] = [];

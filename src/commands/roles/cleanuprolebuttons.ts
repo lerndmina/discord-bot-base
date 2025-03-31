@@ -8,6 +8,7 @@ import { CommandOptions, SlashCommandProps } from "commandkit";
 import { UUID } from "crypto";
 import { Channel } from "diagnostics_channel";
 import log from "../../utils/log";
+import { initialReply } from "../../utils/initialReply";
 
 export const data = new SlashCommandBuilder()
   .setName("cleanuprolebuttons")
@@ -29,7 +30,7 @@ export const options: CommandOptions = {
 };
 
 export async function run({ interaction, client, handler }: SlashCommandProps) {
-  await interaction.reply({ content: waitingEmoji, ephemeral: true });
+  await initialReply(interaction, true);
   var cleaned = 0;
 
   var channel = interaction.options.getChannel("channel") as TextBasedChannel | null;

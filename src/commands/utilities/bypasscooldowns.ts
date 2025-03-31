@@ -4,6 +4,7 @@ import { globalCooldownKey, redisClient, setCommandCooldown, waitingEmoji } from
 import ms from "ms";
 import FetchEnvs from "../../utils/FetchEnvs";
 import log from "../../utils/log";
+import { initialReply } from "../../utils/initialReply";
 
 const env = FetchEnvs();
 
@@ -25,7 +26,7 @@ export const options: CommandOptions = {
 };
 
 export async function run({ interaction, client, handler }: SlashCommandProps) {
-  await interaction.reply({ content: waitingEmoji, ephemeral: true });
+  await initialReply(interaction, true);
 
   if (!env.OWNER_IDS.includes(interaction.user.id)) {
     return interaction.editReply("I'm sorry dave, I'm afraid I can't do that.");

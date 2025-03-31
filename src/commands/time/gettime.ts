@@ -3,6 +3,7 @@ import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 import { globalCooldownKey, setCommandCooldown, waitingEmoji } from "../../Bot";
 import ParseTimeFromMessage from "../../utils/ParseTimeFromMessage";
 import BasicEmbed from "../../utils/BasicEmbed";
+import { initialReply } from "../../utils/initialReply";
 
 export const data = new SlashCommandBuilder()
   .setName("gettime")
@@ -21,7 +22,7 @@ export const options: CommandOptions = {
 };
 
 export async function run({ interaction, client, handler }: SlashCommandProps) {
-  await interaction.reply({ content: waitingEmoji, ephemeral: true });
+  await initialReply(interaction, true);
   // setCommandCooldown(globalCooldownKey(interaction.commandName), 15);
 
   const message = interaction.options.getString("time");

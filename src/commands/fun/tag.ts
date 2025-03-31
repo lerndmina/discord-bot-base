@@ -23,6 +23,7 @@ import TagSchema from "../../models/TagSchema";
 import { CommandOptions, SlashCommandProps } from "commandkit";
 import BasicEmbed from "../../utils/BasicEmbed";
 import { env } from "process";
+import { initialReply } from "../../utils/initialReply";
 const COMMAND_NAME = "tag";
 const COMMAND_NAME_TITLE = "Tag";
 
@@ -77,7 +78,7 @@ export const options: CommandOptions = {
 };
 
 export async function run({ interaction, client, handler }: SlashCommandProps) {
-  await interaction.reply({ content: waitingEmoji, ephemeral: true });
+  await initialReply(interaction, true);
   const name = interaction.options.getString("name")?.toLowerCase();
   const content = interaction.options.getString("content");
   const user = interaction.options.getUser("user");

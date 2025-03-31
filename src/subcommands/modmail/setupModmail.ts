@@ -3,6 +3,7 @@ import BasicEmbed from "../../utils/BasicEmbed";
 import ModmailConfig from "../../models/ModmailConfig";
 import { CommandOptions, SlashCommandProps } from "commandkit";
 import { waitingEmoji } from "../../Bot";
+import { initialReply } from "../../utils/initialReply";
 
 export const setupModmailOptions: CommandOptions = {
   devOnly: false,
@@ -23,7 +24,7 @@ export default async function ({ interaction, client, handler }: SlashCommandPro
     });
   }
 
-  await interaction.reply({ content: waitingEmoji, ephemeral: true });
+  await initialReply(interaction, true);
 
   if (!interaction.guild)
     return interaction.editReply("‼️ Error, somehow this command was ran in a DM?");

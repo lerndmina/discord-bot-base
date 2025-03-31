@@ -11,6 +11,7 @@ import { ROLE_BUTTON_PREFIX, waitingEmoji } from "../../Bot";
 import Database from "../../utils/data/database";
 import { debugMsg } from "../../utils/TinyUtils";
 import FetchEnvs from "../../utils/FetchEnvs";
+import { initialReply } from "../../utils/initialReply";
 const env = FetchEnvs();
 
 /**
@@ -23,7 +24,7 @@ export default async (interaction: MessageComponentInteraction, client: Client) 
   if (interaction.type !== InteractionType.MessageComponent) return;
   if (!interaction.guild) return;
   if (!interaction.customId.startsWith(ROLE_BUTTON_PREFIX)) return;
-  await interaction.reply({ content: waitingEmoji, ephemeral: true });
+  await initialReply(interaction, true);
 
   const parts = interaction.customId.split("-");
   const uuid = parts.slice(1).join("-");

@@ -9,6 +9,7 @@ import {
 import { globalCooldownKey, setCommandCooldown, waitingEmoji } from "../../Bot";
 import ButtonWrapper from "../../utils/ButtonWrapper";
 import BasicEmbed from "../../utils/BasicEmbed";
+import { initialReply } from "../../utils/initialReply";
 
 export const sendModmailButtonOptions: CommandOptions = {
   devOnly: false,
@@ -19,7 +20,7 @@ export const sendModmailButtonOptions: CommandOptions = {
 export const MODMAIL_BUTTON_ID = "modmail-button-";
 
 export default async function ({ interaction, client, handler }: SlashCommandProps) {
-  await interaction.reply({ content: waitingEmoji, ephemeral: true });
+  await initialReply(interaction, true);
 
   const channel = interaction.options.getChannel("channel")! as TextChannel;
 

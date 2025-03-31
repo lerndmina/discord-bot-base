@@ -17,6 +17,7 @@ import ButtonWrapper from "../../utils/ButtonWrapper";
 import { DELETEME_BUTTON_PREFIX } from "../../events/interactionCreate/deleteMeButton";
 import { tryCatch } from "../../utils/trycatch";
 import log from "../../utils/log";
+import { initialReply } from "../../utils/initialReply";
 
 export const data = new SlashCommandBuilder()
   .setName("attachmentblocker")
@@ -52,7 +53,7 @@ export const options: CommandOptions = {
 };
 
 export async function run({ interaction, client, handler }: SlashCommandProps) {
-  const interactionMessage = await interaction.reply({ content: waitingEmoji, ephemeral: false });
+  const interactionMessage = await initialReply(interaction, false);
 
   try {
     const channel = (interaction.options.getChannel("channel") ||

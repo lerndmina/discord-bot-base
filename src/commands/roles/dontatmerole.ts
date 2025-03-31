@@ -10,6 +10,7 @@ import DontAtMeRole from "../../models/DontAtMeRole";
 import { waitingEmoji } from "../../Bot";
 import BasicEmbed from "../../utils/BasicEmbed";
 import { CommandOptions, SlashCommandProps } from "commandkit";
+import { initialReply } from "../../utils/initialReply";
 
 export const data = new SlashCommandBuilder()
   .setName("dontatmerole")
@@ -49,7 +50,7 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
     return;
   }
 
-  await interaction.reply({ content: waitingEmoji, ephemeral: true });
+  await initialReply(interaction, true);
 
   if (remove) removeRole(client, interaction);
   else setDontAtMeRole(client, interaction, role);

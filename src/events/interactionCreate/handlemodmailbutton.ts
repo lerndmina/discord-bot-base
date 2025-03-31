@@ -18,13 +18,14 @@ import { debugMsg } from "../../utils/TinyUtils";
 import BasicEmbed from "../../utils/BasicEmbed";
 import FetchEnvs from "../../utils/FetchEnvs";
 import ButtonWrapper from "../../utils/ButtonWrapper";
+import { initialReply } from "../../utils/initialReply";
 
 export default async (interaction: MessageComponentInteraction, client: Client<true>) => {
   if (!interaction.customId) return;
   if (!interaction.isButton()) return;
   if (!interaction.customId.startsWith(MODMAIL_BUTTON_ID)) return;
 
-  await interaction.reply({ content: waitingEmoji, ephemeral: true });
+  await initialReply(interaction, true);
 
   const cooldownSeconds = await getCooldown(
     userCooldownKey(interaction.user.id, MODMAIL_BUTTON_ID)

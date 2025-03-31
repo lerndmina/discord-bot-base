@@ -29,7 +29,7 @@ export default async function ({ interaction, client, handler }: SlashCommandPro
     });
   }
 
-  await interaction.reply(waitingEmoji);
+  await 
 
   const forumThread = (await getter.getChannel(mail.forumThreadId)) as ThreadChannel;
   try {
