@@ -358,7 +358,7 @@ export default async function healthCheck(data: { client: Client<true>; handler:
                 <p class="timestamp">Last updated: ${new Date().toLocaleString()}</p>
               </div>
 
-              ${scriptContent};
+              ${scriptContent}
             </body>
           </html>
         `;
