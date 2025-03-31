@@ -7,6 +7,7 @@ import Database from "../../utils/data/database";
 import { CommandOptions, SlashCommandProps } from "commandkit";
 import log from "../../utils/log";
 import FetchEnvs from "../../utils/FetchEnvs";
+import { initialReply } from "../../utils/initialReply";
 
 const env = FetchEnvs();
 
@@ -29,7 +30,7 @@ export default async function ({ interaction, client, handler }: SlashCommandPro
     });
   }
 
-  await 
+  await initialReply(interaction, true);
 
   const forumThread = (await getter.getChannel(mail.forumThreadId)) as ThreadChannel;
   try {
