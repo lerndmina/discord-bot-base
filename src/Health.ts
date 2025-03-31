@@ -2,6 +2,7 @@ import { CommandKit } from "commandkit";
 import { Client } from "discord.js";
 import mongoose from "mongoose";
 import http from "http";
+import https from "https"; // Add this import at the top
 import { redisClient } from "./Bot";
 import log from "./utils/log";
 import FetchEnvs from "./utils/FetchEnvs";
@@ -54,6 +55,65 @@ export default async function healthCheck(data: { client: Client<true>; handler:
         res.setHeader("Access-Control-Allow-Origin", "*");
         res.writeHead(isHealthy ? 200 : 503);
         res.end(JSON.stringify(health, null, 2));
+      } else if (req.url?.startsWith("/deploy")) {
+        // Parse the deployment URL from query params
+        const url = new URL(req.url, `http://${req.headers.host}`);
+        const deployUrl = url.searchParams.get("url");
+
+        if (!deployUrl) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ success: false, error: "Missing deployment URL" }));
+          return;
+        }
+
+        // Determine if it's http or https
+        const requestModule = deployUrl.startsWith("https:") ? https : http;
+
+        // strip the http(s):// from the URL
+        const strippedUrl = deployUrl.replace(/^https?:\/\//, "");
+        // Check if the URL is in the allowed list
+        const allowedDomains = env.ALLOWED_DEPLOY_DOMAINS.map((domain) => domain.trim()).filter(
+          (domain) => domain !== ""
+        );
+        const isAllowedDomain = allowedDomains.some((domain) => strippedUrl.startsWith(domain));
+        if (!isAllowedDomain) {
+          res.writeHead(403, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "Domain not allowed" }));
+          return;
+        }
+
+        try {
+          log.info(`Processing deployment request to: ${deployUrl}`);
+
+          // Make the request server-side
+          const deployReq = requestModule.request(deployUrl, (deployRes) => {
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(
+              JSON.stringify({
+                success: true,
+                status: deployRes.statusCode,
+              })
+            );
+          });
+
+          deployReq.on("error", (error) => {
+            log.error(`Deployment request error: ${error.message}`);
+            res.writeHead(500, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ success: false, error: error.message }));
+          });
+
+          deployReq.setTimeout(10000, () => {
+            log.error("Deployment request timeout");
+            res.writeHead(504, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ success: false, error: "Request timeout" }));
+          });
+
+          deployReq.end();
+        } catch (error: any) {
+          log.error(`Deployment exception: ${error.message}`);
+          res.writeHead(500, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: error.message }));
+        }
       } else {
         // HTML page with redeploy button
         res.setHeader("Content-Type", "text/html; charset=utf-8");
@@ -157,18 +217,25 @@ export default async function healthCheck(data: { client: Client<true>; handler:
               updateRedeployButton(true);
               showStatus("info", "Deployment request sent...");
 
-              // Send the fetch request but don't wait for a response
-              fetch(redeployUrl, {
+              // Use the new server-side /deploy endpoint
+              fetch(\`/deploy?url=\${encodeURIComponent(redeployUrl)}\`, {
                 method: "GET",
-                mode: "no-cors", // This allows requests without expecting responses
                 cache: "no-cache",
-              }).catch((e) => console.error("Error sending request:", e));
-
-              // Show success message after a short delay
-              setTimeout(() => {
-                showStatus("success", "Request sent! Deployment should be happening now.");
-                updateRedeployButton(false);
-              }, 1500);
+              })
+                .then((response) => response.json())
+                .then((data) => {
+                  if (data.success) {
+                    showStatus("success", "Deployment successfully triggered!");
+                  } else {
+                    showStatus("error", \`Error: \${data.error || "Unknown error"}\`);
+                  }
+                })
+                .catch((e) => {
+                  showStatus("error", \`Error: \${e.message || "Unknown error"}\`);
+                })
+                .finally(() => {
+                  updateRedeployButton(false);
+                });
             }
           }
         </script>`;
@@ -358,7 +425,7 @@ export default async function healthCheck(data: { client: Client<true>; handler:
                 <p class="timestamp">Last updated: ${new Date().toLocaleString()}</p>
               </div>
 
-              ${scriptContent};
+              ${scriptContent}
             </body>
           </html>
         `;

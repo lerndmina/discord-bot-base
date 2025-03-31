@@ -24,6 +24,7 @@ function getter() {
     DEFAULT_TIMEZONE: string;
     STAFF_ROLE: string;
     OPENAI_API_KEY: string;
+    ALLOWED_DEPLOY_DOMAINS: string[];
   } = {
     BOT_TOKEN: process.env.BOT_TOKEN || "",
     OWNER_IDS: (process.env.OWNER_IDS || "").trim().split(","),
@@ -38,18 +39,17 @@ function getter() {
     DEFAULT_TIMEZONE: process.env.DEFAULT_TIMEZONE || "Europe/London",
     STAFF_ROLE: process.env.STAFF_ROLE || DEFAULT_OPTIONAL_STRING,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY || DEFAULT_OPTIONAL_STRING,
+    ALLOWED_DEPLOY_DOMAINS: (process.env.ALLOWED_DEPLOY_DOMAINS || "").trim().split(","),
   };
 
   var missingKeys: string[] = [];
-  for (const key in env) {
-    if (
-      env[key as keyof typeof env] === undefined ||
-      env[key as keyof typeof env] === null ||
-      env[key as keyof typeof env] === ""
-    ) {
+  for (const keyString in env) {
+    const key = keyString as keyof typeof env;
+    const value = env[key];
+    if (value === undefined || value === null || value === "") {
       missingKeys.push(key);
     }
-    if (env[key as keyof typeof env] === DEFAULT_OPTIONAL_STRING) {
+    if (value === DEFAULT_OPTIONAL_STRING || value[0] === DEFAULT_OPTIONAL_STRING) {
       if (accessedCount > 0) continue;
       console.warn(`Env ${key} is optional and is not set.`);
     }
