@@ -90,83 +90,88 @@ export default async function healthCheck(data: { client: Client<true>; handler:
           .join("");
 
         // JavaScript for handling redeploy URL and redeploy function
-        const scriptContent = `
+        const scriptContent = html` <script>
           // Load redeploy URL from localStorage if available
-          let redeployUrl = localStorage.getItem('redeployUrl') || '';
+          let redeployUrl = localStorage.getItem("redeployUrl") || "";
           let redeploying = false;
-          
+
           // Function to update and save the redeploy URL
           function updateRedeployUrl() {
-            const input = document.getElementById('redeployUrlInput');
+            const input = document.getElementById("redeployUrlInput");
             redeployUrl = input.value.trim();
-            
+
             if (redeployUrl) {
-              localStorage.setItem('redeployUrl', redeployUrl);
-              showStatus('success', 'URL saved!');
+              localStorage.setItem("redeployUrl", redeployUrl);
+              showStatus("success", "URL saved!");
             } else {
-              showStatus('error', 'Please enter a valid URL');
+              showStatus("error", "Please enter a valid URL");
             }
           }
-          
+
           // Function to show status messages
           function showStatus(type, message) {
-            const statusEl = document.getElementById('redeployStatus');
+            const statusEl = document.getElementById("redeployStatus");
             statusEl.textContent = message;
-            statusEl.className = type === 'success' ? 'status-success' : type === 'error' ? 'status-error' : 'status-info';
-            
+            statusEl.className =
+              type === "success"
+                ? "status-success"
+                : type === "error"
+                ? "status-error"
+                : "status-info";
+
             setTimeout(() => {
-              statusEl.textContent = '';
-              statusEl.className = '';
+              statusEl.textContent = "";
+              statusEl.className = "";
             }, 3000);
           }
-          
+
           // Set the input value when page loads
-          window.onload = function() {
-            document.getElementById('redeployUrlInput').value = redeployUrl;
+          window.onload = function () {
+            document.getElementById("redeployUrlInput").value = redeployUrl;
           };
-          
+
           // Function to update the redeploy button state
           function updateRedeployButton(isRedeploying) {
-            const button = document.getElementById('redeployButton');
+            const button = document.getElementById("redeployButton");
             redeploying = isRedeploying;
-            
+
             if (isRedeploying) {
               button.disabled = true;
               button.innerHTML = '<div class="spinner"></div> Redeploying...';
             } else {
               button.disabled = false;
-              button.textContent = 'Redeploy Bot';
+              button.textContent = "Redeploy Bot";
             }
           }
-          
+
           // Function to redeploy the bot
           function redeployBot() {
             if (redeploying) return;
-            
+
             if (!redeployUrl) {
-              showStatus('error', 'Please set a redeploy URL first');
+              showStatus("error", "Please set a redeploy URL first");
               return;
             }
-            
+
             if (confirm("Are you sure you want to redeploy the bot?")) {
               updateRedeployButton(true);
-              showStatus('info', 'Deployment request sent...');
-              
+              showStatus("info", "Deployment request sent...");
+
               // Send the fetch request but don't wait for a response
-              fetch(redeployUrl, { 
-                method: 'GET',
-                mode: 'no-cors', // This allows requests without expecting responses
-                cache: 'no-cache'
-              }).catch(e => console.error('Error sending request:', e));
-              
+              fetch(redeployUrl, {
+                method: "GET",
+                mode: "no-cors", // This allows requests without expecting responses
+                cache: "no-cache",
+              }).catch((e) => console.error("Error sending request:", e));
+
               // Show success message after a short delay
               setTimeout(() => {
-                showStatus('success', 'Request sent! Deployment should be happening now.');
+                showStatus("success", "Request sent! Deployment should be happening now.");
                 updateRedeployButton(false);
               }, 1500);
             }
           }
-        `;
+        </script>`;
 
         // HTML template with redeploy button - dark mode
         const htmlTemplate = html`
@@ -353,9 +358,7 @@ export default async function healthCheck(data: { client: Client<true>; handler:
                 <p class="timestamp">Last updated: ${new Date().toLocaleString()}</p>
               </div>
 
-              <script>
-                ${scriptContent};
-              </script>
+              ${scriptContent};
             </body>
           </html>
         `;
