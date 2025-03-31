@@ -4,7 +4,7 @@ import mongoose from "mongoose";
 import http from "http";
 import { redisClient } from "./Bot";
 import log from "./utils/log";
-import FetchEnvs, { DEFAULT_OPTIONAL_STRING } from "./utils/FetchEnvs";
+import FetchEnvs from "./utils/FetchEnvs";
 
 const env = FetchEnvs();
 
@@ -89,25 +89,81 @@ export default async function healthCheck(data: { client: Client<true>; handler:
           })
           .join("");
 
-        // Prepare JavaScript for the redeployment function
-        const hasRedeployUrl = env.REDEPLOY_URL !== DEFAULT_OPTIONAL_STRING;
-        const redeployUrl = env.REDEPLOY_URL || "#";
+        // JavaScript for handling redeploy URL and redeploy function
         const scriptContent = `
+          // Load redeploy URL from localStorage if available
+          let redeployUrl = localStorage.getItem('redeployUrl') || '';
+          let redeploying = false;
+          
+          // Function to update and save the redeploy URL
+          function updateRedeployUrl() {
+            const input = document.getElementById('redeployUrlInput');
+            redeployUrl = input.value.trim();
+            
+            if (redeployUrl) {
+              localStorage.setItem('redeployUrl', redeployUrl);
+              showStatus('success', 'URL saved!');
+            } else {
+              showStatus('error', 'Please enter a valid URL');
+            }
+          }
+          
+          // Function to show status messages
+          function showStatus(type, message) {
+            const statusEl = document.getElementById('redeployStatus');
+            statusEl.textContent = message;
+            statusEl.className = type === 'success' ? 'status-success' : type === 'error' ? 'status-error' : 'status-info';
+            
+            setTimeout(() => {
+              statusEl.textContent = '';
+              statusEl.className = '';
+            }, 3000);
+          }
+          
+          // Set the input value when page loads
+          window.onload = function() {
+            document.getElementById('redeployUrlInput').value = redeployUrl;
+          };
+          
+          // Function to update the redeploy button state
+          function updateRedeployButton(isRedeploying) {
+            const button = document.getElementById('redeployButton');
+            redeploying = isRedeploying;
+            
+            if (isRedeploying) {
+              button.disabled = true;
+              button.innerHTML = '<div class="spinner"></div> Redeploying...';
+            } else {
+              button.disabled = false;
+              button.textContent = 'Redeploy Bot';
+            }
+          }
+          
+          // Function to redeploy the bot
           function redeployBot() {
+            if (redeploying) return;
+            
+            if (!redeployUrl) {
+              showStatus('error', 'Please set a redeploy URL first');
+              return;
+            }
+            
             if (confirm("Are you sure you want to redeploy the bot?")) {
-              ${!hasRedeployUrl ? 'return alert("Redeploy URL not set up");' : ""}
-              fetch("${redeployUrl}")
-                .then((response) => {
-                  if (response.ok) {
-                    alert("Redeployment initiated successfully!");
-                  } else {
-                    alert("Failed to initiate redeployment.");
-                  }
-                })
-                .catch((error) => {
-                  console.error("Error:", error);
-                  alert("An error occurred during redeployment.");
-                });
+              updateRedeployButton(true);
+              showStatus('info', 'Deployment request sent...');
+              
+              // Send the fetch request but don't wait for a response
+              fetch(redeployUrl, { 
+                method: 'GET',
+                mode: 'no-cors', // This allows requests without expecting responses
+                cache: 'no-cache'
+              }).catch(e => console.error('Error sending request:', e));
+              
+              // Show success message after a short delay
+              setTimeout(() => {
+                showStatus('success', 'Request sent! Deployment should be happening now.');
+                updateRedeployButton(false);
+              }, 1500);
             }
           }
         `;
@@ -163,7 +219,24 @@ export default async function healthCheck(data: { client: Client<true>; handler:
                   background-color: #2a2a2a;
                   color: #e0e0e0;
                 }
-                .redeploy-btn {
+                .input-group {
+                  margin: 20px 0;
+                  display: flex;
+                  flex-wrap: wrap;
+                  gap: 10px;
+                  align-items: center;
+                }
+                input[type="text"] {
+                  flex: 1;
+                  padding: 10px;
+                  border: 1px solid #444;
+                  border-radius: 4px;
+                  background-color: #333;
+                  color: #e0e0e0;
+                  font-size: 14px;
+                  min-width: 200px;
+                }
+                .btn {
                   background-color: #2979ff;
                   color: white;
                   padding: 10px 20px;
@@ -171,15 +244,41 @@ export default async function healthCheck(data: { client: Client<true>; handler:
                   border-radius: 4px;
                   cursor: pointer;
                   font-size: 16px;
-                  transition: background-color 0.2s;
+                  transition: all 0.2s;
                 }
-                .redeploy-btn:hover {
+                .btn:hover:not(:disabled) {
                   background-color: #1565c0;
+                }
+                .btn:disabled {
+                  background-color: #555;
+                  cursor: not-allowed;
+                  opacity: 0.7;
+                }
+                .btn-green {
+                  background-color: #4caf50;
+                }
+                .btn-green:hover:not(:disabled) {
+                  background-color: #388e3c;
                 }
                 .timestamp {
                   color: #999;
                   font-size: 14px;
                   margin-top: 20px;
+                }
+                .status-success {
+                  color: #4caf50;
+                  margin-left: 10px;
+                  font-size: 14px;
+                }
+                .status-error {
+                  color: #f44336;
+                  margin-left: 10px;
+                  font-size: 14px;
+                }
+                .status-info {
+                  color: #2196f3;
+                  margin-left: 10px;
+                  font-size: 14px;
                 }
                 /* Make links visible in dark mode */
                 a {
@@ -189,23 +288,68 @@ export default async function healthCheck(data: { client: Client<true>; handler:
                 a:hover {
                   text-decoration: underline;
                 }
+                .section {
+                  margin: 30px 0;
+                  padding: 20px;
+                  background-color: #242424;
+                  border-radius: 6px;
+                }
+                /* Spinner for loading state */
+                .spinner {
+                  display: inline-block;
+                  width: 12px;
+                  height: 12px;
+                  border: 2px solid rgba(255, 255, 255, 0.3);
+                  border-radius: 50%;
+                  border-top-color: white;
+                  animation: spin 1s linear infinite;
+                  margin-right: 8px;
+                }
+                @keyframes spin {
+                  to {
+                    transform: rotate(360deg);
+                  }
+                }
+                .info-text {
+                  color: #999;
+                  font-size: 14px;
+                  margin-top: 8px;
+                  font-style: italic;
+                }
               </style>
             </head>
             <body>
               <div class="container">
                 <h1>Bot Health Status: <span class="status">${statusText}</span></h1>
 
-                <h2>Component Status</h2>
-                <table>
-                  <tr>
-                    <th>Component</th>
-                    <th>Status</th>
-                    <th>Details</th>
-                  </tr>
-                  ${componentRows}
-                </table>
+                <div class="section">
+                  <h2>Component Status</h2>
+                  <table>
+                    <tr>
+                      <th>Component</th>
+                      <th>Status</th>
+                      <th>Details</th>
+                    </tr>
+                    ${componentRows}
+                  </table>
+                </div>
 
-                <button onclick="redeployBot()" class="redeploy-btn">Redeploy Bot</button>
+                <div class="section">
+                  <h2>Redeploy Bot</h2>
+                  <div class="input-group">
+                    <input type="text" id="redeployUrlInput" placeholder="Enter redeploy URL" />
+                    <button onclick="updateRedeployUrl()" class="btn">Save URL</button>
+                    <span id="redeployStatus"></span>
+                  </div>
+                  <p class="info-text">
+                    The URL should point to your deployment webhook (e.g., GitHub Actions/GitLab CI
+                    trigger URL)
+                  </p>
+                  <button id="redeployButton" onclick="redeployBot()" class="btn btn-green">
+                    Redeploy Bot
+                  </button>
+                </div>
+
                 <p class="timestamp">Last updated: ${new Date().toLocaleString()}</p>
               </div>
 
