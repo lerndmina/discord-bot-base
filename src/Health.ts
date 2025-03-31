@@ -399,11 +399,11 @@ function testDiscordConnection(client: Client<true>) {
 function testDatabaseConnection() {
   const readyState = mongoose.connection.readyState;
   const stateMap = {
-    0: "disconnected",
-    1: "connected",
-    2: "connecting",
-    3: "disconnecting",
-    99: "uninitialized",
+    0: "Disconnected",
+    1: "Connected",
+    2: "Connecting",
+    3: "Disconnecting",
+    99: "Uninitialized",
   };
 
   return {
