@@ -59,13 +59,13 @@ export default async function healthCheck(data: { client: Client<true>; handler:
         res.setHeader("Content-Type", "text/html; charset=utf-8");
         res.writeHead(isHealthy ? 200 : 503);
 
-        const statusColor = isHealthy ? "green" : "red";
+        const statusColor = isHealthy ? "#4caf50" : "#f44336"; // Green or red
         const statusText = isHealthy ? "Healthy" : "Unhealthy";
 
         // Create component status HTML
         const componentRows = Object.entries(components)
           .map(([name, component]: [string, any]) => {
-            const color = component.status === "healthy" ? "green" : "red";
+            const color = component.status === "healthy" ? "#4caf50" : "#f44336"; // Green or red
             let details = component.details || "";
 
             // For commands, show number loaded
@@ -112,7 +112,7 @@ export default async function healthCheck(data: { client: Client<true>; handler:
           }
         `;
 
-        // HTML template with redeploy button
+        // HTML template with redeploy button - dark mode
         const htmlTemplate = html`
           <!DOCTYPE html>
           <html>
@@ -125,18 +125,20 @@ export default async function healthCheck(data: { client: Client<true>; handler:
                   font-family: Arial, sans-serif;
                   margin: 0;
                   padding: 20px;
-                  background-color: #f5f5f5;
+                  background-color: #121212;
+                  color: #e0e0e0;
                 }
                 .container {
                   max-width: 800px;
                   margin: 0 auto;
-                  background-color: white;
-                  border-radius: 5px;
-                  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+                  background-color: #1e1e1e;
+                  border-radius: 8px;
+                  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
                   padding: 20px;
                 }
-                h1 {
-                  color: #333;
+                h1,
+                h2 {
+                  color: #e0e0e0;
                 }
                 .status {
                   display: inline-block;
@@ -155,27 +157,37 @@ export default async function healthCheck(data: { client: Client<true>; handler:
                 td {
                   padding: 12px;
                   text-align: left;
-                  border-bottom: 1px solid #ddd;
+                  border-bottom: 1px solid #333;
                 }
                 th {
-                  background-color: #f2f2f2;
+                  background-color: #2a2a2a;
+                  color: #e0e0e0;
                 }
                 .redeploy-btn {
-                  background-color: #4caf50;
+                  background-color: #2979ff;
                   color: white;
                   padding: 10px 20px;
                   border: none;
                   border-radius: 4px;
                   cursor: pointer;
                   font-size: 16px;
+                  transition: background-color 0.2s;
                 }
                 .redeploy-btn:hover {
-                  background-color: #45a049;
+                  background-color: #1565c0;
                 }
                 .timestamp {
-                  color: #777;
+                  color: #999;
                   font-size: 14px;
                   margin-top: 20px;
+                }
+                /* Make links visible in dark mode */
+                a {
+                  color: #64b5f6;
+                  text-decoration: none;
+                }
+                a:hover {
+                  text-decoration: underline;
                 }
               </style>
             </head>
