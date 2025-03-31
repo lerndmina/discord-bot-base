@@ -7,6 +7,7 @@ import { ActivityEnum } from "../../commands/utilities/settings";
 import { debugMsg } from "../../utils/TinyUtils";
 import TicTacToeSchema, { TicTacToeSchemaType } from "../../models/TicTacToeSchema";
 import log from "../../utils/log";
+import healthCheck from "../../Health";
 const db = new Database();
 
 export default async (c: Client<true>, client: Client<true>, handler: CommandKit) => {
@@ -22,4 +23,7 @@ export default async (c: Client<true>, client: Client<true>, handler: CommandKit
 
   // Set last restart
   redisClient.set(`${client.user.id}-lastRestart`, Date.now().toString());
+
+  // begin healthcheck
+  healthCheck({ client, handler });
 };

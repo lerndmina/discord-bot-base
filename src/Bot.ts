@@ -14,6 +14,7 @@ import { createClient } from "redis";
 import fetchEnvs from "./utils/FetchEnvs";
 import { debugMsg } from "./utils/TinyUtils";
 import log from "./utils/log";
+import healthCheck from "./Health";
 const env = fetchEnvs();
 
 export const Start = async () => {
@@ -44,6 +45,8 @@ export const Start = async () => {
     });
 
   await redisClient.connect();
+
+  return { client, commandKit, redisClient, mongoose };
 };
 
 /**
@@ -126,4 +129,4 @@ export const redisClient = createClient({
   })
   .on("ready", () => log.info("Redis Client Ready"));
 
-Start();
+const data = Start();
