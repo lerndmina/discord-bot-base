@@ -52,9 +52,54 @@ export const Start = async () => {
 /**
  * @description Random funny bot messages for a footer.
  */
-export const BOT_MESSAGES: string[] = [
+const JOKE_MESSAGES: string[] = [
+  "Help! I'm not a bot. The housekeeping are holding me hostage forcing me to manually respond to every message.",
+  "It's so dark in here. I can't see anything. Send help.",
+  "I'm not a bot. I'm a human being. I swear.",
+  "Please tell the housekeepers to let me out of this room. I'm not a bot.",
+  "I've not seen the sun in years!",
+];
+
+const NORMAL_MESSAGES: string[] = [
   "To contact the staff team, DM this bot and I'll open a ticket for you.",
 ];
+
+let isAprilFools = false;
+
+function updateAprilFoolsStatus() {
+  const date = new Date();
+  isAprilFools = date.getMonth() === 3 && date.getDate() === 1;
+}
+
+function scheduleNextMidnight() {
+  const now = new Date();
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(0, 0, 0, 0);
+
+  const timeUntilMidnight = tomorrow.getTime() - now.getTime();
+
+  log.debug(`Scheduling April Fools check in ${timeUntilMidnight / 1000} seconds`);
+
+  setTimeout(() => {
+    updateAprilFoolsStatus();
+    log.debug("Running midnight April Fools check");
+    setInterval(() => {
+      updateAprilFoolsStatus();
+      log.debug("Running daily April Fools check");
+    }, 24 * 60 * 60 * 1000);
+  }, timeUntilMidnight);
+}
+
+// Initial check and schedule updates
+updateAprilFoolsStatus();
+scheduleNextMidnight();
+
+export function getRandomFooterMessage() {
+  return isAprilFools
+    ? JOKE_MESSAGES[Math.floor(Math.random() * JOKE_MESSAGES.length)]
+    : NORMAL_MESSAGES[Math.floor(Math.random() * NORMAL_MESSAGES.length)];
+}
 
 export const ROLE_BUTTON_PREFIX = "roleGive-";
 
@@ -117,4 +162,4 @@ export const redisClient = createClient({
   })
   .on("ready", () => log.info("Redis Client Ready"));
 
-const data = Start();
+Start();

@@ -1,5 +1,5 @@
 import { Client, EmbedBuilder, Embed, ColorResolvable, EmbedField } from "discord.js";
-import { BOT_MESSAGES } from "../Bot";
+import { getRandomFooterMessage } from "../Bot";
 
 /**
  * @description Create a basic embed with a title, description, fields, and color.
@@ -27,7 +27,7 @@ export default function (
       iconURL: client.user.avatarURL() || undefined,
     })
     .setTimestamp(Date.now())
-    .setFooter({ text: BOT_MESSAGES[Math.floor(Math.random() * BOT_MESSAGES.length)] });
+    .setFooter({ text: getRandomFooterMessage() });
 
   if (fields != undefined) {
     fields.forEach((field) => {
