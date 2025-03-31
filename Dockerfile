@@ -24,7 +24,7 @@ EXPOSE 3000
 # Add health check
 # Checks every 30s, timeout after 10s, 60s startup grace period, 3 retries before unhealthy
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3000 || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
 
 # Set the command to start the app
 CMD [ "bun", "run", "start" ]
