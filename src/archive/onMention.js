@@ -4,7 +4,6 @@ const FetchEnvs = require("../utils/FetchEnvs");
 
 const systemPrompt = require("../utils/SystemPrompt");
 const BasicEmbed = require("../utils/BasicEmbed");
-const { BOT_URL, BOT_MESSAGES } = require("../Bot");
 const { error } = require("console");
 
 const onMention = async (client, message, apiKey) => {
