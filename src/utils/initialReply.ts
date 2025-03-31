@@ -4,7 +4,7 @@ import {
   InteractionType,
   MessageComponentInteraction,
 } from "discord.js";
-import { waitingEmoji } from "../Bot";
+import { waitingEmoji, isAprilFools } from "../Bot";
 
 const JOKE_MESSAGES = [
   "Getting out of bed...",
@@ -15,8 +15,6 @@ const JOKE_MESSAGES = [
   "Rebooting my brain...",
   "Wow you woke me up to ask me this?!?",
 ];
-
-const isAprilFools = true; // Set to true for testing purposes
 
 export async function initialReply(
   interaction: Interaction | MessageComponentInteraction,
