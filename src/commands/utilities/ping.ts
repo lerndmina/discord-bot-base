@@ -3,6 +3,7 @@ import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 import { globalCooldownKey, setCommandCooldown, waitingEmoji } from "../../Bot";
 import { sleep } from "../../utils/TinyUtils";
 import BasicEmbed from "../../utils/BasicEmbed";
+import { initialReply } from "../../utils/initialReply";
 
 export const data = new SlashCommandBuilder()
   .setName("ping")
@@ -21,7 +22,7 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
   setCommandCooldown(globalCooldownKey(interaction.commandName), 15);
 
   var isPrivate = interaction.options.getBoolean("private") || false;
-  await interaction.reply({ content: waitingEmoji, ephemeral: isPrivate });
+  await initialReply(interaction, isPrivate);
 
   if (isPrivate == null) isPrivate = true;
 

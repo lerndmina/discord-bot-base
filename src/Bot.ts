@@ -64,7 +64,7 @@ const NORMAL_MESSAGES: string[] = [
   "To contact the staff team, DM this bot and I'll open a ticket for you.",
 ];
 
-let isAprilFools = false;
+export let isAprilFools = false;
 
 function updateAprilFoolsStatus() {
   const date = new Date();
