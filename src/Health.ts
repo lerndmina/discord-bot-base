@@ -69,6 +69,19 @@ export default async function healthCheck(data: { client: Client<true>; handler:
         // Determine if it's http or https
         const requestModule = deployUrl.startsWith("https:") ? https : http;
 
+        // strip the http(s):// from the URL
+        const strippedUrl = deployUrl.replace(/^https?:\/\//, "");
+        // Check if the URL is in the allowed list
+        const allowedDomains = env.ALLOWED_DEPLOY_DOMAINS.map((domain) => domain.trim()).filter(
+          (domain) => domain !== ""
+        );
+        const isAllowedDomain = allowedDomains.some((domain) => strippedUrl.startsWith(domain));
+        if (!isAllowedDomain) {
+          res.writeHead(403, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "Domain not allowed" }));
+          return;
+        }
+
         try {
           log.info(`Processing deployment request to: ${deployUrl}`);
 
