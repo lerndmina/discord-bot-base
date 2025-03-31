@@ -8,6 +8,7 @@ import log from "../../utils/log";
 import ModmailBanModel, { BanDisplayType, ModmailBanType } from "../../models/ModmailBans";
 import Database from "../../utils/data/database";
 import BasicEmbed from "../../utils/BasicEmbed";
+import { initialReply } from "../../utils/initialReply";
 
 export const banModmailOptions: CommandOptions = {
   devOnly: true,
@@ -22,7 +23,7 @@ export default async function ({ interaction, client, handler }: SlashCommandPro
   const isPermanent = interaction.options.getBoolean("permanent") || false;
   const reason = interaction.options.getString("reason");
   const getter = new ThingGetter(client);
-  await 
+  await initialReply(interaction, true);
 
   if (!user || (!durationString && !isPermanent) || !guild || !reason) {
     const missingArgs: string[] = [];
