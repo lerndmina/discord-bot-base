@@ -277,9 +277,9 @@ async function newModmail(
           } - ${memberName}`,
           autoArchiveDuration: ThreadAutoArchiveDuration.OneWeek,
           message: {
-            content: `Modmail thread for ${memberName} | ${
+            content: `Modmail thread for ${memberName} | ${i.user.id} | <@${
               i.user.id
-            }\n\n Original message: ${noMentionsMessage}${
+            }>\n\n Original message: ${noMentionsMessage}${
               member.pending ? "\n\nUser has not fully joined the guild." : ""
             }`,
           },

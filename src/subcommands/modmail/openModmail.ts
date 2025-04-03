@@ -77,7 +77,7 @@ export default async function ({ interaction, client, handler }: SlashCommandPro
       name: `${reason.substring(0, 50)}...`,
       autoArchiveDuration: 60,
       message: {
-        content: `Modmail thread opened for ${user.tag} (${user.id}) by staff member ${interaction.user.tag} (${interaction.user.id})\n\nReason: ${reason}`,
+        content: `Modmail thread opened for ${user.tag} (<@${user.id}>) by staff member ${interaction.user.tag} (${interaction.user.id})\n\nReason: ${reason}`,
       },
     });
 
