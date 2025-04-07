@@ -25,6 +25,10 @@ export default async function ({ interaction, client, handler }: SlashCommandPro
   const getter = new ThingGetter(client);
   await initialReply(interaction, true);
 
+  if (!interaction.guild) {
+    return interaction.editReply("This command can only be used in a server");
+  }
+
   if (!user || (!durationString && !isPermanent) || !guild || !reason) {
     const missingArgs: string[] = [];
     if (!user) missingArgs.push("user");

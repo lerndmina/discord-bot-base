@@ -22,6 +22,10 @@ export const MODMAIL_BUTTON_ID = "modmail-button-";
 export default async function ({ interaction, client, handler }: SlashCommandProps) {
   await initialReply(interaction, true);
 
+  if (!interaction.guild) {
+    return interaction.editReply("This command can only be used in a server");
+  }
+
   const channel = interaction.options.getChannel("channel")! as TextChannel;
 
   if (channel.type !== ChannelType.GuildText)

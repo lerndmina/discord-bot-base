@@ -27,7 +27,7 @@ export default async function ({ interaction, client, handler }: SlashCommandPro
   await initialReply(interaction, true);
 
   if (!interaction.guild)
-    return interaction.editReply("‼️ Error, somehow this command was ran in a DM?");
+    return interaction.editReply("‼️ Error, this command can only be used in a server.");
 
   try {
     const modmailConfig = await ModmailConfig.findOneAndUpdate(
