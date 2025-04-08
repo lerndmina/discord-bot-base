@@ -32,6 +32,7 @@ import {
   isVoiceMessage,
   postWebhookToThread,
   prepModmailMessage,
+  sleep,
   ThingGetter,
   TimeType,
 } from "../../utils/TinyUtils";
@@ -42,6 +43,7 @@ import { debug } from "console";
 import log from "../../utils/log";
 import { tryCatch } from "../../utils/trycatch";
 import ModmailBanModel from "../../models/ModmailBans";
+import ms from "ms";
 const env = FetchEnvs();
 
 const MAX_TITLE_LENGTH = 50;
@@ -159,7 +161,10 @@ async function newModmail(
     }
     return false;
   };
-  const collector = reply.createMessageComponentCollector({ filter: buttonFilter, time: 60000 });
+  const collector = reply.createMessageComponentCollector({
+    filter: buttonFilter,
+    time: ms("5min"),
+  });
 
   /**
    * @param {ButtonInteraction} i
@@ -206,6 +211,14 @@ async function newModmail(
       }
     }
 
+    const cancelListEntryId = `cancel-${i.id}`;
+    guildList.addOptions({
+      label: "Cancel",
+      value: cancelListEntryId,
+      description: "Cancel the modmail thread creation.",
+      emoji: "❌",
+    });
+
     if (!addedSomething) {
       await orignalMsg.edit({
         content: "",
@@ -241,6 +254,29 @@ async function newModmail(
     return;
   });
 
+  collector.on("end", async (collected) => {
+    if (collected.size === 0) {
+      const failedReply = await reply.edit({
+        content: "",
+        embeds: [
+          BasicEmbed(
+            client,
+            "Modmail",
+            "You took too long to respond. Please try again.\n\nIf you want to open a modmail thread, just DM me again!\nThis message will delete in 15 seconds.",
+            undefined,
+            "Red"
+          ),
+        ],
+        components: [],
+      });
+
+      await sleep(ms("15s"));
+      if (failedReply) {
+        tryCatch(failedReply.delete());
+      }
+    }
+  });
+
   async function serverSelectedOpenModmailThread(
     reply: InteractionResponse,
     stringSelectMenuID: string,
@@ -249,11 +285,29 @@ async function newModmail(
     const selectMenuFilter = (i: MessageComponentInteraction) => i.customId === stringSelectMenuID;
     const collector = reply.createMessageComponentCollector({
       filter: selectMenuFilter,
-      time: 60000,
+      time: ms("5min"),
     });
 
     collector.on("collect", async (collectedInteraction) => {
       const i = collectedInteraction as StringSelectMenuInteraction;
+
+      if (i.values[0].startsWith("cancel-")) {
+        await i.update({
+          content: "",
+          embeds: [
+            BasicEmbed(
+              client,
+              "Modmail",
+              "Cancelled modmail thread creation.",
+              undefined,
+              "Random"
+            ),
+          ],
+          components: [],
+        });
+        return;
+      }
+
       const value = JSON.parse(i.values[0]);
       const guildId = value.guild as Snowflake;
       const channelId = value.channel as Snowflake;
@@ -352,6 +406,29 @@ async function newModmail(
         ],
         components: [],
       });
+    });
+
+    collector.on("end", async (collected) => {
+      if (collected.size === 0) {
+        const failedReply = await reply.edit({
+          content: "",
+          embeds: [
+            BasicEmbed(
+              client,
+              "Modmail",
+              "You took too long to respond. Please try again.\n\nIf you want to open a modmail thread, just DM me again!\nThis message will delete in 15 seconds.",
+              undefined,
+              "Red"
+            ),
+          ],
+          components: [],
+        });
+
+        await sleep(ms("15s"));
+        if (failedReply) {
+          tryCatch(failedReply.delete());
+        }
+      }
     });
   }
 }
