@@ -25,6 +25,8 @@ function getter() {
     STAFF_ROLE: string;
     OPENAI_API_KEY: string;
     ALLOWED_DEPLOY_DOMAINS: string[];
+    ZIPLINE_BASEURL: string;
+    ZIPLINE_TOKEN: string;
   } = {
     BOT_TOKEN: process.env.BOT_TOKEN || "",
     OWNER_IDS: (process.env.OWNER_IDS || "").trim().split(","),
@@ -40,6 +42,8 @@ function getter() {
     STAFF_ROLE: process.env.STAFF_ROLE || DEFAULT_OPTIONAL_STRING,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY || DEFAULT_OPTIONAL_STRING,
     ALLOWED_DEPLOY_DOMAINS: (process.env.ALLOWED_DEPLOY_DOMAINS || "").trim().split(","),
+    ZIPLINE_BASEURL: process.env.ZIPLINE_BASEURL || DEFAULT_OPTIONAL_STRING,
+    ZIPLINE_TOKEN: process.env.ZIPLINE_TOKEN || DEFAULT_OPTIONAL_STRING,
   };
 
   var missingKeys: string[] = [];
