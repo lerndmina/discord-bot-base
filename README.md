@@ -1,71 +1,120 @@
-# A simple bot in Discord.js
+# Discord.js Bot Base
 
-## Why?
+A feature-rich Discord bot base with health monitoring, message management, and deployment controls.
 
-This bot was created as a personal project with multiple motivations. Primarily, it was an opportunity to learn and explore the capabilities of Discord.js, a powerful library for interacting with Discord's API. It as a practical, hands-on way to delve deeper into the world of Discord bot development and understand the intricacies involved..
+## Features
 
-Lastly, the bot integrates with OpenAI's Whisper API to provide transcribing of voice messages. This has been a great way to add accessibility to the bot and make it more inclusive for all users.
+- **Health Monitoring**: Web interface to check bot status and components
+- **Message Management**: Send, edit, delete and restore messages using Discohook
+- **Auto Deployment**: Webhook-based deployment system with domain allowlist
+- **Redis Integration**: Caching and cooldown management
+- **MongoDB Support**: Persistent data storage
+- **Owner Commands**: Special commands for bot owners
+- **Test Server Support**: Dedicated test servers for development
+
 ## Dependencies
-This bot relies on two key dependencies: FFmpeg and Redis. 
 
-1. **FFmpeg**: This is a free and open-source software project that produces libraries and programs for handling multimedia data. The bot uses FFmpeg for tasks related to audio and video processing. To install FFmpeg, you can follow the instructions on the [official FFmpeg website](https://ffmpeg.org/download.html). Once installed, you should set the `FFMPEG_PATH` environment variable to the path of your FFmpeg executable.
+This bot requires several key dependencies:
 
-2. **Redis**: This is an open-source, in-memory data structure store, used as a database, cache, and message broker. The bot uses Redis for tasks related to data storage and retrieval. To install Redis, you can follow the instructions on the [official Redis website](https://redis.io/download). Once installed, you should set the `REDIS_URL` environment variable to the URL of your Redis server.
-
-3. **Bun**: This bot uses [Bun](https://bun.sh/) as a package manager. Install from [here](https://bun.sh/).
-
-4. **Node.js**: This bot is built using Node.js, a JavaScript runtime built on Chrome's V8 JavaScript engine. You can download Node.js from the [official Node.js website](https://nodejs.org/). The bot requires Node.js version 16 or higher. Authough we are using Bun we still require Node.js to run the bot.
-
-
-Please ensure that both FFmpeg and Redis are correctly installed and configured before running the bot. The bot will not function correctly without these dependencies.
+1. **Node.js**: Version 16 or higher required
+2. **Bun**: Used as the package manager ([Install here](https://bun.sh/))
+3. **Redis**: For caching and cooldown management ([Install Redis](https://redis.io/download))
+4. **MongoDB**: For persistent data storage ([Install MongoDB](https://www.mongodb.com/try/download/community))
 
 ## Installation
-Clone the repository:
+
+1. Clone the repository:
 ```bash
-git clone https://github.com/lerndmina/discord.js-Bot.git
+git clone https://github.com/your-username/discord-bot-base.git
 ```
 
-Install dependencies:
+2. Install dependencies:
 ```bash
 bun install
 ```
 
-Copy the `.env.example` file to `.env` and fill in the provided variables.
+3. Copy `.env.example` to `.env`:
 ```bash
 cp .env.example .env
 ```
 
-Start the bot
+4. Configure environment variables in `.env`:
+
+```env
+# Required Bot Configuration
+BOT_TOKEN=your_discord_bot_token
+OWNER_IDS=comma,separated,user,ids
+TEST_SERVERS=comma,separated,server,ids
+PREFIX=!
+
+# Database Configuration
+MONGODB_URI=mongodb://localhost:27017
+MONGODB_DATABASE=your_database_name
+REDIS_URL=redis://localhost:6379
+
+# Bot Customization
+WAITING_EMOJI=⏳
+DEBUG_LOG=false
+DEFAULT_TIMEZONE=Europe/London
+
+# Optional Features
+STAFF_ROLE=optional_staff_role_id
+OPENAI_API_KEY=optional_openai_api_key
+
+# Deployment Configuration
+ALLOWED_DEPLOY_DOMAINS=github.com,gitlab.com
+ZIPLINE_BASEURL=https://your.zipline.instance
+ZIPLINE_TOKEN=your_zipline_token
+```
+
+5. Start the bot:
 ```bash
 bun start
 ```
 
-## Usage
-This code isn't supposed to be used by anyone else, but if you want to, you can. Just make sure to replace the environment variables with your own. I won't be providing any support for this but if you find any bugs, feel free to open an issue.
+## Health Monitoring
 
-As some basic documentation, the command handler uses the `commands` folder to find commands. Each command is a separate file, and the file name is the command name. The command handler also uses the `events` folder to find events. Each event is a separate file, and the file name is the event name. This functionality is provided by [Commandkit](https://commandkit.js.org/) so read their documentation for more information.
+The bot includes a built-in health monitoring system accessible via HTTP:
 
-## Docker
-If you're planning to host the bot using Docker, you can take advantage of the Dockerfile provided in the root of the repository. Docker can build images automatically by reading the instructions from a Dockerfile. 
+- **Health Check**: `GET /health` - Returns JSON status of all components
+- **Web Interface**: `GET /` - Interactive dashboard for bot status and deployment
+- **Deploy Endpoint**: `GET /deploy` - Trigger bot redeployment (domain-restricted)
 
-The Dockerfile should contain all the necessary instructions to install the bot's dependencies, including FFmpeg and Redis. This means you won't have to install these dependencies manually.
+The health server runs on port 3000 by default, configurable via `HEALTH_PORT` environment variable.
 
-To build and run the Docker image, you can use the following commands:
+## Message Management
 
-```bash
-# Build the Docker image
-docker build -t your-image-name .
+The bot includes comprehensive message management commands:
 
-# Run the Docker container
-docker run -d --name your-container-name your-image-name
+- `/message send` - Send messages using Discohook data
+- `/message edit` - Edit existing bot messages
+- `/message delete` - Delete bot messages
+- `/message restore` - Restore messages to Discohook format
+
+## Docker Support
+
+```dockerfile
+FROM oven/bun:latest
+WORKDIR /app
+COPY . .
+RUN bun install
+CMD ["bun", "start"]
 ```
 
-Replace `your-image-name` with the name you want to give to your Docker image, and `your-container-name` with the name you want to give to your Docker container.
-
-Please note that you'll still need to provide the environment variables (like `FFMPEG_PATH` and `REDIS_URL`) to your Docker container. You can do this using the `-e` option in the `docker run` command, or by using a `.env` file.
+Build and run:
+```bash
+docker build -t discord-bot .
+docker run -d --name bot --env-file .env discord-bot
+```
 
 ## Contributing
-This is a personal project but contributions are welcome. For major changes, please open an issue first to discuss what you would like to change. I may not be the most active person on GitHub but I'll try to respond as soon as possible.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ## License
+
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
