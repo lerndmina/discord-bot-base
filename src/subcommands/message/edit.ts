@@ -1,57 +1,56 @@
 import { SlashCommandProps } from "commandkit";
-import { ThingGetter } from "../../utils/TinyUtils";
-import { MessageProcessor } from "../../utils/MessageProcessorService";
+import { validateAndGetMessage } from "../../utils/MessageUtils";
+import { MessageProcessor } from "../../services/MessageProcessor";
 import CommandError from "../../utils/interactionErrors/CommandError";
 import { MessageEditOptions } from "discord.js";
+import { createViewMessageButton } from "./shared";
+import log from "../../utils/log";
 
+/**
+ * Edit message subcommand
+ * Allows editing existing bot messages using Discohook data
+ */
 export default async function ({ interaction, client }: SlashCommandProps) {
   try {
-    const messageUrl = interaction.options.getString("url", true);
-    const url = new URL(messageUrl);
+    await interaction.editReply("Finding message...");
 
+    // Get and validate message
+    const messageUrl = interaction.options.getString("url", true);
+    const message = await validateAndGetMessage(client, messageUrl);
+
+    // Get message data options
     const attachment = interaction.options.getAttachment("data");
     const shortLink = interaction.options.getString("short-link");
     const removeComponents = interaction.options.getBoolean("remove-components") ?? false;
 
-    const getter = new ThingGetter(client);
-    const message = await getter.getMessageFromUrl(url);
-
-    if (!message) {
-      throw new Error("Message not found");
-    }
-
+    // Process message content
+    await interaction.editReply("Processing message data...");
     const result = await MessageProcessor.processMessage(attachment, shortLink);
-    if (!result.success) {
-      throw new Error(result.error);
+
+    if (!result.success || !result.data) {
+      throw new Error(result.error || "Failed to process message data");
     }
 
-    // Create properly typed edit data
+    // Create message edit options
     const editData: MessageEditOptions = {
-      content: result.data?.content,
-      embeds: result.data?.embeds ?? [],
+      content: result.data.content,
+      embeds: result.data.embeds ?? [],
       components: removeComponents ? [] : message.components ?? [],
-      allowedMentions: result.data?.allowedMentions,
-      files: result.data?.files,
+      allowedMentions: result.data.allowedMentions,
+      files: result.data.files,
     };
 
+    // Update message
+    await interaction.editReply("Updating message...");
     await message.edit(editData);
+
+    // Send success response
     await interaction.editReply({
       content: `Message edited successfully`,
-      components: [
-        {
-          type: 1,
-          components: [
-            {
-              type: 2,
-              label: "View Message",
-              style: 5,
-              url: message.url,
-            },
-          ],
-        },
-      ],
+      components: [createViewMessageButton(message.url).toJSON()],
     });
   } catch (error) {
+    log.error(`Edit message error: ${error}`);
     return new CommandError(`Failed to edit message: ${error}`, interaction, client).send();
   }
 }

@@ -1,6 +1,6 @@
 import { SlashCommandProps } from "commandkit";
 import { ChannelType, GuildTextBasedChannel, MessageCreateOptions } from "discord.js";
-import { MessageProcessor } from "../../utils/MessageProcessorService";
+import { MessageProcessor } from "../../services/MessageProcessor";
 import CommandError from "../../utils/interactionErrors/CommandError";
 import log from "../../utils/log";
 

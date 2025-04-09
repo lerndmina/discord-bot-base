@@ -1,9 +1,10 @@
 import { SlashCommandProps } from "commandkit";
-import { Client, Message } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, Client, EmbedBuilder, Message } from "discord.js";
 import { ThingGetter } from "../../utils/TinyUtils";
-import { MessageProcessor } from "../../utils/MessageProcessorService";
+import { MessageProcessor } from "../../services/MessageProcessor";
 import BasicEmbed from "../../utils/BasicEmbed";
 import CommandError from "../../utils/interactionErrors/CommandError";
+import ButtonWrapper from "../../utils/ButtonWrapper";
 
 export default async function ({ interaction, client }: SlashCommandProps) {
   try {
@@ -17,34 +18,103 @@ export default async function ({ interaction, client }: SlashCommandProps) {
       throw new Error("Message not found");
     }
 
-    const embed = await getRestoreEmbed(message, client);
-    await interaction.editReply({ embeds: [embed], content: "" });
+    const { embed, components } = await getRestoreEmbed(message, client);
+    await interaction.editReply({ embeds: [embed], content: "", components });
   } catch (error) {
     return new CommandError(`Failed to restore message: ${error}`, interaction, client).send();
   }
 }
 
-async function getRestoreEmbed(message: Message, client: Client<true>) {
+async function getRestoreEmbed(
+  message: Message,
+  client: Client<true>
+): Promise<{ embed: EmbedBuilder; components: ActionRowBuilder<ButtonBuilder>[] }> {
   try {
-    const discohookData = {
-      messages: [{ data: message }],
+    // Extract message content and embeds
+    const messageData = {
+      content: message.content || undefined,
+      embeds: cleanEmbeds(message.embeds),
     };
 
-    const base64 = Buffer.from(JSON.stringify(discohookData)).toString("base64");
-    const discohookUrl = `https://discohook.app/?data=${base64}`;
+    const shortUrl = await MessageProcessor.uploadJson(messageData);
 
-    const shortUrl = await MessageProcessor.createShortLink(discohookUrl);
+    const buttons = ButtonWrapper([
+      new ButtonBuilder().setURL(shortUrl).setLabel("View Data").setStyle(5),
+    ]) as ActionRowBuilder<ButtonBuilder>[];
 
-    return BasicEmbed(
-      client,
-      "Message Restored to Discohook",
-      [
-        `Click [here](${shortUrl}) to view the message in Discohook.`,
-        "",
-        "**Note:** This short link will expire after a few views.",
-      ].join("\n")
-    );
+    return {
+      embed: BasicEmbed(
+        client,
+        "Message Restored",
+        [
+          `Click [here](${shortUrl}) to view the message json.`,
+          `You can then copy it to discohook's JSON editor to restore the message.`,
+        ].join("\n")
+      ),
+      components: buttons,
+    };
   } catch (error) {
     throw new Error(`Failed to create restore link: ${error}`);
   }
+}
+
+/**
+ * Cleans embedded properties that aren't needed for Discohook
+ * @param embeds Array of Discord embeds
+ * @returns Cleaned embeds without extraneous properties
+ */
+function cleanEmbeds(embeds: any[]): any[] {
+  return embeds.map((embed) => {
+    // Create a new object with only the properties we want to keep
+    const cleanEmbed: any = {};
+
+    // Copy allowed properties
+    if (embed.title) cleanEmbed.title = embed.title;
+    if (embed.description) cleanEmbed.description = embed.description;
+    if (embed.url) cleanEmbed.url = embed.url;
+    if (embed.timestamp) cleanEmbed.timestamp = embed.timestamp;
+    if (embed.color) cleanEmbed.color = embed.color;
+
+    // Handle footer
+    if (embed.footer) {
+      cleanEmbed.footer = {
+        text: embed.footer.text,
+      };
+      if (embed.footer.iconURL) cleanEmbed.footer.icon_url = embed.footer.iconURL;
+    }
+
+    // Handle image
+    if (embed.image) {
+      cleanEmbed.image = {
+        url: embed.image.url,
+      };
+    }
+
+    // Handle thumbnail
+    if (embed.thumbnail) {
+      cleanEmbed.thumbnail = {
+        url: embed.thumbnail.url,
+      };
+    }
+
+    // Handle author
+    if (embed.author) {
+      cleanEmbed.author = {
+        name: embed.author.name,
+      };
+      if (embed.author.iconURL) cleanEmbed.author.icon_url = embed.author.iconURL;
+      if (embed.author.url) cleanEmbed.author.url = embed.author.url;
+    }
+
+    // Handle fields
+    if (embed.fields && embed.fields.length > 0) {
+      cleanEmbed.fields = embed.fields.map((field: any) => ({
+        name: field.name,
+        value: field.value,
+        inline: field.inline,
+      }));
+    }
+
+    return cleanEmbed;
+  });
 }
