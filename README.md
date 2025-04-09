@@ -9,36 +9,45 @@ A feature-rich Discord bot base with health monitoring, message management, and 
 - **Auto Deployment**: Webhook-based deployment system with domain allowlist
 - **Redis Integration**: Caching and cooldown management
 - **MongoDB Support**: Persistent data storage
+- **Docker Support**: Containerized deployment with health checks
+- **FFmpeg Integration**: Audio processing capabilities
 - **Owner Commands**: Special commands for bot owners
 - **Test Server Support**: Dedicated test servers for development
 
 ## Dependencies
 
-This bot requires several key dependencies:
-
-1. **Node.js**: Version 16 or higher required
+1. **Node.js**: Version 18 or higher required
 2. **Bun**: Used as the package manager ([Install here](https://bun.sh/))
-3. **Redis**: For caching and cooldown management ([Install Redis](https://redis.io/download))
-4. **MongoDB**: For persistent data storage ([Install MongoDB](https://www.mongodb.com/try/download/community))
+3. **Redis**: For caching and cooldown management
+4. **MongoDB**: For persistent data storage
+5. **FFmpeg**: For audio processing capabilities
 
-## Installation
+## Quick Start (Docker)
 
 1. Clone the repository:
 ```bash
 git clone https://github.com/your-username/discord-bot-base.git
+cd discord-bot-base
 ```
 
-2. Install dependencies:
+2. Configure environment:
+```bash
+copy .env.example .env
+```
+
+3. Build and run with Docker:
+```bash
+docker-compose up -d
+```
+
+## Manual Installation
+
+1. Install dependencies:
 ```bash
 bun install
 ```
 
-3. Copy `.env.example` to `.env`:
-```bash
-cp .env.example .env
-```
-
-4. Configure environment variables in `.env`:
+2. Configure environment variables in `.env`:
 
 ```env
 # Required Bot Configuration
@@ -51,6 +60,10 @@ PREFIX=!
 MONGODB_URI=mongodb://localhost:27017
 MONGODB_DATABASE=your_database_name
 REDIS_URL=redis://localhost:6379
+
+# Health Monitoring
+HEALTH_PORT=3000
+HEALTH_CHECK_INTERVAL=30000
 
 # Bot Customization
 WAITING_EMOJI=⏳
@@ -67,45 +80,85 @@ ZIPLINE_BASEURL=https://your.zipline.instance
 ZIPLINE_TOKEN=your_zipline_token
 ```
 
-5. Start the bot:
+3. Start the bot:
 ```bash
+# Development mode with hot reload
+bun run dev
+
+# Production mode
 bun start
 ```
 
+## Docker Configuration
+
+The bot includes full Docker support with:
+- Multi-stage builds for optimal image size
+- Health checks for container orchestration
+- FFmpeg and Node.js pre-installed
+- Volume support for persistent data
+
+### Docker Compose Example:
+```yaml
+version: '3.8'
+services:
+  bot:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    volumes:
+      - .env:/app/.env
+    depends_on:
+      - redis
+      - mongo
+
+  redis:
+    image: redis:alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+
+  mongo:
+    image: mongo:latest
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+
+volumes:
+  redis_data:
+  mongo_data:
+```
+
+## Development Scripts
+
+- `bun run dev` - Start with hot reload for development
+- `bun start` - Start in production mode
+- `bun run test-build` - Test TypeScript compilation
+
 ## Health Monitoring
 
-The bot includes a built-in health monitoring system accessible via HTTP:
+The bot includes a built-in health monitoring system:
 
-- **Health Check**: `GET /health` - Returns JSON status of all components
-- **Web Interface**: `GET /` - Interactive dashboard for bot status and deployment
-- **Deploy Endpoint**: `GET /deploy` - Trigger bot redeployment (domain-restricted)
+- `GET /health` - JSON status endpoint for monitoring
+- `GET /` - Interactive dashboard for bot management
+- `GET /deploy` - Webhook endpoint for automated deployments
 
-The health server runs on port 3000 by default, configurable via `HEALTH_PORT` environment variable.
+Health checks monitor:
+- Discord connection status
+- Database connectivity
+- Redis availability
+- Command loading status
 
 ## Message Management
 
-The bot includes comprehensive message management commands:
+Comprehensive message management via slash commands:
 
-- `/message send` - Send messages using Discohook data
+- `/message send` - Send messages with Discohook data
 - `/message edit` - Edit existing bot messages
 - `/message delete` - Delete bot messages
-- `/message restore` - Restore messages to Discohook format
-
-## Docker Support
-
-```dockerfile
-FROM oven/bun:latest
-WORKDIR /app
-COPY . .
-RUN bun install
-CMD ["bun", "start"]
-```
-
-Build and run:
-```bash
-docker build -t discord-bot .
-docker run -d --name bot --env-file .env discord-bot
-```
+- `/message restore` - Convert messages to Discohook format
 
 ## Contributing
 
