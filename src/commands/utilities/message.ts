@@ -15,16 +15,12 @@ import axios from "axios";
 import FetchEnvs from "../../utils/FetchEnvs";
 const env = FetchEnvs();
 
-const COMMAND_SEND = "send";
-const COMMAND_EDIT = "edit";
-const COMMAND_DELETE = "delete";
-const COMMAND_RESTORE = "restore";
-
-/*
-
-  TODO: edit, delete, restore
-
-*/
+const SUBCOMMANDS = {
+  SEND: "send",
+  EDIT: "edit",
+  DELETE: "delete",
+  RESTORE: "restore",
+} as const;
 
 export const data = new SlashCommandBuilder()
   .setName("message")
@@ -32,7 +28,7 @@ export const data = new SlashCommandBuilder()
   .setDMPermission(false)
   .addSubcommand((subcommand) =>
     subcommand
-      .setName(COMMAND_SEND)
+      .setName(SUBCOMMANDS.SEND)
       .setDescription("Send a message.")
       .addChannelOption((option) =>
         option.setName("channel").setDescription("Where to send the message").setRequired(true)
@@ -40,7 +36,7 @@ export const data = new SlashCommandBuilder()
       .addAttachmentOption((option) =>
         option
           .setName("data")
-          .setDescription("Data (TXT) for the the new message (base64-json, discohook.org url).")
+          .setDescription("Message data file from discohook.org")
           .setRequired(false)
       )
       .addStringOption((option) =>
@@ -52,16 +48,10 @@ export const data = new SlashCommandBuilder()
   )
   .addSubcommand((subcommand) =>
     subcommand
-      .setName(COMMAND_EDIT)
+      .setName(SUBCOMMANDS.EDIT)
       .setDescription("Edit a message posted by the bot")
       .addStringOption((option) =>
         option.setName("url").setDescription("The url of the message to edit").setRequired(true)
-      )
-      .addAttachmentOption((option) =>
-        option
-          .setName("data")
-          .setDescription("Data (TXT) for the the new message (base64-json, discohook.org url).")
-          .setRequired(false)
       )
       .addBooleanOption((option) =>
         option
@@ -72,13 +62,13 @@ export const data = new SlashCommandBuilder()
       .addStringOption((option) =>
         option
           .setName("short-link")
-          .setDescription("A short link from discohook.org")
+          .setDescription("A short link from discohook.org or shrt.zip")
           .setRequired(false)
       )
   )
   .addSubcommand((subcommand) =>
     subcommand
-      .setName(COMMAND_DELETE)
+      .setName(SUBCOMMANDS.DELETE)
       .setDescription("Delete a message")
       .addStringOption((option) =>
         option.setName("url").setDescription("The url of the message to delete.").setRequired(true)
@@ -86,7 +76,7 @@ export const data = new SlashCommandBuilder()
   )
   .addSubcommand((command) =>
     command
-      .setName(COMMAND_RESTORE)
+      .setName(SUBCOMMANDS.RESTORE)
       .setDescription("Restore a message to discohook, alternatively use the discohook bot.")
       .addStringOption((option) =>
         option.setName("url").setDescription("The url of the message to restore.").setRequired(true)
@@ -95,7 +85,7 @@ export const data = new SlashCommandBuilder()
 
 export const options: CommandOptions = {
   deleted: false,
-  devOnly: false,
+  devOnly: true,
   userPermissions: ["ManageMessages"],
   botPermissions: ["ManageMessages"],
 };
@@ -109,16 +99,23 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
   await interaction.reply({ content: waitingEmoji, ephemeral: true });
 
   try {
-    const subcommand = interaction.options.getSubcommand();
-    if (subcommand === COMMAND_EDIT) return await edit({ interaction, client, handler });
-    if (subcommand === COMMAND_SEND) return await send({ interaction, client, handler });
-    if (subcommand === COMMAND_DELETE) return await deleteFunc({ interaction, client, handler });
-    if (subcommand === COMMAND_RESTORE) return await restore({ interaction, client, handler });
+    const subcommand = interaction.options.getSubcommand() as keyof typeof SUBCOMMANDS;
+    const handlers = {
+      [SUBCOMMANDS.EDIT]: edit,
+      [SUBCOMMANDS.SEND]: send,
+      [SUBCOMMANDS.DELETE]: deleteFunc,
+      [SUBCOMMANDS.RESTORE]: restore,
+    };
+
+    const handler = handlers[subcommand];
+    if (!handler) {
+      throw new Error(`Invalid subcommand: ${subcommand}`);
+    }
+
+    return await handler({ interaction, client, handler });
   } catch (error) {
     return new CommandError(error, interaction, client).send();
   }
-
-  return new CommandError(`Invalid subcommand`, interaction, client).send();
 }
 
 export function extractFromDiscohook(url: URL) {
@@ -146,7 +143,8 @@ export async function messageAttachmentProcessor(
     } catch (error) {
       throw new Error("Invalid short link.");
     }
-    if (shortLink.host !== "share.discohook.app") throw new Error("Invalid short link.");
+
+    // if (shortLink.host !== "share.discohook.app") throw new Error("Invalid short link.");
     await fetchWithRedirectCheck(shortLink).then((url: string) => (contents = url));
   } else if (attachment) {
     if (!attachment.contentType?.includes("text")) throw new Error("Invalid attachment.");
@@ -161,8 +159,8 @@ export async function messageAttachmentProcessor(
     DeleteFile(path, "txt");
   } else throw new Error("Invalid attachment.");
 
-  if (contents.startsWith("https://discohook.app/?data=")) {
-    contents = contents.replace("https://discohook.app/?data=", "");
+  if (contents.startsWith("https://discohook.org/?data=")) {
+    contents = contents.replace("https://discohook.org/?data=", "");
   } else {
     let json: any;
     try {
