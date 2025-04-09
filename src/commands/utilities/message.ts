@@ -94,7 +94,7 @@ export const data = new SlashCommandBuilder()
   );
 
 export const options: CommandOptions = {
-  deleted: false,
+  deleted: true,
   devOnly: true,
   userPermissions: ["ManageMessages"],
   botPermissions: ["ManageMessages"],
@@ -161,8 +161,8 @@ export async function messageAttachmentProcessor(
     DeleteFile(path, "txt");
   } else throw new Error("Invalid attachment.");
 
-  if (contents.startsWith("https://discohook.org/?data=")) {
-    contents = contents.replace("https://discohook.org/?data=", "");
+  if (contents.startsWith("https://discohook.app/?data=")) {
+    contents = contents.replace("https://discohook.app/?data=", "");
   } else {
     let json: any;
     try {
