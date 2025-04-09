@@ -1,6 +1,6 @@
 import { Attachment, InteractionReplyOptions } from "discord.js";
 import { MessageProcessorResult, DiscohookData } from "../types/MessageTypes";
-import { fetchWithRedirectCheck } from "../utils/TinyUtils";
+import { debugMsg, fetchWithRedirectCheck } from "../utils/TinyUtils";
 import DownloadFile from "../utils/DownloadFile";
 import DeleteFile from "../utils/DeleteFile";
 import { readFileSync } from "fs";
@@ -13,15 +13,26 @@ interface ContentResult {
   data?: string;
 }
 
+/**
+ * Service for processing message data from various sources
+ * Handles Discohook links, text files, and JSON content
+ */
 export class MessageProcessor {
   private static readonly VALID_HOSTS = ["discohook.org", "share.discohook.app", "shrt.zip"];
   private static readonly env = FetchEnvs();
 
+  /**
+   * Process message data from either an attachment or short link
+   * @param attachment Discord attachment with message data
+   * @param shortLink URL to message data
+   * @returns Processed message data ready for sending/editing
+   */
   public static async processMessage(
     attachment?: Attachment | null,
     shortLink?: string | null
   ): Promise<MessageProcessorResult> {
     try {
+      // Validate inputs
       if (shortLink && attachment) {
         return { success: false, error: "Cannot use both shortlink and attachment" };
       }
@@ -30,11 +41,13 @@ export class MessageProcessor {
         return { success: false, error: "Must provide either shortlink or attachment" };
       }
 
+      // Get raw content
       const contents = await this.getContents(attachment, shortLink);
       if (!contents.success || !contents.data) {
         return { success: false, error: contents.error || "Failed to get contents" };
       }
 
+      // Parse content into message data
       const messageData = await this.parseContents(contents.data);
       if (!messageData.success || !messageData.data) {
         return { success: false, error: messageData.error || "Failed to parse contents" };
@@ -50,27 +63,65 @@ export class MessageProcessor {
     }
   }
 
-  public static async createShortLink(data: string): Promise<string> {
-    const url = new URL(`${this.env.ZIPLINE_BASEURL}/api/shorten`);
+  /**
+   * Upload JSON data as a text file to create a short link
+   * @param data Object to upload as JSON
+   * @returns Shortened URL
+   */
+  public static async uploadJson(data: object): Promise<string> {
+    try {
+      // Convert object to formatted JSON string
+      const jsonString = JSON.stringify(data, null, 2);
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Max-Views": "10",
-        Authorization: this.env.ZIPLINE_TOKEN,
-      },
-      body: JSON.stringify({ url: data }),
-    });
+      // Create form data for multipart upload
+      const formData = new FormData();
+      const blob = new Blob([jsonString], { type: "application/json" });
+      formData.append("file", blob, "text.json");
 
-    const result = await response.json();
-    if (!result.url) {
-      throw new Error("Failed to create short link");
+      // Log the attempt
+      log.info(`Uploading JSON data of length ${jsonString.length}`);
+
+      // Make the request
+      const response = await fetch(`${this.env.ZIPLINE_BASEURL}/api/upload`, {
+        method: "POST",
+        headers: {
+          Authorization: this.env.ZIPLINE_TOKEN,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API error (${response.status}): ${errorText}`);
+      }
+
+      const result = await response.json();
+      debugMsg(`Short link creation response: ${JSON.stringify(result)}`);
+
+      // The API returns the URL in the files array
+      if (result.files?.[0]?.url) {
+        return result.files[0].url;
+      } else if (result.url) {
+        return result.url;
+      } else {
+        throw new Error(
+          `Invalid response format from URL shortener API: ${JSON.stringify(result)}`
+        );
+      }
+    } catch (error) {
+      log.error(`Short link creation failed: ${error}`);
+      throw new Error(
+        `Failed to create short link: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
-
-    return result.url;
   }
 
+  /**
+   * Retrieve contents from either an attachment or short link
+   * @param attachment Discord attachment with message data
+   * @param shortLink URL to message data
+   * @returns Raw content as string
+   */
   private static async getContents(
     attachment?: Attachment | null,
     shortLink?: string | null
@@ -90,6 +141,11 @@ export class MessageProcessor {
     }
   }
 
+  /**
+   * Process a short link to retrieve its content
+   * @param shortLink URL to message data
+   * @returns Raw content as string
+   */
   private static async processShortLink(shortLink: string): Promise<ContentResult> {
     try {
       const url = new URL(shortLink);
@@ -104,6 +160,11 @@ export class MessageProcessor {
     }
   }
 
+  /**
+   * Process an attachment to retrieve its content
+   * @param attachment Discord attachment with message data
+   * @returns Raw content as string
+   */
   private static async processAttachment(attachment: Attachment): Promise<ContentResult> {
     if (!attachment.contentType?.includes("text")) {
       return { success: false, error: "Attachment must be text file" };
@@ -122,6 +183,11 @@ export class MessageProcessor {
     }
   }
 
+  /**
+   * Parse raw content into message data
+   * @param contents Raw content as string
+   * @returns Parsed message data
+   */
   private static async parseContents(contents: string): Promise<MessageProcessorResult> {
     try {
       if (contents.startsWith("https://discohook.org/?data=")) {
