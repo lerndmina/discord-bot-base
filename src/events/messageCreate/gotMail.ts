@@ -498,15 +498,19 @@ async function handleReply(message: Message, client: Client<true>, staffUser: Us
   );
 
   (await getter.getUser(mail.userId)).send({
-    embeds: [
-      BasicEmbed(client, "Modmail Reply", `*`, [
-        {
-          name: `${getter.getMemberName(await getter.getMember(guild, staffUser.id))} (Staff):`,
-          value: `${finalContent}`,
-          inline: false,
-        },
-      ]),
-    ],
+    // embeds: [
+    //   BasicEmbed(client, "Modmail Reply", `*`, [
+    //     {
+    //       name: `${getter.getMemberName(await getter.getMember(guild, staffUser.id))} (Staff):`,
+    //       value: `${finalContent}`,
+    //       inline: false,
+    //     },
+    //   ]),
+    // ],
+    content:
+      `# Modmail reply` +
+      `\n## ${getter.getMemberName(await getter.getMember(guild, staffUser.id))} Resonded:` +
+      `\n${finalContent}`,
   });
 
   debugMsg("Sent message to user" + mail.userId + " in guild " + mail.guildId);
