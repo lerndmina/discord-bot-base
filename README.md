@@ -35,6 +35,7 @@ docker pull ghcr.io/lerndmina/discord-bot-base:latest
 ```
 
 You can also use specific versions or the nightly build:
+
 - Latest stable: `ghcr.io/lerndmina/discord-bot-base:latest`
 - Nightly build: `ghcr.io/lerndmina/discord-bot-base:nightly`
 - Specific version: `ghcr.io/lerndmina/discord-bot-base:vX.Y.Z`
@@ -42,8 +43,9 @@ You can also use specific versions or the nightly build:
 ### Option 2: Quick Start (Docker Compose)
 
 1. Create a `docker-compose.yml`:
+
 ```yaml
-version: '3.8'
+version: "3.8"
 services:
   bot:
     image: ghcr.io/lerndmina/discord-bot-base:latest
@@ -76,11 +78,13 @@ volumes:
 ```
 
 2. Configure environment:
+
 ```bash
 copy .env.example .env
 ```
 
 3. Run with Docker Compose:
+
 ```bash
 docker-compose up -d
 ```
@@ -88,6 +92,7 @@ docker-compose up -d
 ### Option 3: Build from Source
 
 1. Clone the repository:
+
 ```bash
 git clone https://github.com/lerndmina/discord-bot-base.git
 cd discord-bot-base
@@ -98,6 +103,7 @@ cd discord-bot-base
 ## Manual Installation
 
 1. Install dependencies:
+
 ```bash
 bun install
 ```
@@ -136,6 +142,7 @@ ZIPLINE_TOKEN=your_zipline_token
 ```
 
 3. Start the bot:
+
 ```bash
 # Development mode with hot reload
 bun run dev
@@ -147,6 +154,7 @@ bun start
 ## Docker Configuration
 
 The bot includes full Docker support with:
+
 - Multi-stage builds for optimal image size
 - Health checks for container orchestration
 - FFmpeg and Node.js pre-installed
@@ -154,8 +162,9 @@ The bot includes full Docker support with:
 - Available on GitHub Container Registry
 
 ### Docker Compose Example:
+
 ```yaml
-version: '3.8'
+version: "3.8"
 services:
   bot:
     build: .
@@ -202,6 +211,7 @@ The bot includes a built-in health monitoring system:
 - `GET /deploy` - Webhook endpoint for automated deployments
 
 Health checks monitor:
+
 - Discord connection status
 - Database connectivity
 - Redis availability

@@ -4,16 +4,24 @@ FROM oven/bun:latest
 RUN apt-get update && \
   apt-get install -y ffmpeg curl wget && \
   curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
-  apt-get install -y nodejs
+  apt-get install -y nodejs && \
+  apt-get clean && \
+  rm -rf /var/lib/apt/lists/*
 
 # Set the working directory
 WORKDIR /app
 
-# Copy the package.json and bun.lock files
+# Copy package files first
 COPY package.json bun.lock ./
 
-# Install dependencies
-RUN bun install
+# Install dependencies with bun, leveraging its speed
+RUN bun install --frozen-lockfile
+
+# Copy TypeScript config for build
+COPY tsconfig.json ./
+
+# Copy source files
+COPY src/ ./src/
 
 # Copy the rest of the application files
 COPY . .
@@ -22,7 +30,6 @@ COPY . .
 EXPOSE 3000
 
 # Add health check
-# Checks every 30s, timeout after 10s, 60s startup grace period, 3 retries before unhealthy
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
 
