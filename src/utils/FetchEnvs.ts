@@ -24,6 +24,7 @@ function getter() {
     DEFAULT_TIMEZONE: string;
     STAFF_ROLE: string;
     OPENAI_API_KEY: string;
+    SYSTEM_PROMPT: string;
     ALLOWED_DEPLOY_DOMAINS: string[];
     ZIPLINE_BASEURL: string;
     ZIPLINE_TOKEN: string;
@@ -41,6 +42,7 @@ function getter() {
     DEFAULT_TIMEZONE: process.env.DEFAULT_TIMEZONE || "Europe/London",
     STAFF_ROLE: process.env.STAFF_ROLE || DEFAULT_OPTIONAL_STRING,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY || DEFAULT_OPTIONAL_STRING,
+    SYSTEM_PROMPT: process.env.SYSTEM_PROMPT || DEFAULT_OPTIONAL_STRING,
     ALLOWED_DEPLOY_DOMAINS: (process.env.ALLOWED_DEPLOY_DOMAINS || "").trim().split(","),
     ZIPLINE_BASEURL: process.env.ZIPLINE_BASEURL || DEFAULT_OPTIONAL_STRING,
     ZIPLINE_TOKEN: process.env.ZIPLINE_TOKEN || DEFAULT_OPTIONAL_STRING,

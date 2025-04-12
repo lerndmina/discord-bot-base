@@ -1,6 +1,7 @@
 import { Client, Snowflake, VoiceChannel, VoiceState } from "discord.js";
 import ActiveTempChannels from "../../models/ActiveTempChannels";
 import log from "../../utils/log";
+import Database from "../../utils/data/database";
 
 export default async (oldState: VoiceState, newState: VoiceState, client: Client) => {
   if (oldState.channelId == null) return;
@@ -27,8 +28,8 @@ export default async (oldState: VoiceState, newState: VoiceState, client: Client
   try {
     await channel.delete();
 
-    vcList.channelIDs = vcList.channelIDs.filter((vc) => vc !== leftChannelID);
-    await vcList.save();
+    const db = new Database();
+    await db.pullFromSet(ActiveTempChannels, { guildID: guildId }, "channelIDs", leftChannelID);
   } catch (error) {
     log.error(error as string);
   }

@@ -15,6 +15,7 @@ import ms from "ms";
 import log from "../../utils/log";
 import Database from "../../utils/data/database";
 import { redisClient } from "../../Bot";
+import { tryCatch } from "../../utils/trycatch";
 
 /**
  *
@@ -71,7 +72,14 @@ export default async (oldState: VoiceState, newState: VoiceState, client: Client
       bitrate: bitrate,
     });
 
-    await newState.setChannel(newChannel);
+    const { data: _, error: channelMoveError } = await tryCatch(newState.setChannel(newChannel));
+
+    if (channelMoveError) {
+      log.error(`Failed to move user to new channel, they probably left.. Too fast for me lol`);
+      log.error(channelMoveError);
+      await newChannel.delete("Failed to move user to new channel.");
+      return;
+    }
 
     setChannelNumberCache(category.id, channelNumber + 1);
 
@@ -122,18 +130,8 @@ export default async (oldState: VoiceState, newState: VoiceState, client: Client
       components: ButtonWrapper(buttons),
     });
 
-    const tempList = await ActiveTempChannels.findOne({ guildID: guildId });
-
-    if (tempList) {
-      tempList.channelIDs.push(newChannel.id);
-      await tempList.save();
-    } else {
-      const newTempList = new ActiveTempChannels({
-        guildID: newChannel.guild.id,
-        channelIDs: [newChannel.id],
-      });
-      await newTempList.save();
-    }
+    const db = new Database();
+    await db.addToSet(ActiveTempChannels, { guildID: guildId }, "channelIDs", newChannel.id);
   } catch (error) {
     log.error(error as string);
   }

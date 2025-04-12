@@ -1,4 +1,4 @@
-import { Schema, Model } from "mongoose";
+import { Schema, Model, UpdateQuery } from "mongoose";
 import { redisClient } from "../../Bot";
 import { debugMsg } from "../TinyUtils";
 import FetchEnvs from "../FetchEnvs";
@@ -207,5 +207,85 @@ export default class Database {
   async cacheFetch(key: string) {
     debugMsg(`Fetching key: ${key} from cache`);
     return await redisClient.get(key);
+  }
+
+  /**
+   * Add a value to an array field atomically
+   * @generic T - The document type
+   * @param schema - Mongoose model
+   * @param query - Query to find the document
+   * @param field - Array field to update
+   * @param value - Value to add
+   * @param cacheTime - Cache time in seconds
+   */
+  async addToSet<T>(
+    schema: Model<T>,
+    query: any,
+    field: string,
+    value: any,
+    cacheTime = ONE_HOUR
+  ): Promise<T | null> {
+    var start = env.DEBUG_LOG ? Date.now() : undefined;
+    if (!schema || !query) {
+      throw new Error("Missing schema or query");
+    }
+
+    const mongoKey = Object.keys(query)[0];
+    const redisKey =
+      env.MONGODB_DATABASE + ":" + schema.modelName + ":" + mongoKey + ":" + query[mongoKey];
+
+    const update = {
+      $addToSet: { [field]: value },
+    } as UpdateQuery<T>;
+
+    const result = await schema.findOneAndUpdate(query, update, { upsert: true, new: true });
+
+    await redisClient.set(redisKey, JSON.stringify(result));
+    await redisClient.expire(redisKey, cacheTime);
+
+    if (env.DEBUG_LOG) debugMsg(`DB - addToSet - Time taken: ${Date.now() - start!}ms`);
+    return result as T;
+  }
+
+  /**
+   * Remove a value from an array field atomically
+   * @generic T - The document type
+   * @param schema - Mongoose model
+   * @param query - Query to find the document
+   * @param field - Array field to update
+   * @param value - Value to remove
+   * @param cacheTime - Cache time in seconds
+   */
+  async pullFromSet<T>(
+    schema: Model<T>,
+    query: any,
+    field: string,
+    value: any,
+    cacheTime = ONE_HOUR
+  ): Promise<T | null> {
+    var start = env.DEBUG_LOG ? Date.now() : undefined;
+    if (!schema || !query) {
+      throw new Error("Missing schema or query");
+    }
+
+    const mongoKey = Object.keys(query)[0];
+    const redisKey =
+      env.MONGODB_DATABASE + ":" + schema.modelName + ":" + mongoKey + ":" + query[mongoKey];
+
+    const update = {
+      $pull: { [field]: value },
+    } as UpdateQuery<T>;
+
+    const result = await schema.findOneAndUpdate(query, update, { new: true });
+
+    if (result) {
+      await redisClient.set(redisKey, JSON.stringify(result));
+      await redisClient.expire(redisKey, cacheTime);
+    } else {
+      await redisClient.del(redisKey);
+    }
+
+    if (env.DEBUG_LOG) debugMsg(`DB - pullFromSet - Time taken: ${Date.now() - start!}ms`);
+    return result as T;
   }
 }
