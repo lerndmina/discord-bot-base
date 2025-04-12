@@ -1,8 +1,11 @@
 {
-  "name": "bot",
+  "name": "@solace/discord-bot-base",
   "version": "1.0.0",
-  "description": "",
+  "description": "Discord bot base with various utility commands and features",
   "main": "src/Bot.ts",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "dev": "npx nodemon --watch 'src/**/*.ts' --exec 'npx tsx' src/Bot.ts",
     "start": "bunx tsx src/Bot.ts",
