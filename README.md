@@ -2,6 +2,8 @@
 
 A feature-rich Discord bot base with health monitoring, message management, and deployment controls.
 
+Mostly built for personal use, feel free to use in your own stuff. No support will be provided but PRs are welcome if you find bugs or want to add features.
+
 ## Features
 
 - **Health Monitoring**: Web interface to check bot status and components
@@ -76,7 +78,7 @@ OPENAI_API_KEY=optional_openai_api_key
 
 # Deployment Configuration
 ALLOWED_DEPLOY_DOMAINS=github.com,gitlab.com
-ZIPLINE_BASEURL=https://your.zipline.instance
+ZIPLINE_BASEURL=https://your.zipline.instance # zipline.diced.sh
 ZIPLINE_TOKEN=your_zipline_token
 ```
 
