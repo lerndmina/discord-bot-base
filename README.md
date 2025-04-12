@@ -24,12 +24,55 @@ Mostly built for personal use, feel free to use in your own stuff. No support wi
 4. **MongoDB**: For persistent data storage
 5. **FFmpeg**: For audio processing capabilities
 
-## Quick Start (Docker)
+## Installation Options
 
-1. Clone the repository:
+### Option 1: Using the Package Registry
+
+Pull the Docker image directly from GitHub Container Registry:
+
 ```bash
-git clone https://github.com/your-username/discord-bot-base.git
-cd discord-bot-base
+docker pull ghcr.io/lerndmina/discord-bot-base:latest
+```
+
+You can also use specific versions or the nightly build:
+- Latest stable: `ghcr.io/lerndmina/discord-bot-base:latest`
+- Nightly build: `ghcr.io/lerndmina/discord-bot-base:nightly`
+- Specific version: `ghcr.io/lerndmina/discord-bot-base:vX.Y.Z`
+
+### Option 2: Quick Start (Docker Compose)
+
+1. Create a `docker-compose.yml`:
+```yaml
+version: '3.8'
+services:
+  bot:
+    image: ghcr.io/lerndmina/discord-bot-base:latest
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    volumes:
+      - .env:/app/.env
+    depends_on:
+      - redis
+      - mongo
+
+  redis:
+    image: redis:alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+
+  mongo:
+    image: mongo:latest
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+
+volumes:
+  redis_data:
+  mongo_data:
 ```
 
 2. Configure environment:
@@ -37,10 +80,20 @@ cd discord-bot-base
 copy .env.example .env
 ```
 
-3. Build and run with Docker:
+3. Run with Docker Compose:
 ```bash
 docker-compose up -d
 ```
+
+### Option 3: Build from Source
+
+1. Clone the repository:
+```bash
+git clone https://github.com/lerndmina/discord-bot-base.git
+cd discord-bot-base
+```
+
+2. Follow either the Docker or Manual installation instructions below.
 
 ## Manual Installation
 
@@ -98,6 +151,7 @@ The bot includes full Docker support with:
 - Health checks for container orchestration
 - FFmpeg and Node.js pre-installed
 - Volume support for persistent data
+- Available on GitHub Container Registry
 
 ### Docker Compose Example:
 ```yaml
