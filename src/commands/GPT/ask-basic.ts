@@ -7,6 +7,7 @@ import { CommandOptions, SlashCommandProps } from "commandkit";
 import { globalCooldownKey, setCommandCooldown, userCooldownKey } from "../../Bot";
 import { ObjectExpressionOperatorReturningObject } from "mongoose";
 import { returnMessage } from "../../utils/TinyUtils";
+import ResponsePlugins from "../../utils/ResponsePlugins";
 const env = FetchEnvs();
 
 const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY });
@@ -89,6 +90,8 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
     return;
   }
 
+  const parsedResponse = await ResponsePlugins(aiResponse);
+
   // Send the response back to discord
-  interaction.editReply({ content: aiResponse });
+  interaction.editReply({ content: parsedResponse });
 }
