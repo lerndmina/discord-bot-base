@@ -69,7 +69,7 @@ export default async function ({ interaction, client, handler }: SlashCommandPro
   const filter = (i: ModalSubmitInteraction) => i.customId === modalId;
   await interaction.showModal(modal);
   interaction
-    .awaitModalSubmit({ filter: filter, time: 60 * 1000 * 20 })
+    .awaitModalSubmit({ filter: filter, time: 10 * 60 * 1000 })
     .then(async (i) => {
       await i.reply({ content: waitingEmoji, ephemeral: true });
       const reason = i.fields.getTextInputValue(inputId);
