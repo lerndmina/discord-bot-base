@@ -4,49 +4,91 @@ import ModmailConfig from "../../models/ModmailConfig";
 import { CommandOptions, SlashCommandProps } from "commandkit";
 import { waitingEmoji } from "../../Bot";
 import { initialReply } from "../../utils/initialReply";
+import Database from "../../utils/data/database";
+import FetchEnvs from "../../utils/FetchEnvs";
+import log from "../../utils/log";
 
 export const setupModmailOptions: CommandOptions = {
   devOnly: false,
-  deleted: true,
-  userPermissions: ["ManageChannels", "ManageGuild", "ManageThreads"],
-  botPermissions: ["ManageWebhooks", "ManageChannels", "ManageThreads"],
+  deleted: false,
+  userPermissions: ["ManageGuild"],
 };
 
-export default async function ({ interaction, client, handler }: SlashCommandProps) {
-  const channel = interaction.options.getChannel("channel")!;
-  const role = interaction.options.getRole("role")!;
-  if (!(channel instanceof ForumChannel)) {
-    return interaction.reply({
+export default async function setupModmail({ interaction, client, handler }: SlashCommandProps) {
+  await interaction.reply(waitingEmoji);
+  const channel = interaction.options.getChannel("channel");
+  const role = interaction.options.getRole("role");
+  if (!channel || !role) {
+    return interaction.editReply({
+      content: "",
       embeds: [
-        BasicEmbed(client, "‼️ Error", "The channel must be a forum channel.", undefined, "Red"),
+        BasicEmbed(
+          client,
+          "Error",
+          "You must provide a channel and role to setup modmail.",
+          undefined,
+          "Red"
+        ),
       ],
-      ephemeral: true,
     });
   }
-
-  await initialReply(interaction, true);
-
-  if (!interaction.guild)
-    return interaction.editReply("‼️ Error, this command can only be used in a server.");
+  if (channel.type !== 15) {
+    return interaction.editReply({
+      content: "",
+      embeds: [
+        BasicEmbed(client, "Error", "The channel must be a forum channel.", undefined, "Red"),
+      ],
+    });
+  }
+  const forumChannel = channel as ForumChannel;
 
   try {
-    const modmailConfig = await ModmailConfig.findOneAndUpdate(
-      { guildId: interaction.guild.id },
+    // Create a webhook for the server
+    const webhook = await forumChannel.createWebhook({
+      name: "Modmail System",
+      avatar: client.user.displayAvatarURL(),
+      reason: "Modmail system webhook for relaying user messages",
+    });
+
+    const db = new Database();
+    await db.findOneAndUpdate(
+      ModmailConfig,
+      { guildId: interaction.guild?.id },
       {
-        guildId: interaction.guild.id,
-        forumChannelId: channel.id,
+        guildId: interaction.guild?.id,
+        forumChannelId: forumChannel.id,
         staffRoleId: role.id,
+        webhookId: webhook.id,
+        webhookToken: webhook.token,
       },
-      {
-        upsert: true,
-        new: true,
-      }
+      { upsert: true, new: true }
     );
+
+    interaction.editReply({
+      content: "",
+      embeds: [
+        BasicEmbed(
+          client,
+          "Success",
+          `Modmail has been setup successfully! The forum channel ${forumChannel} will be used for modmail threads and the role ${role} will be pinged when a new thread is created.`,
+          undefined,
+          "Green"
+        ),
+      ],
+    });
   } catch (error) {
-    return interaction.editReply({
-      content: "<:yikes:950428967301709885>",
+    log.error("Error setting up modmail:", error);
+    interaction.editReply({
+      content: "",
+      embeds: [
+        BasicEmbed(
+          client,
+          "Error",
+          `An error occurred while setting up modmail: ${error}`,
+          undefined,
+          "Red"
+        ),
+      ],
     });
   }
-
-  interaction.editReply("🎉 Successfully created modmail config entry!");
 }

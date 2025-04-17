@@ -21,13 +21,13 @@ export default model(
       type: String,
       required: true,
     },
-    webhookId: {
+    userAvatar: {
       type: String,
-      required: true,
+      required: false,
     },
-    webhookToken: {
+    userDisplayName: {
       type: String,
-      required: true,
+      required: false,
     },
   })
 );

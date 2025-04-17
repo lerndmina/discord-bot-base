@@ -49,7 +49,6 @@ const env = FetchEnvs();
 const MAX_TITLE_LENGTH = 50;
 
 export default async function (message: Message, client: Client<true>) {
-  const db = new Database();
   if (message.author.bot) return;
   const user = message.author;
 
@@ -94,7 +93,6 @@ async function handleDM(message: Message, client: Client<true>, user: User) {
 
   const db = new Database();
   const requestId = message.id;
-  // const mail = await Modmail.findOne({ userId: user.id });
   const mail = await db.findOne(Modmail, { userId: user.id }, true);
   const customIds = [`create-${requestId}`, `cancel-${requestId}`];
   if (!mail) {
@@ -357,11 +355,29 @@ async function newModmail(
         });
       }
 
-      const webhook = await channel.createWebhook({
-        name: memberName,
-        avatar: i.user.displayAvatarURL(),
-        reason: "Modmail Webhook, required to show the user properly.",
-      });
+      const db = new Database();
+
+      // Get the ModmailConfig for the server to use its webhook
+      const config = await db.findOne(ModmailConfig, { guildId: guildId });
+      if (!config || !config.webhookId || !config.webhookToken) {
+        // If there's no webhook configured yet, create one and update the config (this allows for seamless migration)
+        log.info("Creating new webhook for modmail config");
+        const webhook = await channel.createWebhook({
+          name: "Modmail System",
+          avatar: client.user.displayAvatarURL(),
+          reason: "Modmail system webhook for relaying user messages.",
+        });
+
+        await db.findOneAndUpdate(
+          ModmailConfig,
+          { guildId: guildId },
+          {
+            webhookId: webhook.id,
+            webhookToken: webhook.token,
+          },
+          { new: true, upsert: true }
+        );
+      }
 
       thread.send({
         content: `<@&${staffRoleId}>`,
@@ -376,16 +392,17 @@ async function newModmail(
         ],
       });
 
-      const db = new Database();
+      // Create new modmail entry with user avatar and display name
       await db.findOneAndUpdate(
         Modmail,
         { userId: i.user.id },
         {
           guildId: guildId,
           forumThreadId: thread.id,
+          forumChannelId: channelId,
           userId: i.user.id,
-          webhookId: webhook.id,
-          webhookToken: webhook.token,
+          userAvatar: i.user.displayAvatarURL(),
+          userDisplayName: memberName,
         },
         {
           upsert: true,
@@ -449,14 +466,39 @@ async function sendMessage(
   try {
     const guild = await getter.getGuild(mail.guildId);
     const thread = (await getter.getChannel(mail.forumThreadId)) as ThreadChannel;
-    const webhook = await client.fetchWebhook(mail.webhookId, mail.webhookToken);
-    if (
-      !(await postWebhookToThread(webhook.url as unknown as Url, thread.id, cleanMessageContent))
-    ) {
-      thread.send(
-        `${message.author.username} says: ${cleanMessageContent}\n\n\`\`\`This message failed to send as a webhook, please contact the bot developer.\`\`\``
+
+    // Get the webhook from the ModmailConfig instead of the individual modmail
+    const db = new Database();
+    const config = await db.findOne(ModmailConfig, { guildId: mail.guildId });
+
+    if (!config || !config.webhookId || !config.webhookToken) {
+      // If there's no webhook in config, fall back to normal message
+      return thread.send(
+        `${message.author.username} says: ${cleanMessageContent}\n\n\`\`\`No webhook found in ModmailConfig, please recreate the modmail setup.\`\`\``
       );
-      log.error("Failed to send message to thread, sending normally.");
+    }
+
+    const webhook = await client.fetchWebhook(config.webhookId, config.webhookToken);
+
+    // Send message with the user's avatar and username from the stored data or current values
+    await webhook.send({
+      content: cleanMessageContent,
+      threadId: thread.id,
+      username: mail.userDisplayName || message.author.displayName,
+      avatarURL: mail.userAvatar || message.author.displayAvatarURL(),
+    });
+
+    // Update the user's avatar and display name if they're not set or have changed
+    if (!mail.userAvatar || !mail.userDisplayName) {
+      await db.findOneAndUpdate(
+        Modmail,
+        { userId: message.author.id },
+        {
+          userAvatar: message.author.displayAvatarURL(),
+          userDisplayName: message.author.displayName,
+        },
+        { new: true, upsert: true }
+      );
     }
   } catch (error) {
     log.error(error as string);
@@ -508,9 +550,10 @@ async function handleReply(message: Message, client: Client<true>, staffUser: Us
     //   ]),
     // ],
     content:
-      `# Modmail reply` +
-      `\n## ${getter.getMemberName(await getter.getMember(guild, staffUser.id))} Resonded:` +
-      `\n${finalContent}`,
+      `### ${getter.getMemberName(await getter.getMember(guild, staffUser.id))} Resonded:` +
+      `\n${finalContent}` +
+      `\n-# This message was sent by a staff member of **${guild.name}** in reply to your modmail thread.` +
+      `\n-# If you want to close this thread, just send \`/modmail close\` here`,
   });
 
   debugMsg("Sent message to user" + mail.userId + " in guild " + mail.guildId);

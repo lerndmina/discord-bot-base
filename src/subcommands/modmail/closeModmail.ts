@@ -33,12 +33,6 @@ export default async function ({ interaction, client, handler }: SlashCommandPro
   await initialReply(interaction, true);
 
   const forumThread = (await getter.getChannel(mail.forumThreadId)) as ThreadChannel;
-  try {
-    const webhook = await client.fetchWebhook(mail.webhookId, mail.webhookToken);
-    webhook.delete();
-  } catch (error) {
-    log.error("Webhook missing, probably already deleted.");
-  }
   const embed = BasicEmbed(
     client,
     "Modmail Closed",

@@ -13,6 +13,14 @@ const ModmailConfig = new Schema({
     type: String,
     required: true,
   },
+  webhookId: {
+    type: String,
+    required: false,
+  },
+  webhookToken: {
+    type: String,
+    required: false,
+  },
 });
 
 export default model("ModmailConfig", ModmailConfig);

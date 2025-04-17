@@ -53,6 +53,9 @@ export default async function ({ interaction, client, handler }: SlashCommandPro
   const modmailData = await db.findOne(Modmail, { userId: targetMember.id });
   if (modmailData) return interaction.reply("A modmail thread is already open for this user");
 
+  // All checks passed
+  await interaction.reply({ content: waitingEmoji, ephemeral: true });
+
   // Get the user's thread
   const thread = await channel.threads.create({
     name: reason ? `${reason.substring(0, 50)}...` : `Modmail - ${user.tag}`,
@@ -62,12 +65,6 @@ export default async function ({ interaction, client, handler }: SlashCommandPro
     },
   });
 
-  const webhook = await channel.createWebhook({
-    name: targetMember.nickname || targetMember.displayName,
-    avatar: targetMember.user.displayAvatarURL(),
-    reason: `Modmail thread opened for ${user.tag} (${user.id}) by staff member ${interaction.user.tag} (${interaction.user.id})\n\nReason: ${reason}`,
-  });
-
   const newModmailData = await db.findOneAndUpdate(
     Modmail,
     { userId: targetMember.id },
@@ -75,8 +72,9 @@ export default async function ({ interaction, client, handler }: SlashCommandPro
       guildId: guild.id,
       forumThreadId: thread.id,
       forumChannelId: channel.id,
-      webhookId: webhook.id,
-      webhookToken: webhook.token,
+      userId: targetMember.id,
+      userAvatar: targetMember.user.displayAvatarURL(),
+      userDisplayName: targetMember.displayName,
     },
     { upsert: true, new: true }
   );
@@ -103,7 +101,6 @@ export default async function ({ interaction, client, handler }: SlashCommandPro
 
     await db.deleteOne(Modmail, { userId: targetMember.id });
     await thread.delete();
-    await webhook.delete();
     setCommandCooldown(globalCooldownKey(interaction.commandName), 15);
   }
   await interaction.editReply({
