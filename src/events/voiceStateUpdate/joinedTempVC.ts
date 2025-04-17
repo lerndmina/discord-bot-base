@@ -142,7 +142,7 @@ export function getChannelNumberCacheKey(categoryId: string) {
 }
 
 export async function fetchChannelNumber(categoryId: string) {
-  const number = redisClient.get(getChannelNumberCacheKey(categoryId));
+  const number = await redisClient.get(getChannelNumberCacheKey(categoryId));
 
   if (!number || isNaN(parseInt(number))) {
     return 1;
