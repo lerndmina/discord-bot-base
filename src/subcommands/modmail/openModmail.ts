@@ -68,72 +68,80 @@ export default async function ({ interaction, client, handler }: SlashCommandPro
   modal.addComponents(actionRow);
   const filter = (i: ModalSubmitInteraction) => i.customId === modalId;
   await interaction.showModal(modal);
-  interaction.awaitModalSubmit({ filter: filter, time: 60000 }).then(async (i) => {
-    await i.reply({ content: waitingEmoji, ephemeral: true });
-    const reason = i.fields.getTextInputValue(inputId);
+  interaction
+    .awaitModalSubmit({ filter: filter, time: 60 * 1000 * 20 })
+    .then(async (i) => {
+      await i.reply({ content: waitingEmoji, ephemeral: true });
+      const reason = i.fields.getTextInputValue(inputId);
 
-    // Get the user's thread
-    const thread = await channel.threads.create({
-      name: `${reason.substring(0, 50)}...`,
-      autoArchiveDuration: 60,
-      message: {
-        content: `Modmail thread opened for ${user.tag} (<@${user.id}>) by staff member ${interaction.user.tag} (${interaction.user.id})\n\nReason: ${reason}`,
-      },
-    });
-
-    const webhook = await channel.createWebhook({
-      name: targetMember.nickname || targetMember.displayName,
-      avatar: targetMember.user.displayAvatarURL(),
-      reason: `Modmail thread opened for ${user.tag} (${user.id}) by staff member ${interaction.user.tag} (${interaction.user.id})\n\nReason: ${reason}`,
-    });
-
-    const modmailData = await db.findOneAndUpdate(
-      Modmail,
-      { userId: targetMember.id },
-      {
-        guildId: guild.id,
-        forumThreadId: thread.id,
-        forumChannelId: channel.id,
-        webhookId: webhook.id,
-        webhookToken: webhook.token,
-      },
-      { upsert: true, new: true }
-    );
-
-    const dmChannel = await targetMember.createDM();
-    try {
-      await dmChannel.send({
-        embeds: [
-          BasicEmbed(
-            client,
-            "Modmail Thread Opened",
-            `Staff have opened a modmail thread for you. Please respond here to communicate with staff.`,
-            [{ name: "Reason", value: reason, inline: false }],
-            "Aqua"
-          ),
-        ],
+      // Get the user's thread
+      const thread = await channel.threads.create({
+        name: `${reason.substring(0, 50)}...`,
+        autoArchiveDuration: 60,
+        message: {
+          content: `Modmail thread opened for ${user.tag} (<@${user.id}>) by staff member ${interaction.user.tag} (${interaction.user.id})\n\nReason: ${reason}`,
+        },
       });
-      setCommandCooldown(globalCooldownKey(interaction.commandName), 60);
-    } catch (error) {
-      const env = FetchEnvs();
-      await i.editReply(
-        `I was unable to send a DM to the user, this modmail thread will be closed. Please contact the user manually.`
+
+      const webhook = await channel.createWebhook({
+        name: targetMember.nickname || targetMember.displayName,
+        avatar: targetMember.user.displayAvatarURL(),
+        reason: `Modmail thread opened for ${user.tag} (${user.id}) by staff member ${interaction.user.tag} (${interaction.user.id})\n\nReason: ${reason}`,
+      });
+
+      const modmailData = await db.findOneAndUpdate(
+        Modmail,
+        { userId: targetMember.id },
+        {
+          guildId: guild.id,
+          forumThreadId: thread.id,
+          forumChannelId: channel.id,
+          webhookId: webhook.id,
+          webhookToken: webhook.token,
+        },
+        { upsert: true, new: true }
       );
 
-      await db.deleteOne(Modmail, { userId: targetMember.id });
-      await thread.delete();
-      await webhook.delete();
-      setCommandCooldown(globalCooldownKey(interaction.commandName), 15);
-    }
-    await i.editReply({
-      content: `Modmail thread opened for ${user.tag} (${user.id})\n\nThe DM has been sent to the user successfully`,
-      components: ButtonWrapper([
-        new ButtonBuilder()
-          .setLabel("Goto Thread")
-          .setStyle(ButtonStyle.Link)
-          .setEmoji("🔗")
-          .setURL(thread.url),
-      ]),
+      const dmChannel = await targetMember.createDM();
+      try {
+        await dmChannel.send({
+          embeds: [
+            BasicEmbed(
+              client,
+              "Modmail Thread Opened",
+              `Staff have opened a modmail thread for you. Please respond here to communicate with staff.`,
+              [{ name: "Reason", value: reason, inline: false }],
+              "Aqua"
+            ),
+          ],
+        });
+        setCommandCooldown(globalCooldownKey(interaction.commandName), 60);
+      } catch (error) {
+        const env = FetchEnvs();
+        await i.editReply(
+          `I was unable to send a DM to the user, this modmail thread will be closed. Please contact the user manually.`
+        );
+
+        await db.deleteOne(Modmail, { userId: targetMember.id });
+        await thread.delete();
+        await webhook.delete();
+        setCommandCooldown(globalCooldownKey(interaction.commandName), 15);
+      }
+      await i.editReply({
+        content: `Modmail thread opened for ${user.tag} (${user.id})\n\nThe DM has been sent to the user successfully`,
+        components: ButtonWrapper([
+          new ButtonBuilder()
+            .setLabel("Goto Thread")
+            .setStyle(ButtonStyle.Link)
+            .setEmoji("🔗")
+            .setURL(thread.url),
+        ]),
+      });
+    })
+    .catch(async (error) => {
+      await interaction.editReply({
+        content: "You took too long to respond, please try again",
+        components: [],
+      });
     });
-  });
 }
