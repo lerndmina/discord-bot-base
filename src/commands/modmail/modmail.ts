@@ -102,6 +102,12 @@ export const data = new SlashCommandBuilder()
           .setDescription("The user to open a modmail thread with")
           .setRequired(true)
       )
+      .addStringOption((option) =>
+        option
+          .setName("reason")
+          .setDescription("The reason for opening the modmail thread")
+          .setRequired(false)
+      )
   )
   .setDMPermission(true);
 
