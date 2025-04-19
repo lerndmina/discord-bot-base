@@ -53,6 +53,11 @@ const ModeratedChannelSchema = new Schema(
       type: String,
       required: false,
     },
+    moderateImages: {
+      type: Boolean,
+      default: true,
+      required: false,
+    },
     updatedAt: {
       type: Date,
       default: Date.now,

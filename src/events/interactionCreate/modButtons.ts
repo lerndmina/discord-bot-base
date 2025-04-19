@@ -12,6 +12,7 @@ import {
 } from "discord.js";
 import log from "../../utils/log";
 import { redisClient } from "../../Bot";
+import { moderationEmbeds } from "../../services/moderationEmbeds";
 
 export default async (interaction: ButtonInteraction, client: Client<true>) => {
   if (!interaction.isButton()) return false;
@@ -54,25 +55,47 @@ export default async (interaction: ButtonInteraction, client: Client<true>) => {
       case "mod_accept_confirm": {
         const [messageId, channelId, userId] = args;
 
-        // Update the embed to show the report was accepted
-        const originalEmbed = interaction.message.embeds[0];
-        const acceptedEmbed = EmbedBuilder.from(originalEmbed)
-          .setTitle("✅ Report accepted")
-          .setColor("#43B581"); // Discord green color
-
-        // Add who accepted the report
-        acceptedEmbed.setFooter({
-          text: `${interaction.user.tag} accepted this report • ${new Date().toLocaleString()}`,
-          iconURL: interaction.user.displayAvatarURL(),
-        });
-
-        // Get the original message to update its components
+        // Get the original message with the report embed
         const originalMessage = await interaction.channel?.messages.fetch(
-          interaction.message.reference?.messageId || ""
+          interaction.message.reference?.messageId || interaction.message.id
         );
 
-        if (originalMessage) {
-          // Update the message with no components (buttons)
+        if (originalMessage && originalMessage.embeds[0]) {
+          // Keep the original embed but change title, color, and add footer
+          const originalEmbed = originalMessage.embeds[0];
+          const acceptedEmbed = new EmbedBuilder()
+            .setTitle("✅ Report accepted")
+            .setColor("#43B581") // Discord green color
+            .setDescription(originalEmbed.description)
+            .setTimestamp(originalEmbed.timestamp ? new Date(originalEmbed.timestamp) : null);
+
+          // Copy all existing fields
+          originalEmbed.fields.forEach((field) => {
+            acceptedEmbed.addFields({
+              name: field.name,
+              value: field.value,
+              inline: field.inline,
+            });
+          });
+
+          // Copy any image, thumbnail, etc.
+          if (originalEmbed.image) acceptedEmbed.setImage(originalEmbed.image.url);
+          if (originalEmbed.thumbnail) acceptedEmbed.setThumbnail(originalEmbed.thumbnail.url);
+          if (originalEmbed.author) {
+            acceptedEmbed.setAuthor({
+              name: originalEmbed.author.name || "",
+              iconURL: originalEmbed.author.iconURL,
+              url: originalEmbed.author.url,
+            });
+          }
+
+          // Add who accepted the report and when
+          acceptedEmbed.setFooter({
+            text: `${interaction.user.tag} accepted this report • ${new Date().toLocaleString()}`,
+            iconURL: interaction.user.displayAvatarURL(),
+          });
+
+          // Update the message with empty components (buttons are removed)
           await originalMessage.edit({
             embeds: [acceptedEmbed],
             components: [],
@@ -122,25 +145,47 @@ export default async (interaction: ButtonInteraction, client: Client<true>) => {
       }
 
       case "mod_ignore_confirm": {
-        // Update the embed to show the report was ignored
-        const originalEmbed = interaction.message.embeds[0];
-        const ignoredEmbed = EmbedBuilder.from(originalEmbed)
-          .setTitle("❌ Report ignored")
-          .setColor("#F04747"); // Discord red color
-
-        // Add who ignored the report
-        ignoredEmbed.setFooter({
-          text: `${interaction.user.tag} ignored this report • ${new Date().toLocaleString()}`,
-          iconURL: interaction.user.displayAvatarURL(),
-        });
-
-        // Get the original message to update its components
+        // Get the original message with the report embed
         const originalMessage = await interaction.channel?.messages.fetch(
-          interaction.message.reference?.messageId || ""
+          interaction.message.reference?.messageId || interaction.message.id
         );
 
-        if (originalMessage) {
-          // Update the message with no components (buttons)
+        if (originalMessage && originalMessage.embeds[0]) {
+          // Keep the original embed but change title, color, and add footer
+          const originalEmbed = originalMessage.embeds[0];
+          const ignoredEmbed = new EmbedBuilder()
+            .setTitle("❌ Report ignored")
+            .setColor("#F04747") // Discord red color
+            .setDescription(originalEmbed.description)
+            .setTimestamp(originalEmbed.timestamp ? new Date(originalEmbed.timestamp) : null);
+
+          // Copy all existing fields
+          originalEmbed.fields.forEach((field) => {
+            ignoredEmbed.addFields({
+              name: field.name,
+              value: field.value,
+              inline: field.inline,
+            });
+          });
+
+          // Copy any image, thumbnail, etc.
+          if (originalEmbed.image) ignoredEmbed.setImage(originalEmbed.image.url);
+          if (originalEmbed.thumbnail) ignoredEmbed.setThumbnail(originalEmbed.thumbnail.url);
+          if (originalEmbed.author) {
+            ignoredEmbed.setAuthor({
+              name: originalEmbed.author.name || "",
+              iconURL: originalEmbed.author.iconURL,
+              url: originalEmbed.author.url,
+            });
+          }
+
+          // Add who ignored the report and when
+          ignoredEmbed.setFooter({
+            text: `${interaction.user.tag} ignored this report • ${new Date().toLocaleString()}`,
+            iconURL: interaction.user.displayAvatarURL(),
+          });
+
+          // Update the message with empty components (buttons are removed)
           await originalMessage.edit({
             embeds: [ignoredEmbed],
             components: [],
@@ -196,15 +241,10 @@ export default async (interaction: ButtonInteraction, client: Client<true>) => {
 
           if (originalMessage && originalMessage.embeds[0]) {
             const originalEmbed = originalMessage.embeds[0];
-            const updatedEmbed = EmbedBuilder.from(originalEmbed);
-
-            if (!originalEmbed.fields?.find((f) => f.name === "Action Taken")) {
-              updatedEmbed.addFields({
-                name: "Action Taken",
-                value: `Message deleted by ${interaction.user}`,
-                inline: false,
-              });
-            }
+            const updatedEmbed = moderationEmbeds.addActionTaken(
+              EmbedBuilder.from(originalEmbed),
+              `Message deleted by ${interaction.user}`
+            );
 
             await originalMessage.edit({
               embeds: [updatedEmbed],
@@ -274,35 +314,11 @@ export default async (interaction: ButtonInteraction, client: Client<true>) => {
         try {
           const user = await client.users.fetch(userId);
 
-          // Create a styled embed for the warning
-          const warningEmbed = new EmbedBuilder()
-            .setColor("#FF9900") // Warning orange color
-            .setTitle("⚠️ Warning Notice")
-            .setDescription(
-              "Your recent message was flagged for violating our content policy. Please review our server rules."
-            )
-            .addFields(
-              {
-                name: "From Server",
-                value: interaction.guild?.name || "Discord Server",
-                inline: true,
-              },
-              {
-                name: "Moderator",
-                value: interaction.user.tag,
-                inline: true,
-              },
-              {
-                name: "Date",
-                value: new Date().toLocaleString(),
-                inline: true,
-              }
-            )
-            .setFooter({
-              text: "If you believe this warning was issued in error, please reply here and I'll open a modmail ticket for you.",
-              iconURL: interaction.guild?.iconURL() || undefined,
-            })
-            .setTimestamp();
+          // Use embed service to create warning embed
+          const warningEmbed = moderationEmbeds.createWarningEmbed(
+            interaction.guild,
+            interaction.user
+          );
 
           // Send the embed warning
           await user.send({ embeds: [warningEmbed] });
@@ -319,15 +335,10 @@ export default async (interaction: ButtonInteraction, client: Client<true>) => {
 
           if (originalMessage && originalMessage.embeds[0]) {
             const originalEmbed = originalMessage.embeds[0];
-            const updatedEmbed = EmbedBuilder.from(originalEmbed);
-
-            if (!originalEmbed.fields?.find((f) => f.name === "Action Taken")) {
-              updatedEmbed.addFields({
-                name: "Action Taken",
-                value: `User warned by ${interaction.user}`,
-                inline: false,
-              });
-            }
+            const updatedEmbed = moderationEmbeds.addActionTaken(
+              EmbedBuilder.from(originalEmbed),
+              `User warned by ${interaction.user}`
+            );
 
             await originalMessage.edit({
               embeds: [updatedEmbed],
@@ -361,33 +372,12 @@ export default async (interaction: ButtonInteraction, client: Client<true>) => {
           // Delete the key from Redis as we no longer need it
           await redisClient.del(storageKey);
 
-          // Create a styled embed for the custom warning
-          const warningEmbed = new EmbedBuilder()
-            .setColor("#FF9900") // Warning orange color
-            .setTitle("⚠️ Warning Notice")
-            .setDescription(warningMessage)
-            .addFields(
-              {
-                name: "From Server",
-                value: interaction.guild?.name || "Discord Server",
-                inline: true,
-              },
-              {
-                name: "Moderator",
-                value: interaction.user.tag,
-                inline: true,
-              },
-              {
-                name: "Date",
-                value: new Date().toLocaleString(),
-                inline: true,
-              }
-            )
-            .setFooter({
-              text: "If you believe this warning was issued in error, please contact a server administrator.",
-              iconURL: interaction.guild?.iconURL() || undefined,
-            })
-            .setTimestamp();
+          // Use embed service to create custom warning embed
+          const warningEmbed = moderationEmbeds.createWarningEmbed(
+            interaction.guild,
+            interaction.user,
+            warningMessage
+          );
 
           // Send the custom warning as an embed
           const user = await client.users.fetch(userId);
@@ -405,15 +395,10 @@ export default async (interaction: ButtonInteraction, client: Client<true>) => {
 
           if (originalMessage && originalMessage.embeds[0]) {
             const originalEmbed = originalMessage.embeds[0];
-            const updatedEmbed = EmbedBuilder.from(originalEmbed);
-
-            if (!originalEmbed.fields?.find((f) => f.name === "Action Taken")) {
-              updatedEmbed.addFields({
-                name: "Action Taken",
-                value: `User warned by ${interaction.user} with custom message`,
-                inline: false,
-              });
-            }
+            const updatedEmbed = moderationEmbeds.addActionTaken(
+              EmbedBuilder.from(originalEmbed),
+              `User warned by ${interaction.user} with custom message`
+            );
 
             await originalMessage.edit({
               embeds: [updatedEmbed],
@@ -462,33 +447,12 @@ export default async (interaction: ButtonInteraction, client: Client<true>) => {
           // Delete the key from Redis as we no longer need it
           await redisClient.del(`mod:${shortKey}`);
 
-          // Create a styled embed for the custom warning
-          const warningEmbed = new EmbedBuilder()
-            .setColor("#FF9900") // Warning orange color
-            .setTitle("⚠️ Warning Notice")
-            .setDescription(warningMessage)
-            .addFields(
-              {
-                name: "From Server",
-                value: interaction.guild?.name || "Discord Server",
-                inline: true,
-              },
-              {
-                name: "Moderator",
-                value: interaction.user.tag,
-                inline: true,
-              },
-              {
-                name: "Date",
-                value: new Date().toLocaleString(),
-                inline: true,
-              }
-            )
-            .setFooter({
-              text: "If you believe this warning was issued in error, please contact a server administrator.",
-              iconURL: interaction.guild?.iconURL() || undefined,
-            })
-            .setTimestamp();
+          // Use embed service to create custom warning embed
+          const warningEmbed = moderationEmbeds.createWarningEmbed(
+            interaction.guild,
+            interaction.user,
+            warningMessage
+          );
 
           // Send the custom warning as an embed
           const user = await client.users.fetch(userId);
@@ -506,15 +470,10 @@ export default async (interaction: ButtonInteraction, client: Client<true>) => {
 
           if (originalMessage && originalMessage.embeds[0]) {
             const originalEmbed = originalMessage.embeds[0];
-            const updatedEmbed = EmbedBuilder.from(originalEmbed);
-
-            if (!originalEmbed.fields?.find((f) => f.name === "Action Taken")) {
-              updatedEmbed.addFields({
-                name: "Action Taken",
-                value: `User warned by ${interaction.user} with custom message`,
-                inline: false,
-              });
-            }
+            const updatedEmbed = moderationEmbeds.addActionTaken(
+              EmbedBuilder.from(originalEmbed),
+              `User warned by ${interaction.user} with custom message`
+            );
 
             await originalMessage.edit({
               embeds: [updatedEmbed],
@@ -611,15 +570,10 @@ export default async (interaction: ButtonInteraction, client: Client<true>) => {
 
           if (originalMessage && originalMessage.embeds[0]) {
             const originalEmbed = originalMessage.embeds[0];
-            const updatedEmbed = EmbedBuilder.from(originalEmbed);
-
-            if (!originalEmbed.fields?.find((f) => f.name === "Action Taken")) {
-              updatedEmbed.addFields({
-                name: "Action Taken",
-                value: `User timed out for ${durationMinutes} minutes by ${interaction.user}.\nReason: ${reason}`,
-                inline: false,
-              });
-            }
+            const updatedEmbed = moderationEmbeds.addActionTaken(
+              EmbedBuilder.from(originalEmbed),
+              `User timed out for ${durationMinutes} minutes by ${interaction.user}.\nReason: ${reason}`
+            );
 
             await originalMessage.edit({
               embeds: [updatedEmbed],
@@ -628,39 +582,12 @@ export default async (interaction: ButtonInteraction, client: Client<true>) => {
 
           // Try to send a DM to the user with an embed
           try {
-            const timeoutEmbed = new EmbedBuilder()
-              .setColor("#FF0000") // Red color
-              .setTitle("⏰ Timeout Notice")
-              .setDescription(
-                `You have been timed out in **${interaction.guild?.name}** for ${durationMinutes} minutes`
-              )
-              .addFields(
-                {
-                  name: "Reason",
-                  value: reason,
-                  inline: false,
-                },
-                {
-                  name: "Moderator",
-                  value: interaction.user.tag,
-                  inline: true,
-                },
-                {
-                  name: "Duration",
-                  value: `${durationMinutes} minutes`,
-                  inline: true,
-                },
-                {
-                  name: "Expires",
-                  value: new Date(Date.now() + durationMinutes * 60 * 1000).toLocaleString(),
-                  inline: true,
-                }
-              )
-              .setFooter({
-                text: "If you believe this timeout was issued in error, please contact a server administrator.",
-                iconURL: interaction.guild?.iconURL() || undefined,
-              })
-              .setTimestamp();
+            const timeoutEmbed = moderationEmbeds.createTimeoutEmbed(
+              interaction.guild,
+              interaction.user,
+              durationMinutes,
+              reason
+            );
 
             await member.send({ embeds: [timeoutEmbed] });
           } catch (dmError) {
@@ -670,154 +597,6 @@ export default async (interaction: ButtonInteraction, client: Client<true>) => {
           log.error("Error applying timeout:", error);
           await interaction.update({
             content: "Failed to timeout the user. I may not have the required permissions.",
-            components: [],
-          });
-        }
-        return true;
-      }
-
-      case "mod_cancel": {
-        await interaction.update({
-          content: "Action cancelled.",
-          components: [],
-        });
-        return true;
-      }
-
-      case "mod_details": {
-        const [messageId, channelId] = args;
-
-        try {
-          const channel = (await client.channels.fetch(channelId)) as TextChannel;
-          const message = await channel.messages.fetch(messageId);
-
-          // Create a detailed view with category scores
-          const detailEmbed = new EmbedBuilder()
-            .setTitle("Message Details")
-            .setDescription(`Detailed information about the flagged message.`)
-            .setColor("#5865F2") // Discord blurple
-            .addFields(
-              {
-                name: "Full Message Content",
-                value: message.content || "No text content",
-                inline: false,
-              },
-              {
-                name: "Message Link",
-                value: `[Jump to message](${message.url})`,
-                inline: false,
-              }
-            )
-            .setTimestamp();
-
-          await interaction.reply({
-            embeds: [detailEmbed],
-            ephemeral: true,
-          });
-        } catch (error) {
-          await interaction.reply({
-            content: "Could not fetch message details. It may have been deleted.",
-            ephemeral: true,
-          });
-        }
-        return true;
-      }
-
-      case "mod_scw": {
-        // Send Custom Warning (shortened)
-        const shortKey = args[0];
-
-        try {
-          // Retrieve warning data from Redis
-          const storageDataJson = await redisClient.get(`mod:${shortKey}`);
-
-          if (!storageDataJson) {
-            await interaction.update({
-              content: "Warning message expired or not found. Please try again.",
-              components: [],
-            });
-            return true;
-          }
-
-          // Parse the JSON data
-          const storageData = JSON.parse(storageDataJson);
-
-          if (storageData.type !== "warning") {
-            await interaction.update({
-              content: "Invalid warning data. Please try again.",
-              components: [],
-            });
-            return true;
-          }
-
-          const userId = storageData.userId;
-          const warningMessage = storageData.message;
-
-          // Delete the key from Redis as we no longer need it
-          await redisClient.del(`mod:${shortKey}`);
-
-          // Create a styled embed for the custom warning
-          const warningEmbed = new EmbedBuilder()
-            .setColor("#FF9900") // Warning orange color
-            .setTitle("⚠️ Warning Notice")
-            .setDescription(warningMessage)
-            .addFields(
-              {
-                name: "From Server",
-                value: interaction.guild?.name || "Discord Server",
-                inline: true,
-              },
-              {
-                name: "Moderator",
-                value: interaction.user.tag,
-                inline: true,
-              },
-              {
-                name: "Date",
-                value: new Date().toLocaleString(),
-                inline: true,
-              }
-            )
-            .setFooter({
-              text: "If you believe this warning was issued in error, please contact a server administrator.",
-              iconURL: interaction.guild?.iconURL() || undefined,
-            })
-            .setTimestamp();
-
-          // Send the custom warning as an embed
-          const user = await client.users.fetch(userId);
-          await user.send({ embeds: [warningEmbed] });
-
-          await interaction.update({
-            content: "Custom warning sent to user.",
-            components: [],
-          });
-
-          // Update the embed to show action taken
-          const originalMessage = await interaction.channel?.messages.fetch(
-            interaction.message.reference?.messageId || ""
-          );
-
-          if (originalMessage && originalMessage.embeds[0]) {
-            const originalEmbed = originalMessage.embeds[0];
-            const updatedEmbed = EmbedBuilder.from(originalEmbed);
-
-            if (!originalEmbed.fields?.find((f) => f.name === "Action Taken")) {
-              updatedEmbed.addFields({
-                name: "Action Taken",
-                value: `User warned by ${interaction.user} with custom message`,
-                inline: false,
-              });
-            }
-
-            await originalMessage.edit({
-              embeds: [updatedEmbed],
-            });
-          }
-        } catch (error) {
-          log.error("Error sending custom warning:", error);
-          await interaction.update({
-            content: "Could not send warning to user. They may have DMs disabled.",
             components: [],
           });
         }
@@ -887,15 +666,10 @@ export default async (interaction: ButtonInteraction, client: Client<true>) => {
 
           if (originalMessage && originalMessage.embeds[0]) {
             const originalEmbed = originalMessage.embeds[0];
-            const updatedEmbed = EmbedBuilder.from(originalEmbed);
-
-            if (!originalEmbed.fields?.find((f) => f.name === "Action Taken")) {
-              updatedEmbed.addFields({
-                name: "Action Taken",
-                value: `User timed out for ${durationMinutes} minutes by ${interaction.user}.\nReason: ${reason}`,
-                inline: false,
-              });
-            }
+            const updatedEmbed = moderationEmbeds.addActionTaken(
+              EmbedBuilder.from(originalEmbed),
+              `User timed out for ${durationMinutes} minutes by ${interaction.user}.\nReason: ${reason}`
+            );
 
             await originalMessage.edit({
               embeds: [updatedEmbed],
@@ -904,39 +678,12 @@ export default async (interaction: ButtonInteraction, client: Client<true>) => {
 
           // Try to send a DM to the user with an embed
           try {
-            const timeoutEmbed = new EmbedBuilder()
-              .setColor("#FF0000") // Red color
-              .setTitle("⏰ Timeout Notice")
-              .setDescription(
-                `You have been timed out in **${interaction.guild?.name}** for ${durationMinutes} minutes`
-              )
-              .addFields(
-                {
-                  name: "Reason",
-                  value: reason,
-                  inline: false,
-                },
-                {
-                  name: "Moderator",
-                  value: interaction.user.tag,
-                  inline: true,
-                },
-                {
-                  name: "Duration",
-                  value: `${durationMinutes} minutes`,
-                  inline: true,
-                },
-                {
-                  name: "Expires",
-                  value: new Date(Date.now() + durationMinutes * 60 * 1000).toLocaleString(),
-                  inline: true,
-                }
-              )
-              .setFooter({
-                text: "If you believe this timeout was issued in error, please contact a server administrator.",
-                iconURL: interaction.guild?.iconURL() || undefined,
-              })
-              .setTimestamp();
+            const timeoutEmbed = moderationEmbeds.createTimeoutEmbed(
+              interaction.guild,
+              interaction.user,
+              durationMinutes,
+              reason
+            );
 
             await member.send({ embeds: [timeoutEmbed] });
           } catch (dmError) {
@@ -947,6 +694,37 @@ export default async (interaction: ButtonInteraction, client: Client<true>) => {
           await interaction.update({
             content: "Failed to timeout the user. I may not have the required permissions.",
             components: [],
+          });
+        }
+        return true;
+      }
+
+      case "mod_cancel": {
+        await interaction.update({
+          content: "Action cancelled.",
+          components: [],
+        });
+        return true;
+      }
+
+      case "mod_details": {
+        const [messageId, channelId] = args;
+
+        try {
+          const channel = (await client.channels.fetch(channelId)) as TextChannel;
+          const message = await channel.messages.fetch(messageId);
+
+          // Use embed service to create message details embed
+          const detailEmbed = moderationEmbeds.createMessageDetailsEmbed(message);
+
+          await interaction.reply({
+            embeds: [detailEmbed],
+            ephemeral: true,
+          });
+        } catch (error) {
+          await interaction.reply({
+            content: "Could not fetch message details. It may have been deleted.",
+            ephemeral: true,
           });
         }
         return true;

@@ -1,15 +1,74 @@
-import { ChannelType, Client, EmbedBuilder, Message, TextChannel } from "discord.js";
+import { ChannelType, Client, Message, TextChannel } from "discord.js";
 import log from "../utils/log";
 import { ModerationCategory } from "../models/ModeratedChannels";
 import ModeratedChannel from "../models/ModeratedChannels";
-import { processModerationResult, formatCategoryName } from "../utils/moderationUtils";
+import { processModerationResult } from "../utils/moderationUtils";
 import OpenAI from "openai";
 import FetchEnvs from "../utils/FetchEnvs";
 import Database from "../utils/data/database";
-import { getDiscordDate, TimeType } from "../utils/TinyUtils";
+import { moderationEmbeds } from "./moderationEmbeds";
 const openai = new OpenAI();
 const env = FetchEnvs();
 const db = new Database();
+
+// Function to check if URL is an image
+function isImageUrl(url: string): boolean {
+  try {
+    const imageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".tiff"];
+    // Handle URLs with query parameters or fragments
+    const urlObj = new URL(url);
+    const path = urlObj.pathname.toLowerCase();
+    return imageExtensions.some((ext) => path.endsWith(ext));
+  } catch (error) {
+    // If URL parsing fails, try simpler approach
+    const lowerUrl = url.toLowerCase();
+    const imageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".tiff"];
+    return imageExtensions.some((ext) => lowerUrl.includes(ext));
+  }
+}
+
+// Function to check if URL is a Tenor GIF
+function isTenorUrl(url: string): boolean {
+  return url.toLowerCase().includes("tenor.com");
+}
+
+// Function to extract text content for moderation
+function extractTextContent(message: Message): string {
+  return message.content.trim();
+}
+
+// Function to extract image URLs from message
+function extractImageUrls(message: Message): string[] {
+  const imageUrls: string[] = [];
+
+  // Get image attachments
+  for (const attachment of message.attachments.values()) {
+    if (attachment.contentType?.startsWith("image/")) {
+      imageUrls.push(attachment.url);
+    }
+  }
+
+  // Extract image URLs from message content
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const urls = message.content.match(urlRegex);
+
+  if (urls) {
+    for (const url of urls) {
+      try {
+        if (isImageUrl(url) || isTenorUrl(url)) {
+          // For added safety, try to construct a valid URL object
+          new URL(url); // This will throw if the URL is invalid
+          imageUrls.push(url);
+          log.debug(`Detected image URL: ${url}`);
+        }
+      } catch (error) {
+        log.warn(`Invalid URL detected in message: ${url}`);
+      }
+    }
+  }
+
+  return imageUrls;
+}
 
 export default async (message: Message, client: Client<true>) => {
   // Skip if from a bot or in DMs
@@ -26,30 +85,77 @@ export default async (message: Message, client: Client<true>) => {
     );
     if (!channelConfig) return;
 
-    // Skip if empty message (likely just an attachment)
-    if (!message.content.trim()) return;
+    // Extract text and image URLs
+    const textContent = extractTextContent(message);
+    const imageUrls = extractImageUrls(message);
 
-    // Call OpenAI moderation API
-    const response = await openai.moderations.create({
-      input: message.content,
-    });
+    // Skip if no content to moderate
+    if (!textContent && imageUrls.length === 0) return;
 
-    // Process moderation result
-    const result = processModerationResult(
-      response,
-      channelConfig.moderationCategories as ModerationCategory[]
-    );
+    // Track if content is flagged and what type
+    let isContentFlagged = false;
+    let flaggedCategories: ModerationCategory[] = [];
+    const contentTypes: string[] = [];
 
-    // If content is flagged, take action
-    if (result.flagged) {
-      log.info(`Message flagged by AI moderation in #${message.channel.name}: ${message.content}`);
+    // Moderate text content if exists
+    if (textContent) {
+      contentTypes.push("text");
+      log.debug(
+        `Moderating text in ${message.channel.name}: ${textContent.substring(0, 50)}${
+          textContent.length > 50 ? "..." : ""
+        }`
+      );
 
       try {
-        // Format the flagged categories for the warning
-        const flaggedCategories = Object.entries(result.categories)
-          .filter(([_, isFlagged]) => isFlagged)
-          .map(([category]) => formatCategoryName(category as ModerationCategory));
+        const textResponse = await openai.moderations.create({
+          input: textContent,
+        });
 
+        const textResult = processModerationResult(
+          textResponse,
+          channelConfig.moderationCategories as ModerationCategory[]
+        );
+
+        if (textResult.flagged) {
+          isContentFlagged = true;
+
+          // Add flagged categories
+          Object.entries(textResult.categories)
+            .filter(([_, isFlagged]) => isFlagged)
+            .forEach(([category]) => {
+              if (!flaggedCategories.includes(category as ModerationCategory)) {
+                flaggedCategories.push(category as ModerationCategory);
+              }
+            });
+        }
+      } catch (error) {
+        log.error("Error in text moderation:", error);
+      }
+    }
+
+    // Moderate images if exist
+    if (imageUrls.length > 0) {
+      contentTypes.push("images");
+      log.debug(`Moderating ${imageUrls.length} images in ${message.channel.name}`);
+
+      // Currently, OpenAI moderation API doesn't support image moderation directly
+      // Flag messages with images for manual review
+      if (channelConfig.moderateImages !== false) {
+        isContentFlagged = true;
+        flaggedCategories.push("other" as ModerationCategory);
+        log.info(`Message with ${imageUrls.length} images flagged for manual review`);
+      } else {
+        log.info(`Message contains ${imageUrls.length} images - image moderation is disabled`);
+      }
+    }
+
+    // If any content is flagged, take action
+    if (isContentFlagged) {
+      log.info(
+        `Message ${contentTypes.join(" and ")} flagged by AI moderation in #${message.channel.name}`
+      );
+
+      try {
         // Send to the modlog channel if configured
         if (channelConfig.modlogChannelId) {
           const modlogChannel = client.channels.cache.get(
@@ -57,49 +163,12 @@ export default async (message: Message, client: Client<true>) => {
           ) as TextChannel;
 
           if (modlogChannel) {
-            const logEmbed = new EmbedBuilder()
-              .setTitle("🚨 Content flagged")
-              .setColor("#FFA500")
-              .addFields(
-                {
-                  name: "User",
-                  value:
-                    `**User:** ${message.author} (${message.author.tag})\n` +
-                    `**ID:** ${message.author.id}\n` +
-                    `**User Created:** ${getDiscordDate(
-                      message.author.createdAt,
-                      TimeType.DATE
-                    )} ${getDiscordDate(message.author.createdAt, TimeType.RELATIVE)}\n` +
-                    `**User Joined:** ${getDiscordDate(
-                      message.member?.joinedAt!,
-                      TimeType.DATE
-                    )} ${getDiscordDate(message.member?.joinedAt!, TimeType.RELATIVE)}\n`,
-                  inline: false,
-                },
-                {
-                  name: "Reason(s)",
-                  value: flaggedCategories.join(", ") || "Flagged content",
-                  inline: false,
-                },
-                {
-                  name: "Highlighted message(s)",
-                  value:
-                    message.content.length > 256
-                      ? `${message.content.substring(0, 253)}...`
-                      : message.content || "No text content",
-                  inline: false,
-                }
-              )
-              .setTimestamp();
-
-            // Add message link as footer
-            logEmbed.setFooter({
-              text: `Message sent in #${message.channel.name}`,
-              iconURL: message.guild.iconURL() || undefined,
-            });
-
-            // Add optional thumbnail from user avatar
-            logEmbed.setThumbnail(message.author.displayAvatarURL());
+            // Create the report embed using the service
+            const logEmbed = moderationEmbeds.createReportEmbed(
+              message,
+              flaggedCategories,
+              contentTypes
+            );
 
             // Create action buttons
             await modlogChannel.send({
