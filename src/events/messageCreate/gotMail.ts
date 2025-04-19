@@ -131,17 +131,30 @@ async function newModmail(
 ) {
   // Check if the message is longer than 50 characters
   if (messageContent.length < 50 && !messageContent.includes("--force")) {
+    const deleteTime = 30 * 1000;
+    const discordDeleteTime = new Date(Date.now() + deleteTime);
+
     // If the message is too short, send a warning and return
-    return message.reply({
+    const earlyreply = message.reply({
       embeds: [
         BasicEmbed(
           client,
           "Modmail",
-          "Your message is too short. Please send a message longer than 50 characters. Please make sure to include as much detail about your issue as possible. If you would like to temporarily override this check please include `--force` at the end of your message.",
+          `Your message is too short to open a modmail ticket. Please send a message longer than 50 characters. Please make sure to include as much detail about your issue as possible. If you would like to temporarily override this check please include \`--force\` at the end of your message.\n\nThis message will delete ${getDiscordDate(
+            discordDeleteTime,
+            TimeType.RELATIVE
+          )} seconds.`,
           undefined,
           "Red"
         ),
       ],
+    });
+    earlyreply.then((msg) => {
+      setTimeout(() => {
+        msg.delete();
+      }, 30 * 1000);
+      message.delete();
+      return;
     });
   } else if (messageContent.includes("--force")) {
     // If the message contains --force, remove it from the message
