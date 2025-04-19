@@ -130,7 +130,8 @@ async function newModmail(
   client: Client<true>
 ) {
   // Check if the message is longer than 50 characters
-  if (messageContent.length < 50 && !messageContent.includes("--force")) {
+  const minCharacters = 50;
+  if (messageContent.length < minCharacters && !messageContent.includes("--force")) {
     const deleteTime = 30 * 1000;
     const discordDeleteTime = new Date(Date.now() + deleteTime);
     message.react("🚫");
@@ -141,7 +142,7 @@ async function newModmail(
         BasicEmbed(
           client,
           "Modmail",
-          `Your message is too short to open a modmail ticket. Please send a message longer than 50 characters. Please make sure to include as much detail about your issue as possible. If you would like to temporarily override this check please include \`--force\` at the end of your message.\n\nThis message will delete ${getDiscordDate(
+          `Your message is too short to open a modmail ticket. Please send a message longer than ${minCharacters} characters. Please make sure to include as much detail about your issue as possible. If you would like to temporarily override this check please include \`--force\` at the end of your message.\n\nThis message will delete ${getDiscordDate(
             discordDeleteTime,
             TimeType.RELATIVE
           )} seconds.`,
@@ -160,7 +161,7 @@ async function newModmail(
     // If the message contains --force, remove it from the message
     messageContent = messageContent.replace("--force", "").trim();
     await message.reply(
-      `-#- You have used the --force flag. This will override the message length check. If you do not provide enough detail staff may not be able to help you. Please make sure to include as much detail about your issue as possible.`
+      `-# - You have used the --force flag. This will override the message length check. If you do not provide enough detail staff may not be able to help you. Please make sure to include as much detail about your issue as possible.`
     );
   }
 
