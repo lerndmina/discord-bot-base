@@ -2,6 +2,7 @@ import { Client, Snowflake, VoiceChannel, VoiceState } from "discord.js";
 import ActiveTempChannels from "../../models/ActiveTempChannels";
 import log from "../../utils/log";
 import Database from "../../utils/data/database";
+import { fetchChannelNumber, setChannelNumberCache } from "./joinedTempVC";
 
 export default async (oldState: VoiceState, newState: VoiceState, client: Client) => {
   if (oldState.channelId == null) return;
@@ -30,6 +31,8 @@ export default async (oldState: VoiceState, newState: VoiceState, client: Client
 
     const db = new Database();
     await db.pullFromSet(ActiveTempChannels, { guildID: guildId }, "channelIDs", leftChannelID);
+    const number = await fetchChannelNumber(channel.parentId!);
+    setChannelNumberCache(channel.parentId!, number - 1 || 0);
   } catch (error) {
     log.error(error as string);
   }
