@@ -96,6 +96,8 @@ export default async (message: Message, client: Client<true>) => {
     let isContentFlagged = false;
     let flaggedCategories: ModerationCategory[] = [];
     const contentTypes: string[] = [];
+    // Track confidence scores for each flagged category
+    const confidenceScores: Record<string, number> = {};
 
     // Moderate text content if exists
     if (textContent) {
@@ -119,12 +121,18 @@ export default async (message: Message, client: Client<true>) => {
         if (textResult.flagged) {
           isContentFlagged = true;
 
-          // Add flagged categories
+          // Add flagged categories and store their confidence scores
           Object.entries(textResult.categories)
             .filter(([_, isFlagged]) => isFlagged)
             .forEach(([category]) => {
               if (!flaggedCategories.includes(category as ModerationCategory)) {
                 flaggedCategories.push(category as ModerationCategory);
+
+                // Store the confidence score if available
+                const categoryScores = textResponse.results[0]?.category_scores;
+                if (categoryScores && categoryScores[category]) {
+                  confidenceScores[category] = categoryScores[category];
+                }
               }
             });
         }
@@ -163,11 +171,12 @@ export default async (message: Message, client: Client<true>) => {
           ) as TextChannel;
 
           if (modlogChannel) {
-            // Create the report embed using the service
+            // Create the report embed using the service, now including confidence scores
             const logEmbed = moderationEmbeds.createReportEmbed(
               message,
               flaggedCategories,
-              contentTypes
+              contentTypes,
+              confidenceScores
             );
 
             // Create action buttons

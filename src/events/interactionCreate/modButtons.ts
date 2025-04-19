@@ -55,70 +55,88 @@ export default async (interaction: ButtonInteraction, client: Client<true>) => {
       case "mod_accept_confirm": {
         const [messageId, channelId, userId] = args;
 
-        // Get the original message with the report embed
-        const originalMessage = await interaction.channel?.messages.fetch(
-          interaction.message.reference?.messageId || interaction.message.id
-        );
-
-        if (originalMessage && originalMessage.embeds[0]) {
-          // Keep the original embed but change title, color, and add footer
-          const originalEmbed = originalMessage.embeds[0];
-          const acceptedEmbed = new EmbedBuilder()
-            .setTitle("✅ Report accepted")
-            .setColor("#43B581") // Discord green color
-            .setDescription(originalEmbed.description)
-            .setTimestamp(originalEmbed.timestamp ? new Date(originalEmbed.timestamp) : null);
-
-          // Copy all existing fields
-          originalEmbed.fields.forEach((field) => {
-            acceptedEmbed.addFields({
-              name: field.name,
-              value: field.value,
-              inline: field.inline,
+        try {
+          // Get the original message with the report embed
+          const originalMessage = await interaction.channel?.messages
+            .fetch(interaction.message.reference?.messageId || interaction.message.id)
+            .catch((error) => {
+              log.warn(`Could not fetch original report message: ${error.message}`);
+              return null;
             });
-          });
 
-          // Copy any image, thumbnail, etc.
-          if (originalEmbed.image) acceptedEmbed.setImage(originalEmbed.image.url);
-          if (originalEmbed.thumbnail) acceptedEmbed.setThumbnail(originalEmbed.thumbnail.url);
-          if (originalEmbed.author) {
-            acceptedEmbed.setAuthor({
-              name: originalEmbed.author.name || "",
-              iconURL: originalEmbed.author.iconURL,
-              url: originalEmbed.author.url,
+          // If we found the original message and it has embeds
+          if (originalMessage && originalMessage.embeds[0]) {
+            // Keep the original embed but change title, color, and add footer
+            const originalEmbed = originalMessage.embeds[0];
+            const acceptedEmbed = new EmbedBuilder()
+              .setTitle("✅ Report accepted")
+              .setColor("#43B581") // Discord green color
+              .setDescription(originalEmbed.description)
+              .setTimestamp(originalEmbed.timestamp ? new Date(originalEmbed.timestamp) : null);
+
+            // Copy all existing fields
+            originalEmbed.fields.forEach((field) => {
+              acceptedEmbed.addFields({
+                name: field.name,
+                value: field.value,
+                inline: field.inline,
+              });
+            });
+
+            // Copy any image, thumbnail, etc.
+            if (originalEmbed.image) acceptedEmbed.setImage(originalEmbed.image.url);
+            if (originalEmbed.thumbnail) acceptedEmbed.setThumbnail(originalEmbed.thumbnail.url);
+            if (originalEmbed.author) {
+              acceptedEmbed.setAuthor({
+                name: originalEmbed.author.name || "",
+                iconURL: originalEmbed.author.iconURL,
+                url: originalEmbed.author.url,
+              });
+            }
+
+            // Add who accepted the report and when
+            acceptedEmbed.setFooter({
+              text: `${interaction.user.tag} accepted this report • ${new Date().toLocaleString()}`,
+              iconURL: interaction.user.displayAvatarURL(),
+            });
+
+            // Update the message with empty components (buttons are removed)
+            await originalMessage.edit({
+              embeds: [acceptedEmbed],
+              components: [],
             });
           }
 
-          // Add who accepted the report and when
-          acceptedEmbed.setFooter({
-            text: `${interaction.user.tag} accepted this report • ${new Date().toLocaleString()}`,
-            iconURL: interaction.user.displayAvatarURL(),
-          });
-
-          // Update the message with empty components (buttons are removed)
-          await originalMessage.edit({
-            embeds: [acceptedEmbed],
+          await interaction.update({
+            content: "Report marked as accepted. Taking action against the message.",
             components: [],
           });
-        }
 
-        await interaction.update({
-          content: "Report marked as accepted. Taking action against the message.",
-          components: [],
-        });
+          // Optional: Take additional actions like deleting the message
+          try {
+            const channel = (await client.channels.fetch(channelId)) as TextChannel;
+            const message = await channel.messages.fetch(messageId).catch(() => null);
 
-        // Optional: Take additional actions like deleting the message
-        try {
-          const channel = (await client.channels.fetch(channelId)) as TextChannel;
-          const message = await channel.messages.fetch(messageId);
-          await message.delete();
-
-          // Log the action
-          log.info(
-            `Mod ${interaction.user.tag} accepted report and deleted message ${messageId} from channel ${channelId}`
-          );
+            if (message) {
+              await message.delete();
+              log.info(
+                `Mod ${interaction.user.tag} accepted report and deleted message ${messageId} from channel ${channelId}`
+              );
+            } else {
+              log.warn(
+                `Could not delete message ${messageId} from channel ${channelId} - message may have been deleted already`
+              );
+            }
+          } catch (error) {
+            log.error("Error handling accepted report:", error);
+          }
         } catch (error) {
-          log.error("Error handling accepted report:", error);
+          log.error("Error in mod_accept_confirm:", error);
+          await interaction.update({
+            content:
+              "An error occurred while processing this report. The message may have been deleted already.",
+            components: [],
+          });
         }
         return true;
       }
@@ -145,57 +163,70 @@ export default async (interaction: ButtonInteraction, client: Client<true>) => {
       }
 
       case "mod_ignore_confirm": {
-        // Get the original message with the report embed
-        const originalMessage = await interaction.channel?.messages.fetch(
-          interaction.message.reference?.messageId || interaction.message.id
-        );
-
-        if (originalMessage && originalMessage.embeds[0]) {
-          // Keep the original embed but change title, color, and add footer
-          const originalEmbed = originalMessage.embeds[0];
-          const ignoredEmbed = new EmbedBuilder()
-            .setTitle("❌ Report ignored")
-            .setColor("#F04747") // Discord red color
-            .setDescription(originalEmbed.description)
-            .setTimestamp(originalEmbed.timestamp ? new Date(originalEmbed.timestamp) : null);
-
-          // Copy all existing fields
-          originalEmbed.fields.forEach((field) => {
-            ignoredEmbed.addFields({
-              name: field.name,
-              value: field.value,
-              inline: field.inline,
+        try {
+          // Get the original message with the report embed
+          const originalMessage = await interaction.channel?.messages
+            .fetch(interaction.message.reference?.messageId || interaction.message.id)
+            .catch((error) => {
+              log.warn(`Could not fetch original report message: ${error.message}`);
+              return null;
             });
-          });
 
-          // Copy any image, thumbnail, etc.
-          if (originalEmbed.image) ignoredEmbed.setImage(originalEmbed.image.url);
-          if (originalEmbed.thumbnail) ignoredEmbed.setThumbnail(originalEmbed.thumbnail.url);
-          if (originalEmbed.author) {
-            ignoredEmbed.setAuthor({
-              name: originalEmbed.author.name || "",
-              iconURL: originalEmbed.author.iconURL,
-              url: originalEmbed.author.url,
+          // If we found the original message and it has embeds
+          if (originalMessage && originalMessage.embeds[0]) {
+            // Keep the original embed but change title, color, and add footer
+            const originalEmbed = originalMessage.embeds[0];
+            const ignoredEmbed = new EmbedBuilder()
+              .setTitle("❌ Report ignored")
+              .setColor("#F04747") // Discord red color
+              .setDescription(originalEmbed.description)
+              .setTimestamp(originalEmbed.timestamp ? new Date(originalEmbed.timestamp) : null);
+
+            // Copy all existing fields
+            originalEmbed.fields.forEach((field) => {
+              ignoredEmbed.addFields({
+                name: field.name,
+                value: field.value,
+                inline: field.inline,
+              });
+            });
+
+            // Copy any image, thumbnail, etc.
+            if (originalEmbed.image) ignoredEmbed.setImage(originalEmbed.image.url);
+            if (originalEmbed.thumbnail) ignoredEmbed.setThumbnail(originalEmbed.thumbnail.url);
+            if (originalEmbed.author) {
+              ignoredEmbed.setAuthor({
+                name: originalEmbed.author.name || "",
+                iconURL: originalEmbed.author.iconURL,
+                url: originalEmbed.author.url,
+              });
+            }
+
+            // Add who ignored the report and when
+            ignoredEmbed.setFooter({
+              text: `${interaction.user.tag} ignored this report • ${new Date().toLocaleString()}`,
+              iconURL: interaction.user.displayAvatarURL(),
+            });
+
+            // Update the message with empty components (buttons are removed)
+            await originalMessage.edit({
+              embeds: [ignoredEmbed],
+              components: [],
             });
           }
 
-          // Add who ignored the report and when
-          ignoredEmbed.setFooter({
-            text: `${interaction.user.tag} ignored this report • ${new Date().toLocaleString()}`,
-            iconURL: interaction.user.displayAvatarURL(),
+          await interaction.update({
+            content: "Report marked as ignored. No action taken.",
+            components: [],
           });
-
-          // Update the message with empty components (buttons are removed)
-          await originalMessage.edit({
-            embeds: [ignoredEmbed],
+        } catch (error) {
+          log.error("Error in mod_ignore_confirm:", error);
+          await interaction.update({
+            content:
+              "An error occurred while processing this report. The message may have been deleted already.",
             components: [],
           });
         }
-
-        await interaction.update({
-          content: "Report marked as ignored. No action taken.",
-          components: [],
-        });
         return true;
       }
 
@@ -226,33 +257,47 @@ export default async (interaction: ButtonInteraction, client: Client<true>) => {
         const [messageId, channelId] = args;
         try {
           const channel = (await client.channels.fetch(channelId)) as TextChannel;
-          const message = await channel.messages.fetch(messageId);
-          await message.delete();
+          const message = await channel.messages.fetch(messageId).catch(() => null);
 
-          await interaction.update({
-            content: "Message deleted successfully.",
-            components: [],
-          });
+          if (message) {
+            await message.delete();
 
-          // Update the embed to show action taken
-          const originalMessage = await interaction.channel?.messages.fetch(
-            interaction.message.reference?.messageId || ""
-          );
+            await interaction.update({
+              content: "Message deleted successfully.",
+              components: [],
+            });
 
-          if (originalMessage && originalMessage.embeds[0]) {
-            const originalEmbed = originalMessage.embeds[0];
-            const updatedEmbed = moderationEmbeds.addActionTaken(
-              EmbedBuilder.from(originalEmbed),
-              `Message deleted by ${interaction.user}`
-            );
+            // Update the embed to show action taken
+            try {
+              const originalMessage = await interaction.channel?.messages
+                .fetch(interaction.message.reference?.messageId || "")
+                .catch(() => null);
 
-            await originalMessage.edit({
-              embeds: [updatedEmbed],
+              if (originalMessage && originalMessage.embeds[0]) {
+                const originalEmbed = originalMessage.embeds[0];
+                const updatedEmbed = moderationEmbeds.addActionTaken(
+                  EmbedBuilder.from(originalEmbed),
+                  `Message deleted by ${interaction.user}`
+                );
+
+                await originalMessage.edit({
+                  embeds: [updatedEmbed],
+                });
+              }
+            } catch (embedError) {
+              log.warn("Could not update embed after message deletion:", embedError);
+            }
+          } else {
+            await interaction.update({
+              content: "Could not delete the message. It may have been deleted already.",
+              components: [],
             });
           }
         } catch (error) {
+          log.error("Error in mod_delete_confirm:", error);
           await interaction.update({
-            content: "Could not delete the message. It may have been deleted already.",
+            content:
+              "Could not delete the message. It may have been deleted already or I don't have permission.",
             components: [],
           });
         }

@@ -12,7 +12,8 @@ class ModerationEmbedService {
   createReportEmbed(
     message: Message,
     flaggedCategories: ModerationCategory[],
-    contentTypes: string[]
+    contentTypes: string[],
+    confidenceScores?: Record<string, number>
   ): EmbedBuilder {
     const contentType = contentTypes.join(" and ");
     const formattedCategories = flaggedCategories.map((category) =>
@@ -84,9 +85,30 @@ class ModerationEmbedService {
       }
     }
 
+    // Add confidence scores if available
+    if (confidenceScores && Object.keys(confidenceScores).length > 0) {
+      const confidenceField = Object.entries(confidenceScores)
+        .filter(([category]) => flaggedCategories.includes(category as ModerationCategory))
+        .map(([category, score]) => {
+          const formattedCategory = this.formatCategoryName(category as ModerationCategory);
+          const confidencePercent = (score * 100).toFixed(1);
+          return `${formattedCategory}: ${confidencePercent}%`;
+        })
+        .join("\n");
+
+      if (confidenceField) {
+        logEmbed.addFields({
+          name: "Confidence Levels",
+          value: confidenceField,
+          inline: false,
+        });
+      }
+    }
+
     // Add message link as footer
     logEmbed.setFooter({
-      text: `Message sent in message.channel.id`,
+      // @ts-expect-error
+      text: `Message sent in #${message.channel.name}`,
       iconURL: message.guild?.iconURL() || undefined,
     });
 
