@@ -133,6 +133,7 @@ async function newModmail(
   if (messageContent.length < 50 && !messageContent.includes("--force")) {
     const deleteTime = 30 * 1000;
     const discordDeleteTime = new Date(Date.now() + deleteTime);
+    message.react("🚫");
 
     // If the message is too short, send a warning and return
     const earlyreply = message.reply({
