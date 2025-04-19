@@ -149,11 +149,10 @@ async function newModmail(
         ),
       ],
     });
-    earlyreply.then((msg) => {
+    await earlyreply.then((msg) => {
       setTimeout(() => {
         msg.delete();
       }, 30 * 1000);
-      message.delete();
       return;
     });
   } else if (messageContent.includes("--force")) {
