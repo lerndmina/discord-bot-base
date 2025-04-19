@@ -129,6 +129,28 @@ async function newModmail(
   user: User,
   client: Client<true>
 ) {
+  // Check if the message is longer than 50 characters
+  if (messageContent.length < 50 && !messageContent.includes("--force")) {
+    // If the message is too short, send a warning and return
+    return message.reply({
+      embeds: [
+        BasicEmbed(
+          client,
+          "Modmail",
+          "Your message is too short. Please send a message longer than 50 characters. Please make sure to include as much detail about your issue as possible. If you would like to temporarily override this check please include `--force` at the end of your message.",
+          undefined,
+          "Red"
+        ),
+      ],
+    });
+  } else if (messageContent.includes("--force")) {
+    // If the message contains --force, remove it from the message
+    messageContent = messageContent.replace("--force", "").trim();
+    await message.reply(
+      `-#- You have used the --force flag. This will override the message length check. If you do not provide enough detail staff may not be able to help you. Please make sure to include as much detail about your issue as possible.`
+    );
+  }
+
   const buttons = [
     new ButtonBuilder()
       .setCustomId(customIds[0])
@@ -455,7 +477,7 @@ async function newModmail(
  * @param {Message} message
  * @param {Client} client
  */
-async function sendMessage(
+async function sendMessage( // Send a message from dms to the modmail thread
   mail: any,
   message: Message,
   messageContent: string,
@@ -487,6 +509,9 @@ async function sendMessage(
       username: mail.userDisplayName || message.author.displayName,
       avatarURL: mail.userAvatar || message.author.displayAvatarURL(),
     });
+
+    // React to the message to indicate it was sent
+    await message.react("📨");
 
     // Update the user's avatar and display name if they're not set or have changed
     if (!mail.userAvatar || !mail.userDisplayName) {
