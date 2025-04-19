@@ -15,6 +15,7 @@ import fetchEnvs from "./utils/FetchEnvs";
 import { debugMsg } from "./utils/TinyUtils";
 import log from "./utils/log";
 import healthCheck from "./Health";
+import aiModeration from "./services/aiModeration";
 const env = fetchEnvs();
 
 export const Start = async () => {
@@ -45,6 +46,11 @@ export const Start = async () => {
     });
 
   await redisClient.connect();
+
+  // Handle AI moderation events
+  client.on(Events.MessageCreate, async (message) => {
+    aiModeration(message, client);
+  });
 
   return { client, commandKit, redisClient, mongoose };
 };

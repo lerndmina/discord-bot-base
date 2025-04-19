@@ -387,6 +387,7 @@ export enum TimeType {
 }
 
 export function getDiscordDate(date: Date, type: TimeType): string {
+  if (!date) date = new Date();
   return `<t:${Math.floor(new Date(date).getTime() / 1000)}:${type}>`;
 }
 
