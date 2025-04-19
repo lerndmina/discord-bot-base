@@ -149,12 +149,12 @@ async function newModmail(
         ),
       ],
     });
-    await earlyreply.then((msg) => {
+    earlyreply.then((msg) => {
       setTimeout(() => {
         msg.delete();
       }, 30 * 1000);
-      return;
     });
+    return;
   } else if (messageContent.includes("--force")) {
     // If the message contains --force, remove it from the message
     messageContent = messageContent.replace("--force", "").trim();
