@@ -159,7 +159,12 @@ async function newModmail(
     return;
   } else if (messageContent.includes("--force")) {
     // If the message contains --force, remove it from the message
-    messageContent = messageContent.replace("--force", "").trim();
+    messageContent = messageContent
+      .replace(
+        "--force",
+        "\n-# The user has force opened a modmail ticket with a short message, this modmial ticket may not contain enough information."
+      )
+      .trim();
     await message.reply(
       `-# - You have used the --force flag. This will override the message length check. If you do not provide enough detail staff may not be able to help you. Please make sure to include as much detail about your issue as possible.`
     );
