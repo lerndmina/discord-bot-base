@@ -19,7 +19,10 @@ export const data = new SlashCommandBuilder()
     option.setName("enabled").setDescription("Whether moderation is enabled").setRequired(true)
   )
   .addChannelOption((option) =>
-    option.setName("modlog").setDescription("Channel where moderation reports will be sent")
+    option
+      .setName("modlog")
+      .setDescription("Channel where moderation reports will be sent")
+      .setRequired(true)
   )
   .addBooleanOption((option) => option.setName("sexual").setDescription("Moderate sexual content"))
   .addBooleanOption((option) =>
@@ -56,13 +59,14 @@ export const data = new SlashCommandBuilder()
   );
 
 export const options: CommandOptions = {
-  devOnly: true,
+  devOnly: false,
   deleted: false,
+  userPermissions: ["ManageChannels"],
 };
 
 export async function run({ interaction, client, handler }: SlashCommandProps) {
   await initialReply(interaction, true);
-  setCommandCooldown(globalCooldownKey(interaction.commandName), 30);
+  // setCommandCooldown(globalCooldownKey(interaction.commandName), 15);
 
   const channel = interaction.options.getChannel("channel");
   const enabled = interaction.options.getBoolean("enabled") ?? true;
