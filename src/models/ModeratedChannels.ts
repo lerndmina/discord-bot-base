@@ -55,7 +55,7 @@ const ModeratedChannelSchema = new Schema(
     },
     moderateImages: {
       type: Boolean,
-      default: true,
+      default: false,
       required: false,
     },
     isGuildDefault: {
