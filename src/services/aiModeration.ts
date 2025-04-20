@@ -77,7 +77,7 @@ export default async (message: Message, client: Client<true>) => {
   if (!message.guild) return;
 
   try {
-    log.info(
+    log.debug(
       `Checking moderation for message in #${message.channel.name} (${message.guild.name}) from ${message.author.tag}`
     );
 
@@ -89,13 +89,13 @@ export default async (message: Message, client: Client<true>) => {
     );
 
     if (channelConfig) {
-      log.info(
+      log.debug(
         `Found channel-specific moderation config for #${message.channel.name}: enabled=${
           channelConfig.isEnabled
         }, modlogChannel=${channelConfig.modlogChannelId || "none"}`
       );
     } else {
-      log.info(
+      log.debug(
         `No channel-specific moderation found for #${message.channel.name}, checking guild defaults...`
       );
 
@@ -107,21 +107,21 @@ export default async (message: Message, client: Client<true>) => {
       );
 
       if (guildDefaultConfig) {
-        log.info(
+        log.debug(
           `Found guild default moderation settings: enabled=${
             guildDefaultConfig.isEnabled
           }, modlogChannel=${guildDefaultConfig.modlogChannelId || "none"}`
         );
         channelConfig = guildDefaultConfig;
       } else {
-        log.info(`No guild default moderation settings found for guild ${message.guild.name}`);
+        log.debug(`No guild default moderation settings found for guild ${message.guild.name}`);
         return;
       }
     }
 
     // Skip if moderation is disabled for this channel or at the guild level
     if (!channelConfig.isEnabled) {
-      log.info(`Moderation is disabled for this channel/guild, skipping`);
+      log.debug(`Moderation is disabled for this channel/guild, skipping`);
       return;
     }
 
@@ -131,11 +131,11 @@ export default async (message: Message, client: Client<true>) => {
 
     // Skip if no content to moderate
     if (!textContent && imageUrls.length === 0) {
-      log.info(`No content to moderate in message, skipping`);
+      log.debug(`No content to moderate in message, skipping`);
       return;
     }
 
-    log.info(
+    log.debug(
       `Content to moderate: text=${!!textContent}, images=${
         imageUrls.length > 0 ? imageUrls.length : 0
       }`
@@ -196,7 +196,7 @@ export default async (message: Message, client: Client<true>) => {
       log.debug(`Moderating ${imageUrls.length} images in ${message.channel.name}`);
 
       // Dump the current moderateImages setting for debugging
-      log.info(
+      log.debug(
         `Image moderation setting: ${JSON.stringify({
           channelId: message.channel.id,
           isGuildDefault: channelConfig.isGuildDefault || false,
@@ -208,17 +208,17 @@ export default async (message: Message, client: Client<true>) => {
       // Currently, OpenAI moderation API doesn't support image moderation directly
       // Flag messages with images for manual review
       if (channelConfig.moderateImages === true) {
-        log.info(`Image moderation is enabled, flagging message`);
+        log.debug(`Image moderation is enabled, flagging message`);
         isContentFlagged = true;
         flaggedCategories.push("other" as ModerationCategory);
       } else {
-        log.info(`Image moderation is disabled, not flagging message`);
+        log.debug(`Image moderation is disabled, not flagging message`);
       }
     }
 
     // If any content is flagged, take action
     if (isContentFlagged) {
-      log.info(
+      log.debug(
         `Message flagged by moderation in #${
           message.channel.name
         }, categories: ${flaggedCategories.join(", ")}`
@@ -300,7 +300,7 @@ export default async (message: Message, client: Client<true>) => {
         log.error("Error handling flagged message:", error);
       }
     } else {
-      log.info(`Message not flagged by moderation`);
+      log.debug(`Message not flagged by moderation`);
     }
   } catch (error) {
     log.error("Error in AI moderation:", error);
