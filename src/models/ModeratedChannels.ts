@@ -15,6 +15,7 @@ export enum ModerationCategory {
   SELF_HARM_INSTRUCTIONS = "self-harm/instructions",
   VIOLENCE = "violence",
   VIOLENCE_GRAPHIC = "violence/graphic",
+  OTHER = "other",
 }
 
 export enum ModerationAction {
@@ -37,8 +38,7 @@ const ModeratedChannelSchema = new Schema(
     },
     channelId: {
       type: String,
-      required: true,
-      unique: true,
+      required: false,
     },
     isEnabled: {
       type: Boolean,
@@ -58,6 +58,11 @@ const ModeratedChannelSchema = new Schema(
       default: true,
       required: false,
     },
+    isGuildDefault: {
+      type: Boolean,
+      default: false,
+      required: false,
+    },
     updatedAt: {
       type: Date,
       default: Date.now,
@@ -71,7 +76,13 @@ const ModeratedChannelSchema = new Schema(
 );
 
 // Create a compound index for faster queries
-ModeratedChannelSchema.index({ guildId: 1, channelId: 1 }, { unique: true });
+ModeratedChannelSchema.index({ guildId: 1, channelId: 1 }, { unique: true, sparse: true });
+
+// Create an index for guild defaults
+ModeratedChannelSchema.index(
+  { guildId: 1, isGuildDefault: 1 },
+  { unique: true, sparse: true, partialFilterExpression: { isGuildDefault: true } }
+);
 
 export default mongoose.model("ModeratedChannel", ModeratedChannelSchema);
 export type ModeratedChannelType = InferSchemaType<typeof ModeratedChannelSchema>;
