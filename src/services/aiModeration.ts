@@ -148,7 +148,7 @@ export default async (message: Message, client: Client<true>) => {
 
       // Currently, OpenAI moderation API doesn't support image moderation directly
       // Flag messages with images for manual review
-      if (channelConfig.moderateImages !== false) {
+      if (channelConfig.moderateImages === true) {
         isContentFlagged = true;
         flaggedCategories.push("other" as ModerationCategory);
         log.info(`Message with ${imageUrls.length} images flagged for manual review`);
