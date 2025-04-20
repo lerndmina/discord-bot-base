@@ -238,11 +238,8 @@ export default async (interaction: ButtonInteraction, client: Client<true>) => {
           new ButtonBuilder()
             .setCustomId(`mod_delete_confirm:${args.join(":")}`)
             .setLabel("Yes, Delete Message")
-            .setStyle(ButtonStyle.Danger),
-          new ButtonBuilder()
-            .setCustomId("mod_cancel")
-            .setLabel("No")
-            .setStyle(ButtonStyle.Secondary)
+            .setStyle(ButtonStyle.Primary),
+          new ButtonBuilder().setCustomId("mod_cancel").setLabel("No").setStyle(ButtonStyle.Danger)
         );
 
         await interaction.reply({
@@ -312,15 +309,15 @@ export default async (interaction: ButtonInteraction, client: Client<true>) => {
           new ButtonBuilder()
             .setCustomId(`mod_warn_confirm:${args.join(":")}`)
             .setLabel("Yes, Send Default Warning")
-            .setStyle(ButtonStyle.Danger),
+            .setStyle(ButtonStyle.Primary),
           new ButtonBuilder()
             .setCustomId(`mod_warn_custom:${args.join(":")}`)
             .setLabel("Yes, Custom Message")
-            .setStyle(ButtonStyle.Primary),
+            .setStyle(ButtonStyle.Success),
           new ButtonBuilder()
             .setCustomId("mod_cancel")
-            .setLabel("No")
-            .setStyle(ButtonStyle.Secondary)
+            .setLabel("No, Cancel")
+            .setStyle(ButtonStyle.Danger)
         );
 
         await interaction.reply({
@@ -334,9 +331,13 @@ export default async (interaction: ButtonInteraction, client: Client<true>) => {
       case "mod_warn_custom": {
         const userId = args[0];
 
+        // We'll include the original interaction ID in the modal's customId
+        // so we can reference it when handling the modal submission
+        const originalInteractionId = interaction.id;
+
         // Create and show a modal for custom warning message
         const modal = new ModalBuilder()
-          .setCustomId(`mod_warn_modal:${args.join(":")}`)
+          .setCustomId(`mod_warn_modal:${userId}:${originalInteractionId}`)
           .setTitle("Send Custom Warning Message");
 
         const warningInput = new TextInputBuilder()

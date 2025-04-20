@@ -1,19 +1,14 @@
 import {
+  Client,
+  ModalSubmitInteraction,
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  Client,
   EmbedBuilder,
-  ModalSubmitInteraction,
 } from "discord.js";
 import log from "../../utils/log";
 import { redisClient } from "../../Bot";
-import crypto from "crypto";
-
-// Generate a short unique ID (6 characters)
-function generateShortId(): string {
-  return crypto.randomBytes(3).toString("hex");
-}
+import { v4 as uuidv4 } from "uuid";
 
 export default async (interaction: ModalSubmitInteraction, client: Client<true>) => {
   if (!interaction.isModalSubmit()) return false;
@@ -29,45 +24,120 @@ export default async (interaction: ModalSubmitInteraction, client: Client<true>)
       return true;
     }
 
-    // Extract the action and args from the customId
     const [action, ...args] = interaction.customId.split(":");
 
     switch (action) {
       case "mod_warn_modal": {
-        const userId = args[0];
+        const [userId, originalInteractionId] = args;
         const warningMessage = interaction.fields.getTextInputValue("warningMessage");
 
-        // Generate a short unique key for Redis storage
-        const shortKey = generateShortId();
+        try {
+          // Generate a short unique ID for this warning
+          const shortKey = uuidv4().substring(0, 8);
 
-        // Store the warning message in Redis with 5 minute expiry
-        const storageData = {
-          type: "warning",
-          message: warningMessage,
-          userId: userId,
-        };
+          // Store the warning data in Redis
+          await redisClient.set(
+            `mod:${shortKey}`,
+            JSON.stringify({
+              type: "warning",
+              userId,
+              message: warningMessage,
+            }),
+            { EX: 300 } // Expire in 5 minutes
+          );
 
-        await redisClient.set(`mod:${shortKey}`, JSON.stringify(storageData), {
-          EX: 5 * 60, // 5 minutes expiry
-        });
+          // Create confirmation buttons
+          const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+            new ButtonBuilder()
+              .setCustomId(`mod_scw:${shortKey}`)
+              .setLabel("Yes, Send Warning")
+              .setStyle(ButtonStyle.Success),
+            new ButtonBuilder()
+              .setCustomId("mod_cancel")
+              .setLabel("No, Cancel")
+              .setStyle(ButtonStyle.Secondary)
+          );
 
-        // Show confirmation button with short key
-        const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder()
-            .setCustomId(`mod_scw:${shortKey}`)
-            .setLabel("Yes, Send Warning")
-            .setStyle(ButtonStyle.Danger),
-          new ButtonBuilder()
-            .setCustomId("mod_cancel")
-            .setLabel("Cancel")
-            .setStyle(ButtonStyle.Secondary)
-        );
+          // We can't use update() directly on a ModalSubmitInteraction
+          // Instead, we'll defer the update first, then edit the original message
+          await interaction.deferReply({ ephemeral: true });
 
-        await interaction.reply({
-          content: `**Preview of warning message:**\n\n${warningMessage}\n\n**Are you sure you want to send this warning?**`,
-          components: [confirmRow],
-          ephemeral: true,
-        });
+          // Find the original message that prompted this modal
+          try {
+            const channel = interaction.channel;
+            if (channel) {
+              // Delete the original interaction's response using the webhook
+              const originalMessage = await channel.messages
+                .fetch({ limit: 10 })
+                .then((messages) =>
+                  messages.find(
+                    (m) =>
+                      m.interaction?.id === originalInteractionId && m.author.id === client.user.id
+                  )
+                );
+
+              if (originalMessage) {
+                await originalMessage.edit({
+                  content: `Are you sure you want to warn this user with the following message?\n\n> ${warningMessage.substring(
+                    0,
+                    100
+                  )}${warningMessage.length > 100 ? "..." : ""}`,
+                  components: [confirmRow],
+                });
+
+                // Now that we've edited the original message, delete our deferred reply
+                await interaction.deleteReply();
+              } else {
+                // If we can't find the original message, follow up with a new one
+                await interaction.followUp({
+                  content: `Are you sure you want to warn this user with the following message?\n\n> ${warningMessage.substring(
+                    0,
+                    100
+                  )}${warningMessage.length > 100 ? "..." : ""}`,
+                  components: [confirmRow],
+                  ephemeral: true,
+                });
+              }
+            } else {
+              // If channel is null, just reply with a new message
+              await interaction.followUp({
+                content: `Are you sure you want to warn this user with the following message?\n\n> ${warningMessage.substring(
+                  0,
+                  100
+                )}${warningMessage.length > 100 ? "..." : ""}`,
+                components: [confirmRow],
+                ephemeral: true,
+              });
+            }
+          } catch (error) {
+            log.error("Error finding original message for modal submit:", error);
+
+            // Fallback to a new reply if we can't find or edit the original message
+            await interaction.followUp({
+              content: `Are you sure you want to warn this user with the following message?\n\n> ${warningMessage.substring(
+                0,
+                100
+              )}${warningMessage.length > 100 ? "..." : ""}`,
+              components: [confirmRow],
+              ephemeral: true,
+            });
+          }
+        } catch (error) {
+          log.error("Error handling warning modal:", error);
+
+          // In case we haven't deferred yet
+          if (!interaction.deferred && !interaction.replied) {
+            await interaction.reply({
+              content: "There was an error processing your warning. Please try again.",
+              ephemeral: true,
+            });
+          } else {
+            await interaction.followUp({
+              content: "There was an error processing your warning. Please try again.",
+              ephemeral: true,
+            });
+          }
+        }
         return true;
       }
 
@@ -76,48 +146,56 @@ export default async (interaction: ModalSubmitInteraction, client: Client<true>)
         const duration = interaction.fields.getTextInputValue("duration");
         const reason = interaction.fields.getTextInputValue("reason");
 
-        // Validate duration is a number
-        const durationMinutes = parseInt(duration);
-        if (isNaN(durationMinutes) || durationMinutes <= 0) {
+        try {
+          // Validate duration is a number
+          const durationMinutes = parseInt(duration);
+          if (isNaN(durationMinutes) || durationMinutes <= 0) {
+            await interaction.reply({
+              content: "Duration must be a positive number of minutes.",
+              ephemeral: true,
+            });
+            return true;
+          }
+
+          // Generate a short unique ID for this timeout
+          const shortKey = uuidv4().substring(0, 8);
+
+          // Store the timeout data in Redis
+          await redisClient.set(
+            `mod:${shortKey}`,
+            JSON.stringify({
+              type: "timeout",
+              userId,
+              durationMinutes,
+              reason,
+            }),
+            { EX: 300 } // Expire in 5 minutes
+          );
+
+          // Create confirmation buttons
+          const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+            new ButtonBuilder()
+              .setCustomId(`mod_sto:${shortKey}`)
+              .setLabel("Yes, Timeout User")
+              .setStyle(ButtonStyle.Danger),
+            new ButtonBuilder()
+              .setCustomId("mod_cancel")
+              .setLabel("No, Cancel")
+              .setStyle(ButtonStyle.Secondary)
+          );
+
           await interaction.reply({
-            content: "Invalid duration. Please enter a positive number of minutes.",
+            content: `Are you sure you want to timeout this user for ${durationMinutes} minute(s) with reason: "${reason}"?`,
+            components: [confirmRow],
             ephemeral: true,
           });
-          return true;
+        } catch (error) {
+          log.error("Error handling timeout modal:", error);
+          await interaction.reply({
+            content: "There was an error processing your timeout request. Please try again.",
+            ephemeral: true,
+          });
         }
-
-        // Generate a short unique key for Redis storage
-        const shortKey = generateShortId();
-
-        // Store the timeout data in Redis with 5 minute expiry
-        const storageData = {
-          type: "timeout",
-          reason: reason,
-          userId: userId,
-          durationMinutes: durationMinutes,
-        };
-
-        await redisClient.set(`mod:${shortKey}`, JSON.stringify(storageData), {
-          EX: 5 * 60, // 5 minutes expiry
-        });
-
-        // Show timeout confirmation with short key
-        const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder()
-            .setCustomId(`mod_sto:${shortKey}`)
-            .setLabel("Yes, Timeout User")
-            .setStyle(ButtonStyle.Danger),
-          new ButtonBuilder()
-            .setCustomId("mod_cancel")
-            .setLabel("Cancel")
-            .setStyle(ButtonStyle.Secondary)
-        );
-
-        await interaction.reply({
-          content: `Are you sure you want to timeout <@${userId}> for ${durationMinutes} minutes?\n\n**Reason:** ${reason}`,
-          components: [confirmRow],
-          ephemeral: true,
-        });
         return true;
       }
     }
