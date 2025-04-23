@@ -1,6 +1,6 @@
-# Discord.js Bot Base
+# Heimdall Discord Bot
 
-A feature-rich Discord bot base with health monitoring, message management, and deployment controls.
+A feature-rich Discord bot with health monitoring, message management, and deployment controls.
 
 Mostly built for personal use, feel free to use in your own stuff. No support will be provided but PRs are welcome if you find bugs or want to add features.
 
@@ -31,14 +31,14 @@ Mostly built for personal use, feel free to use in your own stuff. No support wi
 Pull the Docker image directly from GitHub Container Registry:
 
 ```bash
-docker pull ghcr.io/lerndmina/discord-bot-base:latest
+docker pull ghcr.io/lerndmina/heimdall:latest
 ```
 
 You can also use specific versions or the nightly build:
 
-- Latest stable: `ghcr.io/lerndmina/discord-bot-base:latest`
-- Nightly build: `ghcr.io/lerndmina/discord-bot-base:nightly`
-- Specific version: `ghcr.io/lerndmina/discord-bot-base:vX.Y.Z`
+- Latest stable: `ghcr.io/lerndmina/heimdall:latest`
+- Nightly build: `ghcr.io/lerndmina/heimdall:nightly`
+- Specific version: `ghcr.io/lerndmina/heimdall:vX.Y.Z`
 
 ### Option 2: Quick Start (Docker Compose)
 
@@ -48,7 +48,7 @@ You can also use specific versions or the nightly build:
 version: "3.8"
 services:
   bot:
-    image: ghcr.io/lerndmina/discord-bot-base:latest
+    image: ghcr.io/lerndmina/heimdall:latest
     restart: unless-stopped
     ports:
       - "3000:3000"
@@ -94,8 +94,8 @@ docker-compose up -d
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/lerndmina/discord-bot-base.git
-cd discord-bot-base
+git clone https://github.com/lerndmina/heimdall.git
+cd heimdall
 ```
 
 2. Follow either the Docker or Manual installation instructions below.
