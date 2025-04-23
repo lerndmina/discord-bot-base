@@ -116,7 +116,7 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
     const importanceNum = parseInt(importance);
     if (isNaN(importanceNum) || importanceNum < 0 || importanceNum > 10) {
       await modalSubmit.reply({
-        content: "Please provide a valid importance rating between 1 and 10.",
+        content: `Please provide a valid importance rating between 1 and 10.\nSuggestion: ${suggestion}\nReason: ${reason}`,
         ephemeral: true,
       });
       return;
@@ -297,7 +297,7 @@ export function getSuggestionEmbed(interaction: Interaction, savedSuggestion: Su
   const fields: EmbedField[] = [
     { name: "Suggestion (Your suggestion)", value: savedSuggestion.suggestion, inline: false },
     { name: "Reason (Why we should add this)", value: savedSuggestion.reason, inline: false },
-    { name: "Submitted by", value: `<@${interaction.user.id}>`, inline: true },
+    { name: "Submitted by", value: `<@${savedSuggestion.userId}>`, inline: true },
     { name: "Created ", value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true },
     { name: "Status", value: savedSuggestion.status, inline: true },
   ];
