@@ -18,6 +18,7 @@ import log from "../../utils/log";
 import { ThingGetter } from "../../utils/TinyUtils";
 import { getSuggestionButtons, getSuggestionEmbed } from "../../commands/suggestions/suggest";
 import { initialReply } from "../../utils/initialReply";
+import { redisClient } from "../../Bot";
 
 const env = FetchEnvs();
 const db = new Database();
@@ -108,6 +109,18 @@ async function handleVote(
 
   const userId = interaction.user.id;
 
+  // Check for cooldown
+  const cooldownKey = `suggestionVote:${userId}:${suggestion.id}`;
+  const cooldownExists = await redisClient.exists(cooldownKey);
+
+  if (cooldownExists) {
+    const ttl = await redisClient.ttl(cooldownKey);
+    await interaction.editReply({
+      content: `Please wait ${ttl > 0 ? ttl : 60} seconds before voting on this suggestion again.`,
+    });
+    return;
+  }
+
   try {
     // Find existing vote
     const existingVoteIndex = suggestion.votes?.findIndex((vote) => vote.userId === userId);
@@ -142,6 +155,9 @@ async function handleVote(
 
       log.info(`User ${userId} added new ${voteType} vote`);
     }
+
+    // Set cooldown for 60 seconds
+    await redisClient.set(cooldownKey, "1", { EX: 60 });
 
     // Get current vote counts to include in the reply
     let replyMessage = `Your ${voteType} has been counted! A worker has been notified to update the suggestion message.`;
