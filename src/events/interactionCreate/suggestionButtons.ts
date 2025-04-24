@@ -19,6 +19,7 @@ import { ThingGetter } from "../../utils/TinyUtils";
 import { getSuggestionButtons, getSuggestionEmbed } from "../../commands/suggestions/suggest";
 import { initialReply } from "../../utils/initialReply";
 import { redisClient } from "../../Bot";
+import { createGitHubIssue } from "../../services/GithubConnection";
 
 const env = FetchEnvs();
 const db = new Database();
@@ -144,7 +145,7 @@ async function handleVote(
         { $set: { "votes.$.vote": voteType } }
       );
 
-      log.info(`User ${userId} changed vote from ${existingVote?.vote} to ${voteType}`);
+      log.debug(`User ${userId} changed vote from ${existingVote?.vote} to ${voteType}`);
     } else {
       // If user hasn't voted, add new vote using atomic operation
       await db.findOneAndUpdate(
@@ -153,14 +154,14 @@ async function handleVote(
         { $push: { votes: { userId, vote: voteType } } }
       );
 
-      log.info(`User ${userId} added new ${voteType} vote`);
+      log.debug(`User ${userId} added new ${voteType} vote`);
     }
 
     // Set cooldown for 60 seconds
     await redisClient.set(cooldownKey, "1", { EX: 60 });
 
     // Get current vote counts to include in the reply
-    let replyMessage = `Your ${voteType} has been counted! A worker has been notified to update the suggestion message.`;
+    let replyMessage = `Your ${voteType} has been counted!\n-# Do not worry if the message does not update instantly I have carefully recorded your vote.`;
 
     // Check if there are pending updates
     const suggestionKey = `suggestion-${suggestion.id}`;
@@ -212,7 +213,7 @@ async function queueMessageUpdate(interaction: ButtonInteraction, suggestion: Su
       isProcessing: false,
     };
     updateTasks.set(suggestionKey, task);
-    log.info(`Created update queue for suggestion #${suggestion.id}`);
+    log.debug(`Created update queue for suggestion #${suggestion.id}`);
   } else {
     // Update existing task
     task.lastRequestTime = now;
@@ -243,7 +244,7 @@ async function processMessageUpdate(interaction: ButtonInteraction, suggestion: 
   }
 
   task.isProcessing = true;
-  log.info(
+  log.debug(
     `Starting update process for suggestion #${suggestion.id} with ${task.pendingCount} pending updates`
   );
 
@@ -264,14 +265,14 @@ async function processMessageUpdate(interaction: ButtonInteraction, suggestion: 
     }
 
     // Time to process the update
-    log.info(`Processing ${task.pendingCount} pending updates for suggestion #${suggestion.id}`);
+    log.debug(`Processing ${task.pendingCount} pending updates for suggestion #${suggestion.id}`);
 
     try {
       await updateVoteMessage(interaction, suggestion);
 
       // Reset pending count after successful update
       task.pendingCount = 0;
-      log.info(`Successfully updated buttons for suggestion #${suggestion.id}`);
+      log.debug(`Successfully updated buttons for suggestion #${suggestion.id}`);
     } catch (error) {
       log.error(`Error processing update for suggestion #${suggestion.id}:`, error);
 
@@ -307,7 +308,7 @@ async function updateVoteMessage(interaction: ButtonInteraction, suggestion: Sug
 
     const upvoteCount = calculateVoteCount(latestSuggestion.votes, VoteType.Upvote);
     const downvoteCount = calculateVoteCount(latestSuggestion.votes, VoteType.Downvote);
-    log.info(
+    log.debug(
       `Vote counts for suggestion #${suggestion.id}: ${upvoteCount} upvotes, ${downvoteCount} downvotes`
     );
 
@@ -334,7 +335,7 @@ async function editMessageWithRetry(
     try {
       await interaction.message.edit({ components: [row] });
       success = true;
-      log.info(
+      log.debug(
         `Successfully updated message after ${retries > 0 ? retries + " retries" : "first attempt"}`
       );
     } catch (error: any) {
@@ -451,10 +452,20 @@ async function handleManage(
 
     const embed = getSuggestionEmbed(interaction, updatedSuggestion);
 
+    let response: any = null;
+    if (status === SuggestionStatus.Approved) {
+      const suggestionUser = await getter.getUser(suggestion.userId);
+      response = await createGitHubIssue(
+        suggestion.title,
+        `**Suggestion:**\n${suggestion.suggestion}\n\n**Reason:**\n ${suggestion.reason}\n\n**Suggested By:**\n ${suggestionUser.displayName} (${suggestionUser.id})`
+      );
+    }
+
     await message.edit({
       embeds: [embed],
       components: [row],
+      content: "",
     });
-    log.info(`Suggestion #${suggestion.id} ${status === "approved" ? "approved" : "denied"}`);
+    log.debug(`Suggestion #${suggestion.id} ${status === "approved" ? "approved" : "denied"}`);
   }
 }

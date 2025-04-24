@@ -28,6 +28,10 @@ function getter() {
     ALLOWED_DEPLOY_DOMAINS: string[];
     ZIPLINE_BASEURL: string;
     ZIPLINE_TOKEN: string;
+    GITHUB_TOKEN: string;
+    GITHUB_ISSUES_REPO: string;
+    GITHUB_PROJECT_ID: string;
+    GITHUB_PROJECT_FIELD: string;
   } = {
     BOT_TOKEN: process.env.BOT_TOKEN || "",
     OWNER_IDS: (process.env.OWNER_IDS || "").trim().split(","),
@@ -46,6 +50,10 @@ function getter() {
     ALLOWED_DEPLOY_DOMAINS: (process.env.ALLOWED_DEPLOY_DOMAINS || "").trim().split(","),
     ZIPLINE_BASEURL: process.env.ZIPLINE_BASEURL || DEFAULT_OPTIONAL_STRING,
     ZIPLINE_TOKEN: process.env.ZIPLINE_TOKEN || DEFAULT_OPTIONAL_STRING,
+    GITHUB_TOKEN: process.env.GITHUB_TOKEN || DEFAULT_OPTIONAL_STRING,
+    GITHUB_ISSUES_REPO: process.env.GITHUB_ISSUES_REPO || DEFAULT_OPTIONAL_STRING,
+    GITHUB_PROJECT_ID: process.env.GITHUB_PROJECT_ID || DEFAULT_OPTIONAL_STRING,
+    GITHUB_PROJECT_FIELD: process.env.GITHUB_PROJECT_FIELD || DEFAULT_OPTIONAL_STRING,
   };
 
   var missingKeys: string[] = [];

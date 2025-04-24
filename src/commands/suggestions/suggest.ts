@@ -200,7 +200,7 @@ async function submitSuggestion(
 
     // Reply to the user
     await interaction.editReply({
-      content: `Thank you! Your suggestion has been submitted with ID #${savedSuggestion.id}.`,
+      content: `Thank you! Your suggestion has been submitted ${savedSuggestion.messageLink}`,
     });
 
     // Set cooldown
@@ -218,41 +218,41 @@ const openai = new OpenAI({
 });
 
 async function getSuggestionTitle(suggestion: string, reason?: string): Promise<string> {
-  // !!! DISABLED FOR NOW !!!
-  return "A User Suggestion Title"; // Fallback title
+  // // !!! DISABLED FOR NOW !!!
+  // return "A User Suggestion Title"; // Fallback title
 
-  // try {
-  //   const conversation = [
-  //     {
-  //       role: "system",
-  //       content:
-  //         "You are a title generating service. You will be provided with a suggestion and you will generate a short title for it 20-50 characters.",
-  //     },
-  //   ];
-  //   conversation.push({
-  //     role: "user",
-  //     content: suggestion,
-  //   });
-  //   if (reason) {
-  //     conversation.push({
-  //       role: "user",
-  //       content: `The reason for this suggestion is: ${reason}`,
-  //     });
-  //   }
-  //   const response = await openai.chat.completions.create({
-  //     model: "gpt-4.1-nano",
-  //     messages: conversation as any,
-  //     max_tokens: 50, // limit token usage
-  //     temperature: 0.5,
-  //   });
+  try {
+    const conversation = [
+      {
+        role: "system",
+        content:
+          "You are a title generating service. You will be provided with a suggestion and you will generate a short title for it 20-100 characters.",
+      },
+    ];
+    conversation.push({
+      role: "user",
+      content: suggestion,
+    });
+    if (reason) {
+      conversation.push({
+        role: "user",
+        content: `The reason for this suggestion is: ${reason}`,
+      });
+    }
+    const response = await openai.chat.completions.create({
+      model: "gpt-4.1-nano",
+      messages: conversation as any,
+      max_tokens: 100, // limit token usage
+      temperature: 0.5,
+    });
 
-  //   if (!response || !response.choices[0] || !response.choices[0].message.content) {
-  //     return "Untitled Suggestion";
-  //   }
-  //   return response.choices[0].message.content.trim();
-  // } catch (error) {
-  //   return "Untitled Suggestion"; // Fallback title in case of error
-  // }
+    if (!response || !response.choices[0] || !response.choices[0].message.content) {
+      return "Untitled Suggestion";
+    }
+    return response.choices[0].message.content.trim();
+  } catch (error) {
+    return "Untitled Suggestion"; // Fallback title in case of error
+  }
 }
 
 export function getSuggestionButtons(
@@ -272,17 +272,26 @@ export function getSuggestionButtons(
       .setLabel(`Downvote (${downvotes})`)
       .setStyle(ButtonStyle.Danger)
       .setDisabled(savedSuggestion.status !== SuggestionStatus.Pending)
-      .setEmoji("👎"),
-    new ButtonBuilder()
-      .setCustomId(`suggest-manage-${savedSuggestion.id}`)
-      .setLabel("Manage")
-      .setStyle(ButtonStyle.Secondary)
-      .setEmoji("⚙️")
+      .setEmoji("👎")
   );
+
+  if (savedSuggestion.status !== SuggestionStatus.Approved)
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`suggest-manage-${savedSuggestion.id}`)
+        .setLabel("Manage")
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji("⚙️")
+    );
+
   return row;
 }
 
-export function getSuggestionEmbed(interaction: Interaction, savedSuggestion: SuggestionsType) {
+export function getSuggestionEmbed(
+  interaction: Interaction,
+  savedSuggestion: SuggestionsType,
+  managedBy?: string
+) {
   const embedColour =
     savedSuggestion.status === SuggestionStatus.Pending
       ? "Blue"
@@ -296,6 +305,8 @@ export function getSuggestionEmbed(interaction: Interaction, savedSuggestion: Su
       ? "✅"
       : "❌";
 
+  managedBy = managedBy || savedSuggestion.managedBy || interaction.user.id; // Default to the user who submitted the suggestion
+
   const fields: EmbedField[] = [
     { name: "Suggestion (Your suggestion)", value: savedSuggestion.suggestion, inline: false },
     { name: "Reason (Why we should add this)", value: savedSuggestion.reason, inline: false },
@@ -307,7 +318,7 @@ export function getSuggestionEmbed(interaction: Interaction, savedSuggestion: Su
   if (savedSuggestion.status !== SuggestionStatus.Pending) {
     fields.push({
       name: savedSuggestion.status === SuggestionStatus.Approved ? "Approved by" : "Denied by",
-      value: `<@${savedSuggestion.managedBy}>`,
+      value: `<@${managedBy}>`,
       inline: true,
     });
   }
