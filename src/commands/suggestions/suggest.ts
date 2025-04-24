@@ -79,14 +79,15 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
     .setPlaceholder("Explain why this would be beneficial...")
     .setRequired(true);
 
-  const importanceInput = new TextInputBuilder()
-    .setCustomId("importanceInput")
-    .setLabel("How important is this? (1-10)")
-    .setStyle(TextInputStyle.Short)
-    .setMinLength(1)
-    .setMaxLength(2)
-    .setPlaceholder("Enter a number between 1 and 10")
-    .setRequired(true);
+  // ! Disabled Importance ! //
+  // const importanceInput = new TextInputBuilder()
+  //   .setCustomId("importanceInput")
+  //   .setLabel("How important is this? (1-10)")
+  //   .setStyle(TextInputStyle.Short)
+  //   .setMinLength(1)
+  //   .setMaxLength(2)
+  //   .setPlaceholder("Enter a number between 1 and 10")
+  //   .setRequired(true);
 
   // Add inputs to action rows
   const firstActionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(suggestionInput);
