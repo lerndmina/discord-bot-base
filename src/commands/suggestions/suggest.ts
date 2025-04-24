@@ -91,10 +91,11 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
   // Add inputs to action rows
   const firstActionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(suggestionInput);
   const secondActionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(reasonInput);
-  const thirdActionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(importanceInput);
+  // ! Disabled Importance ! //
+  // const thirdActionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(importanceInput);
 
   // Add action rows to the modal
-  modal.addComponents(firstActionRow, secondActionRow, thirdActionRow);
+  modal.addComponents(firstActionRow, secondActionRow);
 
   // Present the modal to the user
   await interaction.showModal(modal);
@@ -110,19 +111,21 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
     // Get the data entered by the user
     const suggestion = modalSubmit.fields.getTextInputValue("suggestionInput");
     const reason = modalSubmit.fields.getTextInputValue("reasonInput");
-    const importance = modalSubmit.fields.getTextInputValue("importanceInput");
+    // ! Disabled Importance ! //
+    // const importance = modalSubmit.fields.getTextInputValue("importanceInput");
 
-    // Validate importance is between 1 and 10
-    const importanceNum = parseInt(importance);
-    if (isNaN(importanceNum) || importanceNum < 0 || importanceNum > 10) {
-      await modalSubmit.reply({
-        content: `Please provide a valid importance rating between 1 and 10.\nSuggestion: ${suggestion}\nReason: ${reason}`,
-        ephemeral: true,
-      });
-      return;
-    }
+    // ! Disabled Importance ! //
+    // // Validate importance is between 1 and 10
+    // const importanceNum = parseInt(importance);
+    // if (isNaN(importanceNum) || importanceNum < 0 || importanceNum > 10) {
+    //   await modalSubmit.reply({
+    //     content: `Please provide a valid importance rating between 1 and 10.\nSuggestion: ${suggestion}\nReason: ${reason}`,
+    //     ephemeral: true,
+    //   });
+    //   return;
+    // }
 
-    await submitSuggestion(modalSubmit, suggestion, reason, importanceNum, suggestionConfig);
+    await submitSuggestion(modalSubmit, suggestion, reason, suggestionConfig);
   } catch (error) {
     // If the user didn't submit the modal in time
     console.error("Modal timeout or error:", error);
@@ -134,7 +137,6 @@ async function submitSuggestion(
   interaction: ModalSubmitInteraction,
   suggestion: string,
   reason: string,
-  importance: number,
   suggestionConfig: SuggestionConfigType
 ) {
   await initialReply(interaction, true);
@@ -149,7 +151,6 @@ async function submitSuggestion(
       channelId: suggestionConfig.channelId,
       suggestion,
       reason,
-      importance,
       title,
       status: SuggestionStatus.Pending,
     });

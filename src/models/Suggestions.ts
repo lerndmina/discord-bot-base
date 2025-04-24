@@ -51,10 +51,6 @@ const Suggestion = new Schema({
     type: String,
     required: true,
   },
-  importance: {
-    type: Number,
-    required: true,
-  },
   title: {
     type: String,
     required: true,
