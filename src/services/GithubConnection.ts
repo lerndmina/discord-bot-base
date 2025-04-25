@@ -235,6 +235,8 @@ export async function createGitHubIssue(
   issueUrl: string;
   projectItemId: string;
 } | null> {
+  if (!env.ENABLE_GITHUB_SUGGESTIONS) return null;
+
   // Get required environment variables
   const token = env.GITHUB_TOKEN;
   const repo = env.GITHUB_ISSUES_REPO;
