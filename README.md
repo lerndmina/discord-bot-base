@@ -2,7 +2,7 @@
 
 A feature-rich Discord bot with health monitoring, message management, and deployment controls.
 
-Mostly built for personal use, feel free to use in your own stuff. No support will be provided but PRs are welcome if you find bugs or want to add features.
+Built for personal use, feel free to use in your own stuff. **No support will be provided**.
 
 ## Features
 
