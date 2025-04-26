@@ -46,7 +46,8 @@ export default async (interaction: ButtonInteraction, client: Client<true>) => {
         );
 
         await interaction.reply({
-          content: "Are you sure you want to accept this report?",
+          content:
+            "Are you sure you want to accept this report? This will delete the reported message.",
           components: [confirmRow],
           ephemeral: true,
         });
