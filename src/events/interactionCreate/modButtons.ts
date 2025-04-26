@@ -46,7 +46,8 @@ export default async (interaction: ButtonInteraction, client: Client<true>) => {
         );
 
         await interaction.reply({
-          content: "Are you sure you want to accept this report?",
+          content:
+            "Are you sure you want to accept this report? Reminder; this will delete the message.",
           components: [confirmRow],
           ephemeral: true,
         });
@@ -113,7 +114,6 @@ export default async (interaction: ButtonInteraction, client: Client<true>) => {
             components: [],
           });
 
-          // Optional: Take additional actions like deleting the message
           try {
             const channel = (await client.channels.fetch(channelId)) as TextChannel;
             const message = await channel.messages.fetch(messageId).catch(() => null);
