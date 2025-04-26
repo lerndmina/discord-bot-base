@@ -13,6 +13,7 @@ import {
 import log from "../../utils/log";
 import { redisClient } from "../../Bot";
 import { moderationEmbeds } from "../../services/moderationEmbeds";
+import { tryCatch } from "../../utils/trycatch";
 
 export default async (interaction: ButtonInteraction, client: Client<true>) => {
   if (!interaction.isButton()) return false;
@@ -392,7 +393,8 @@ export default async (interaction: ButtonInteraction, client: Client<true>) => {
           }
         } catch {
           await interaction.update({
-            content: "Could not send warning to user. They may have DMs disabled.",
+            content:
+              "Could not send warning to user. They may have DMs disabled. Please warn the user with Sapphire or another moderation bot.",
             components: [],
           });
         }
@@ -427,10 +429,14 @@ export default async (interaction: ButtonInteraction, client: Client<true>) => {
 
           // Send the custom warning as an embed
           const user = await client.users.fetch(userId);
-          await user.send({ embeds: [warningEmbed] });
+          const { data: _, error: dmUserError } = await tryCatch(
+            user.send({ embeds: [warningEmbed] })
+          );
 
           await interaction.update({
-            content: "Custom warning sent to user.",
+            content: dmUserError
+              ? "Could not send warning to user. They may have DMs disabled. Please warn the user with Sapphire or another moderation bot."
+              : "Custom warning sent to user.",
             components: [],
           });
 
@@ -502,10 +508,14 @@ export default async (interaction: ButtonInteraction, client: Client<true>) => {
 
           // Send the custom warning as an embed
           const user = await client.users.fetch(userId);
-          await user.send({ embeds: [warningEmbed] });
+          const { data: _, error: dmUserError } = await tryCatch(
+            user.send({ embeds: [warningEmbed] })
+          );
 
           await interaction.update({
-            content: "Custom warning sent to user.",
+            content: dmUserError
+              ? "Could not send warning to user. They may have DMs disabled. Please warn the user with Sapphire or another moderation bot."
+              : "Custom warning sent to user.",
             components: [],
           });
 
@@ -627,17 +637,23 @@ export default async (interaction: ButtonInteraction, client: Client<true>) => {
           }
 
           // Try to send a DM to the user with an embed
-          try {
-            const timeoutEmbed = moderationEmbeds.createTimeoutEmbed(
-              interaction.guild,
-              interaction.user,
-              durationMinutes,
-              reason
-            );
+          const timeoutEmbed = moderationEmbeds.createTimeoutEmbed(
+            interaction.guild,
+            interaction.user,
+            durationMinutes,
+            reason
+          );
 
-            await member.send({ embeds: [timeoutEmbed] });
-          } catch (dmError) {
-            log.error("Could not send DM to timed out user", dmError);
+          const { data: _, error: dmUserError } = await tryCatch(
+            member.send({ embeds: [timeoutEmbed] })
+          );
+          if (dmUserError) {
+            log.error("Could not send DM to timed out user", dmUserError);
+            await interaction.update({
+              content:
+                "Could not send DM to the user. They may have DMs disabled. The timeout was still applied so you may want to contact them yourself.",
+              components: [],
+            });
           }
         } catch (error) {
           log.error("Error applying timeout:", error);

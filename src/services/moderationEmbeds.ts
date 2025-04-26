@@ -25,15 +25,15 @@ class ModerationEmbedService {
       .setColor("#FFA500") // Orange color for flagged content
       .addFields(
         {
-          name: "User",
+          name: "User Details",
           value:
-            `**User:** ${message.author} (${message.author.tag})\n` +
-            `**ID:** ${message.author.id}\n` +
-            `**User Created:** ${getDiscordDate(
+            `User: ${message.author} (${message.author.tag})\n` +
+            `ID: ${message.author.id}\n` +
+            `Account Created: ${getDiscordDate(
               message.author.createdAt,
               TimeType.DATE
             )} ${getDiscordDate(message.author.createdAt, TimeType.RELATIVE)}\n` +
-            `**User Joined:** ${getDiscordDate(
+            `Joined Server: ${getDiscordDate(
               message.member?.joinedAt!,
               TimeType.DATE
             )} ${getDiscordDate(message.member?.joinedAt!, TimeType.RELATIVE)}\n`,
@@ -42,6 +42,11 @@ class ModerationEmbedService {
         {
           name: "Channel",
           value: `<#${message.channel.id}>`,
+          inline: true,
+        },
+        {
+          name: "Message Link",
+          value: `[Jump to message](${message.url})`,
           inline: true,
         },
         {
