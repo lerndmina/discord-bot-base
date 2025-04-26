@@ -74,14 +74,14 @@ export default async (message: Message, client: Client<true>): Promise<boolean |
  * @returns {boolean} - Whether the message should be skipped
  */
 function shouldSkipProcessing(message: Message): boolean {
+  if (message.author.bot) return true;
   const bailOut =
-    message.author.bot ||
     message.mentions.users.size < 1 ||
     message.channel.type === ChannelType.DM ||
     (message.mentions.users.has(message.author.id) && message.mentions.users.size === 1) ||
     (message.type === MessageType.Reply && message.mentions.users.size === 1);
   if (bailOut) {
-    debugMsg({ message: "Dontatme: Skipping message", bailOut });
+    debugMsg({ message: "Dontatme: Skipping message", bailOut, messageLink: message.url });
   }
   return bailOut;
 }
