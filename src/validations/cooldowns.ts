@@ -9,7 +9,7 @@ import BasicEmbed from "../utils/BasicEmbed";
 import { get } from "http";
 import { BaseInteraction, RepliableInteraction } from "discord.js";
 import { ValidationProps } from "commandkit";
-import { debugMsg, sendDM } from "../utils/TinyUtils";
+import { debugMsg, getDiscordDate, sendDM, TimeType } from "../utils/TinyUtils";
 import FetchEnvs from "../utils/FetchEnvs";
 const env = FetchEnvs();
 
@@ -20,15 +20,15 @@ export default async function ({ interaction, commandObj, handler }: ValidationP
   const name = commandObj.data.name;
 
   const globalCooldown = await getCooldown(globalCooldownKey(name));
-  if (globalCooldown > 0) return cooldownMessage(interaction, name, globalCooldown, "global");
+  if (globalCooldown > 0) return sendCooldownMessage(interaction, name, globalCooldown, "global");
 
   if (interaction.guildId) {
     const guildCooldown = await getCooldown(guildCooldownKey(interaction.guildId, name));
-    if (guildCooldown > 0) return cooldownMessage(interaction, name, guildCooldown, "guild");
+    if (guildCooldown > 0) return sendCooldownMessage(interaction, name, guildCooldown, "guild");
   }
 
   const userCooldown = await getCooldown(userCooldownKey(interaction.user.id, name));
-  if (userCooldown > 0) return cooldownMessage(interaction, name, userCooldown, "user");
+  if (userCooldown > 0) return sendCooldownMessage(interaction, name, userCooldown, "user");
 
   debugMsg(`No cooldowns found for ${name}, continuing...`);
   return false; // Do not stop the command
@@ -44,7 +44,7 @@ export async function getCooldown(key: string) {
   return Math.floor(cooldown / 1000);
 }
 
-export async function cooldownMessage(
+export async function sendCooldownMessage(
   interaction: RepliableInteraction,
   commandName: string,
   cooldownLeft: number,
@@ -54,7 +54,10 @@ export async function cooldownMessage(
   const embed = BasicEmbed(
     interaction.client,
     "Cooldown",
-    `The command \`/${commandName}\` is in ${cooldownType} cooldown it will be available <t:${cooldownLeft}:R> `,
+    `The command \`/${commandName}\` is in ${cooldownType} cooldown it will be available ${getDiscordDate(
+      cooldownLeft,
+      TimeType.RELATIVE
+    )}`,
     undefined,
     "Red"
   );
