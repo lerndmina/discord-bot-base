@@ -386,7 +386,16 @@ export enum TimeType {
   RELATIVE = "R",
 }
 
-export function getDiscordDate(date: Date, type: TimeType): string {
+/**
+ *
+ * @param date Number or Date number is in seconds
+ * @param type TimeType The type of time format to use
+ * @returns Discord date format string for use in messages and embeds
+ */
+export function getDiscordDate(date: Date | number, type: TimeType): string {
+  if (typeof date === "number") {
+    date = new Date(date * 1000);
+  }
   if (!date) date = new Date();
   return `<t:${Math.floor(new Date(date).getTime() / 1000)}:${type}>`;
 }
