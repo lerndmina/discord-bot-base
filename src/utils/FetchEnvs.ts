@@ -33,6 +33,7 @@ function getter() {
     GITHUB_ISSUES_REPO: string;
     GITHUB_PROJECT_ID: string;
     GITHUB_PROJECT_FIELD: string;
+    ENABLE_TAW_COMMAND: boolean;
   } = {
     BOT_TOKEN: process.env.BOT_TOKEN || "",
     OWNER_IDS: (process.env.OWNER_IDS || "").trim().split(","),
@@ -56,6 +57,7 @@ function getter() {
     GITHUB_ISSUES_REPO: process.env.GITHUB_ISSUES_REPO || DEFAULT_OPTIONAL_STRING,
     GITHUB_PROJECT_ID: process.env.GITHUB_PROJECT_ID || DEFAULT_OPTIONAL_STRING,
     GITHUB_PROJECT_FIELD: process.env.GITHUB_PROJECT_FIELD || DEFAULT_OPTIONAL_STRING,
+    ENABLE_TAW_COMMAND: process.env.ENABLE_TAW_COMMAND === "true",
   };
 
   var missingKeys: string[] = [];
