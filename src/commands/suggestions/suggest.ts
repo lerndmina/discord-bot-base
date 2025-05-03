@@ -185,10 +185,18 @@ async function submitSuggestion(
 
       const row = getSuggestionButtons(0, 0, savedSuggestion); // Initialize with 0 upvotes and downvotes
 
-      const suggestionMessage = await suggestionsChannel.send({
+      const { data: suggestionMessage, error: _ } = await suggestionsChannel.send({
         embeds: [suggestionEmbed],
         components: [row],
       });
+
+      if (!suggestionMessage) {
+        log.error("Failed to send suggestion message to channel");
+        await interaction.editReply({
+          content: "There was an error sending your suggestion message. Please try again later.",
+        });
+        return;
+      }
 
       // Update the suggestion with the message ID
       savedSuggestion.messageLink = suggestionMessage.url;
