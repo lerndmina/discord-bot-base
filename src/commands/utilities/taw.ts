@@ -53,6 +53,10 @@ async function changeTags(tags: string, interaction: CommandInteraction) {
   const maxTagLength = 6;
   const cleanTags = tags.replace("[", "").replace("]", "").toUpperCase();
 
+  if (cleanTags.length > maxTagLength) {
+    return interaction.editReply(`Your TAW tags cannot be longer than ${maxTagLength} characters.`);
+  }
+
   const member = interaction.member as GuildMember;
   const memberName = member.nickname || member.user.displayName;
   const existingTags = member.nickname?.match(/\[(.*?)\]/)?.[1] || "";
