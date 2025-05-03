@@ -34,6 +34,7 @@ function getter() {
     GITHUB_PROJECT_ID: string;
     GITHUB_PROJECT_FIELD: string;
     ENABLE_TAW_COMMAND: boolean;
+    FIVEM_MYSQL_URI: string;
   } = {
     BOT_TOKEN: process.env.BOT_TOKEN || "",
     OWNER_IDS: (process.env.OWNER_IDS || "").trim().split(","),
@@ -58,6 +59,7 @@ function getter() {
     GITHUB_PROJECT_ID: process.env.GITHUB_PROJECT_ID || DEFAULT_OPTIONAL_STRING,
     GITHUB_PROJECT_FIELD: process.env.GITHUB_PROJECT_FIELD || DEFAULT_OPTIONAL_STRING,
     ENABLE_TAW_COMMAND: process.env.ENABLE_TAW_COMMAND === "true",
+    FIVEM_MYSQL_URI: process.env.FIVEM_MYSQL_URI || DEFAULT_OPTIONAL_STRING,
   };
 
   var missingKeys: string[] = [];
