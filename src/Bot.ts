@@ -169,7 +169,9 @@ async function createFivemPool() {
       fivemDb = connection;
       log.info("Connected to FiveM MySQL database");
     } else {
-      log.error("Failed to connect to FiveM MySQL database");
+      log.error(
+        "Failed to connect to FiveM MySQL database. You can remove the enviroment variable 'FIVEM_MYSQL_URI' if you don't need it."
+      );
     }
   } else {
     fivemDb = undefined;
