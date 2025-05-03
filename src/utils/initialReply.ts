@@ -3,6 +3,7 @@ import {
   Interaction,
   InteractionType,
   MessageComponentInteraction,
+  MessageFlags,
 } from "discord.js";
 import { waitingEmoji, isAprilFools } from "../Bot";
 
@@ -26,13 +27,13 @@ export async function initialReply(
   if (!isAprilFools) {
     return await interaction.reply({
       content: waitingEmoji,
-      ephemeral,
+      flags: ephemeral ? [MessageFlags.Ephemeral] : [],
     });
   }
 
   const randomMessage = JOKE_MESSAGES[Math.floor(Math.random() * JOKE_MESSAGES.length)];
   return await interaction.reply({
     content: `${waitingEmoji} ${randomMessage}`,
-    ephemeral,
+    flags: ephemeral ? [MessageFlags.Ephemeral] : [],
   });
 }
