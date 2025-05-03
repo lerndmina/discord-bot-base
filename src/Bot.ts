@@ -16,6 +16,7 @@ import { debugMsg } from "./utils/TinyUtils";
 import log from "./utils/log";
 import healthCheck from "./Health";
 import aiModeration from "./services/aiModeration";
+import mariadb from "mariadb";
 const env = fetchEnvs();
 
 export const Start = async () => {
@@ -40,9 +41,10 @@ export const Start = async () => {
 
   await mongoose
     .connect(env.MONGODB_URI, { dbName: env.MONGODB_DATABASE, retryWrites: true })
-    .then(() => {
+    .then(async () => {
       log.info("Connected to MongoDB");
-      client.login(env.BOT_TOKEN);
+      await createFivemPool();
+      await client.login(env.BOT_TOKEN);
     });
 
   await redisClient.connect();
@@ -158,10 +160,25 @@ export function stopTimer() {
   return timeDiff;
 }
 
+export let fivemDb: mariadb.PoolConnection | undefined;
+async function createFivemPool() {
+  if (env.FIVEM_MYSQL_URI) {
+    const pool = mariadb.createPool(env.FIVEM_MYSQL_URI);
+    const connection = await pool.getConnection();
+    if (connection) {
+      fivemDb = connection;
+      log.info("Connected to FiveM MySQL database");
+    } else {
+      log.error("Failed to connect to FiveM MySQL database");
+    }
+  } else {
+    fivemDb = undefined;
+  }
+}
+
 export const redisClient = createClient({
   url: env.REDIS_URL,
 })
-  //@ts-expect-error
   .on("error", (err) => {
     log.error("Redis Client Error", err);
     process.exit(1);
