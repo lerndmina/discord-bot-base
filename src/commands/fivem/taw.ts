@@ -15,7 +15,7 @@ import {
 } from "../../Bot";
 import generateHelpFields from "../../utils/data/static/generateHelpFields";
 import { initialReply } from "../../utils/initialReply";
-import FetchEnvs from "../../utils/FetchEnvs";
+import FetchEnvs, { DEFAULT_OPTIONAL_STRING } from "../../utils/FetchEnvs";
 import { tryCatch, tryCatchSync } from "../../utils/trycatch";
 import mariadb from "mariadb";
 import { sleep } from "../../utils/TinyUtils";
@@ -23,7 +23,11 @@ import BasicEmbed from "../../utils/BasicEmbed";
 import { title } from "process";
 const env = FetchEnvs();
 // This command requires fivem systems, the taw command and a fivem mysql uri to be defined in the env
-if (env.ENABLE_FIVEM_SYSTEMS && env.ENABLE_TAW_COMMAND && env.FIVEM_MYSQL_URI) {
+if (
+  env.ENABLE_FIVEM_SYSTEMS &&
+  env.ENABLE_TAW_COMMAND &&
+  env.FIVEM_MYSQL_URI !== DEFAULT_OPTIONAL_STRING
+) {
   module.exports = {
     data: new SlashCommandBuilder()
       .setName("taw")
