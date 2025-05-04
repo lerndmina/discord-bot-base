@@ -3,18 +3,15 @@ import Database from "../../utils/data/database";
 import FetchEnvs, { DEFAULT_OPTIONAL_STRING } from "../../utils/FetchEnvs";
 import FivemReportListener from "../../models/FivemReportListener";
 import log from "../../utils/log";
-import { fivemPool } from "../../Bot";
 import {
   FivemReport,
   FivemReportMessageActions,
   FivemReportMessageArgs,
 } from "../../types/FivemTypes";
 import { tryCatch } from "../../utils/trycatch";
+import { fetchReportById } from "../../services/FivemReportService";
 const env = FetchEnvs();
 const db = new Database();
-
-const reportsTable = `zerobug_tickets`;
-const indexColumn = `ticket_id`;
 
 if (env.ENABLE_FIVEM_SYSTEMS && env.FIVEM_MYSQL_URI !== DEFAULT_OPTIONAL_STRING) {
   module.exports = {
@@ -52,55 +49,12 @@ if (env.ENABLE_FIVEM_SYSTEMS && env.FIVEM_MYSQL_URI !== DEFAULT_OPTIONAL_STRING)
         return true;
       }
 
-      if (!fivemPool) {
-        log.error(`[FivemReportListener]`, {
-          error: "Fivem pool is not initialized",
-          messageAuthor: message.author.globalName ? message.author.globalName : "Webhook/Unknown",
-          messageContent: message.content,
-        });
-        return true;
-      }
-      const fivemConnection = await fivemPool.getConnection();
-
-      if (!fivemConnection) {
-        log.error(`[FivemReportListener]`, {
-          error: "Unable to get fivem connection",
-          messageAuthor: message.author.globalName ? message.author.globalName : "Webhook/Unknown",
-          messageContent: message.content,
-        });
-        return true;
-      }
-
-      const reportFetchResult = await fivemConnection.query(
-        `SELECT * FROM ${reportsTable} WHERE ${indexColumn} = ?`,
-        [messageDetails.id]
-      );
-
-      if (reportFetchResult[0].length === 0) {
-        log.error(`[FivemReportListener]`, {
-          error: "Report not found",
-          messageAuthor: message.author.globalName ? message.author.globalName : "Webhook/Unknown",
-          messageContent: message.content,
-        });
-        return true;
-      }
-
-      let report: FivemReport | null = null;
-
-      try {
-        report = JSON.parse(reportFetchResult[0].data);
-      } catch (error) {
-        log.error(`[FivemReportListener]`, {
-          error: "Error parsing report data",
-          messageAuthor: message.author.globalName ? message.author.globalName : "Webhook/Unknown",
-          messageContent: message.content,
-        });
-        return true;
-      }
+      // Fetch report using the service
+      const report = await fetchReportById(messageDetails.id);
 
       if (!report) {
         log.error(`[FivemReportListener]`, {
-          error: "Report is null",
+          error: "Report not found or failed to fetch",
           messageAuthor: message.author.globalName ? message.author.globalName : "Webhook/Unknown",
           messageContent: message.content,
         });
@@ -156,7 +110,7 @@ if (env.ENABLE_FIVEM_SYSTEMS && env.FIVEM_MYSQL_URI !== DEFAULT_OPTIONAL_STRING)
           { name: "👤 Reported By", value: report.ticketOwnerDetails.name, inline: true },
           { name: "🔗 Discord", value: `<@${report.ticketOwnerDetails.discordID}>`, inline: true }
         )
-        .setFooter({ text: `Bug Tracking System • Player ID: ${report.ticketOwnerDetails.id}` })
+        .setFooter({ text: `Bug Tracking System` })
         .setTimestamp(new Date());
 
       // Add thumbnail of avatar if it's a valid URL (not relative path)
