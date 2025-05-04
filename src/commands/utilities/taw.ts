@@ -258,6 +258,7 @@ async function getCharacterInfo(interaction: CommandInteraction, userToLookup: U
 
   if (queryError) {
     await interaction.editReply(`Failed to execute query: ${queryError.message}`);
+    fivemDb.release(); // Release the connection back to the pool
     return null;
   }
 
@@ -282,6 +283,8 @@ async function getCharacterInfo(interaction: CommandInteraction, userToLookup: U
   const { data: playerRows, error: playerError } = await tryCatch(
     fivemDb.query(`SELECT * FROM players WHERE citizenid = ?`, [citizenId])
   );
+
+  fivemDb.release(); // Release the connection back to the pool
 
   if (playerError) {
     await interaction.editReply(`Failed to execute query: ${playerError.message}`);
