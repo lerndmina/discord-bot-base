@@ -22,8 +22,8 @@ import { sleep } from "../../utils/TinyUtils";
 import BasicEmbed from "../../utils/BasicEmbed";
 import { title } from "process";
 const env = FetchEnvs();
-// Only include exports if the feature is enabled
-if (env.ENABLE_TAW_COMMAND && env.FIVEM_MYSQL_URI) {
+// This command requires fivem systems, the taw command and a fivem mysql uri to be defined in the env
+if (env.ENABLE_FIVEM_SYSTEMS && env.ENABLE_TAW_COMMAND && env.FIVEM_MYSQL_URI) {
   module.exports = {
     data: new SlashCommandBuilder()
       .setName("taw")
