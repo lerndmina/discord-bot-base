@@ -7,8 +7,7 @@ import {
   User,
 } from "discord.js";
 import {
-  checkFivemDbConnection,
-  fivemDb,
+  fivemPool,
   globalCooldownKey,
   setCommandCooldown,
   userCooldownKey,
@@ -235,14 +234,20 @@ async function setCharacterName(interaction: CommandInteraction, targetUser: Use
 async function getCharacterInfo(interaction: CommandInteraction, userToLookup: User) {
   await interaction.editReply("Checking database connection...");
 
-  if (!fivemDb) {
+  if (!fivemPool) {
     await interaction.editReply(
       "Database connection is not available. Please contact the server admin."
     );
     return null;
   }
 
-  await checkFivemDbConnection();
+  interaction.editReply("Database connection is available. Creating connection thread...");
+
+  const { data: fivemDb, error: dbConnectionError } = await tryCatch(fivemPool.getConnection());
+  if (dbConnectionError) {
+    await interaction.editReply(`Failed to connect to the database: ${dbConnectionError.message}`);
+    return null;
+  }
 
   await interaction.editReply(`Executing query for user: ${userToLookup.username}...`);
   const { data: rows, error: queryError } = await tryCatch(

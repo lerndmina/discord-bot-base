@@ -160,36 +160,14 @@ export function stopTimer() {
   return timeDiff;
 }
 
-export let fivemDb: mariadb.PoolConnection | undefined;
-
-export async function checkFivemDbConnection() {
-  if (fivemDb) {
-    try {
-      await fivemDb.query("SELECT 1");
-      log.debug("FiveM MySQL connection is alive.");
-    } catch (error) {
-      log.error("FiveM MySQL connection is dead. Reconnecting...");
-      await createFivemPool();
-    }
-  } else {
-    log.error("No FiveM MySQL connection found.");
-  }
-}
+export let fivemPool: mariadb.Pool | undefined;
 
 async function createFivemPool() {
   if (env.FIVEM_MYSQL_URI) {
     const pool = mariadb.createPool(env.FIVEM_MYSQL_URI);
-    const connection = await pool.getConnection();
-    if (connection) {
-      fivemDb = connection;
-      log.info("Connected to FiveM MySQL database");
-    } else {
-      log.error(
-        "Failed to connect to FiveM MySQL database. You can remove the enviroment variable 'FIVEM_MYSQL_URI' if you don't need it."
-      );
-    }
+    fivemPool = pool;
   } else {
-    fivemDb = undefined;
+    fivemPool = undefined;
   }
 }
 
