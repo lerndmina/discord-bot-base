@@ -7,6 +7,7 @@ import {
   User,
 } from "discord.js";
 import {
+  checkFivemDbConnection,
   fivemDb,
   globalCooldownKey,
   setCommandCooldown,
@@ -240,6 +241,8 @@ async function getCharacterInfo(interaction: CommandInteraction, userToLookup: U
     );
     return null;
   }
+
+  await checkFivemDbConnection();
 
   await interaction.editReply(`Executing query for user: ${userToLookup.username}...`);
   const { data: rows, error: queryError } = await tryCatch(

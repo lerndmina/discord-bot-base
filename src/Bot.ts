@@ -161,6 +161,21 @@ export function stopTimer() {
 }
 
 export let fivemDb: mariadb.PoolConnection | undefined;
+
+export async function checkFivemDbConnection() {
+  if (fivemDb) {
+    try {
+      await fivemDb.query("SELECT 1");
+      log.debug("FiveM MySQL connection is alive.");
+    } catch (error) {
+      log.error("FiveM MySQL connection is dead. Reconnecting...");
+      await createFivemPool();
+    }
+  } else {
+    log.error("No FiveM MySQL connection found.");
+  }
+}
+
 async function createFivemPool() {
   if (env.FIVEM_MYSQL_URI) {
     const pool = mariadb.createPool(env.FIVEM_MYSQL_URI);
