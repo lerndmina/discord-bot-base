@@ -25,7 +25,7 @@ if (env.ENABLE_FIVEM_SYSTEMS && env.FIVEM_MYSQL_URI !== DEFAULT_OPTIONAL_STRING)
       });
       if (!reportConfig) return false;
       if (!message.content.startsWith(reportConfig.prefix)) return false;
-      log.info(`[FivemReportListener]`, {
+      log.debug(`[FivemReportListener]`, {
         info: "Message detected",
         messageAuthor: message.author.globalName ? message.author.globalName : "Webhook/Unknown",
         messageContent: message.content,
@@ -41,7 +41,7 @@ if (env.ENABLE_FIVEM_SYSTEMS && env.FIVEM_MYSQL_URI !== DEFAULT_OPTIONAL_STRING)
       } as FivemReportMessageArgs;
 
       if (messageDetails.action !== FivemReportMessageActions.NewReport) {
-        log.info(`[FivemReportListener]`, {
+        log.debug(`[FivemReportListener]`, {
           info: "Message is not a new report",
           messageAuthor: message.author.globalName ? message.author.globalName : "Webhook/Unknown",
           messageDetails: messageDetails,
@@ -62,7 +62,7 @@ if (env.ENABLE_FIVEM_SYSTEMS && env.FIVEM_MYSQL_URI !== DEFAULT_OPTIONAL_STRING)
       }
 
       if (report.category.type !== "bug") {
-        log.info(`[FivemReportListener]`, {
+        log.debug(`[FivemReportListener]`, {
           error: "Report category is not a bug",
           messageAuthor: message.author.globalName ? message.author.globalName : "Webhook/Unknown",
           messageContent: message.content,
@@ -70,7 +70,7 @@ if (env.ENABLE_FIVEM_SYSTEMS && env.FIVEM_MYSQL_URI !== DEFAULT_OPTIONAL_STRING)
         return true;
       }
 
-      log.info(`[FivemReportListener]`, {
+      log.debug(`[FivemReportListener]`, {
         info: "Report found",
         messageAuthor: message.author.globalName ? message.author.globalName : "Webhook/Unknown",
         messageContent: message.content,

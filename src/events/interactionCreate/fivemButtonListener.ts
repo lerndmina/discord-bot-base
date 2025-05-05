@@ -5,10 +5,11 @@ import {
   InteractionType,
   MessageComponentInteraction,
 } from "discord.js";
-import FetchEnvs, { DEFAULT_OPTIONAL_STRING } from "../../utils/FetchEnvs";
+import FetchEnvs, { DEFAULT_OPTIONAL_STRING, envExists } from "../../utils/FetchEnvs";
 import { FivemReportMessageActions } from "../../types/FivemTypes";
 import log from "../../utils/log";
 import { fetchReportById } from "../../services/FivemReportService";
+import { createGitHubIssue } from "../../services/GithubConnection";
 
 const env = FetchEnvs();
 
@@ -40,7 +41,7 @@ if (env.ENABLE_FIVEM_SYSTEMS && env.FIVEM_MYSQL_URI !== DEFAULT_OPTIONAL_STRING)
       // Get the ticket ID from the second part
       const ticketId = parts[1];
 
-      log.info(`[FivemButtonListener]`, {
+      log.debug(`[FivemButtonListener]`, {
         info: "Button interaction detected",
         interactionUser: interaction.user.username,
         ticketId: ticketId,
@@ -96,8 +97,29 @@ if (env.ENABLE_FIVEM_SYSTEMS && env.FIVEM_MYSQL_URI !== DEFAULT_OPTIONAL_STRING)
             components: [], // Remove buttons after action
           });
 
+          let reproduceMessage = `You've confirmed that you can reproduce this bug: "${report.title}"`;
+
+          const reportDetails = `\n**Bug ID**: ${report.ticketID}\n**Severity**: ${
+            report.priority.text
+          }\n**Media**: ${
+            report.messages[0].media
+              ? report.messages[0].media
+                  .map((media, index) =>
+                    media.fileURL ? `[Media ${index + 1}](${media.fileURL})` : null
+                  )
+                  .filter(Boolean)
+                  .join(", ")
+              : "No media provided"
+          }\n**Description**: ${report.description}
+              `;
+
+          const issue = await createGitHubIssue(report.title, reportDetails, "Bugs");
+          if (issue) {
+            reproduceMessage += `\n\nA GitHub issue has been created: [View Issue](${issue.issueUrl})`;
+          }
+
           return interaction.editReply({
-            content: `You've confirmed that you can reproduce this bug: "${report.title}"`,
+            content: reproduceMessage,
           });
 
         case "cannot_reproduce":

@@ -110,6 +110,13 @@ export default function () {
   return cachedEnvs;
 }
 
-export function isOptionalUnset(key: string) {
-  return key === DEFAULT_OPTIONAL_STRING;
+export function envExists(value: any) {
+  if (!value || isOptionalUnset(value)) {
+    return false;
+  }
+  return true;
+}
+
+export function isOptionalUnset(value: string) {
+  return value === DEFAULT_OPTIONAL_STRING;
 }

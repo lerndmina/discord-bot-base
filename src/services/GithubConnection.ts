@@ -1,5 +1,5 @@
 import axios from "axios";
-import FetchEnvs, { DEFAULT_OPTIONAL_STRING } from "../utils/FetchEnvs";
+import FetchEnvs, { DEFAULT_OPTIONAL_STRING, envExists } from "../utils/FetchEnvs";
 import log from "../utils/log";
 const env = FetchEnvs();
 
@@ -228,20 +228,21 @@ export async function updateItemCategory(
  */
 export async function createGitHubIssue(
   title: string,
-  description: string
+  description: string,
+  categoryName?: string
 ): Promise<{
   issueId: string;
   issueNumber: number;
   issueUrl: string;
   projectItemId: string;
 } | null> {
-  if (!env.ENABLE_GITHUB_SUGGESTIONS) return null;
+  if (!envExists(env.GITHUB_TOKEN)) return null;
 
   // Get required environment variables
   const token = env.GITHUB_TOKEN;
   const repo = env.GITHUB_ISSUES_REPO;
   const projectId = env.GITHUB_PROJECT_ID;
-  const categoryName = env.GITHUB_PROJECT_FIELD || "Suggestions"; // Default to "Suggestions"
+  categoryName = categoryName || env.GITHUB_PROJECT_FIELD || "Suggestions"; // Default to "Suggestions"
 
   // Default organization name (from repository format: "org/repo")
   const repoSplit = repo.split("/");
