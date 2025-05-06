@@ -56,6 +56,12 @@ if (
               .setDescription("User to set name for (defaults to yourself)")
               .setRequired(false)
           )
+          .addStringOption((option) =>
+            option
+              .setName("name")
+              .setDescription("Set your Discord name to this instead of your character name")
+              .setRequired(false)
+          )
           .addBooleanOption((option) =>
             option.setName("public").setDescription("Show bot responses").setRequired(false)
           )
@@ -105,6 +111,7 @@ if (
       const tags = interaction.options.getString("tags");
       const lookupUser = interaction.options.getUser("user");
       const limit = interaction.options.getInteger("limit") || 10;
+      const name = interaction.options.getString("name");
 
       if (subcommand === "playtime") publicResponse = true;
 
@@ -116,7 +123,7 @@ if (
         lookup(interaction, lookupUser);
       } else if (subcommand === "name") {
         setCommandCooldown(userCooldownKey(interaction.user.id, "taw"), publicResponse ? 120 : 60);
-        setCharacterName(interaction, lookupUser);
+        setCharacterName(interaction, lookupUser, name);
       } else if (subcommand === "playtime") {
         setCommandCooldown(globalCooldownKey("taw"), publicResponse ? 120 : 60);
         playtimeLeaderboard(interaction, limit);

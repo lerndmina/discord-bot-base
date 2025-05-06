@@ -8,7 +8,8 @@ const env = FetchEnvs();
 
 export default async function setCharacterName(
   interaction: CommandInteraction,
-  targetUser: User | null
+  targetUser: User | null,
+  name: string | undefined | null
 ) {
   const userToSet = targetUser || interaction.user;
 
@@ -30,6 +31,18 @@ export default async function setCharacterName(
   const targetMember = await guild.members.fetch(userToSet.id).catch(() => null);
   if (!targetMember) {
     return interaction.editReply(`Couldn't find the member ${userToSet.username} in this server.`);
+  }
+
+  if (name) {
+    // If a name is provided, use it instead of fetching from the API
+    const newName = name.replace(/\[(.*?)\]$/, "").trim(); // Remove any existing TAW tags
+    if (newName.length > 32) {
+      return interaction.editReply(
+        `The provided name exceeds Discord's 32 character limit. Please provide a shorter name.`
+      );
+    }
+    await targetMember.setNickname(newName);
+    return interaction.editReply(`Successfully set ${userToSet.username}'s nickname to ${newName}`);
   }
 
   const characterInfo = await getCharacterInfo(interaction, userToSet);
