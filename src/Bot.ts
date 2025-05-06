@@ -11,7 +11,7 @@ import path from "path";
 import mongoose, { Collection } from "mongoose";
 import { config as dotenvConfig } from "dotenv";
 import { createClient } from "redis";
-import fetchEnvs from "./utils/FetchEnvs";
+import fetchEnvs, { envExists } from "./utils/FetchEnvs";
 import { debugMsg } from "./utils/TinyUtils";
 import log from "./utils/log";
 import healthCheck from "./Health";
@@ -163,7 +163,7 @@ export function stopTimer() {
 export let fivemPool: mariadb.Pool | undefined;
 
 async function createFivemPool() {
-  if (env.FIVEM_MYSQL_URI) {
+  if (envExists(env.FIVEM_MYSQL_URI)) {
     const pool = mariadb.createPool(env.FIVEM_MYSQL_URI);
     fivemPool = pool;
   } else {
