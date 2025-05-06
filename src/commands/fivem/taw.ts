@@ -8,6 +8,7 @@ import FetchEnvs, { DEFAULT_OPTIONAL_STRING } from "../../utils/FetchEnvs";
 import changeTags from "../../subcommands/taw/tags";
 import lookup from "../../subcommands/taw/lookup";
 import setCharacterName from "../../subcommands/taw/name";
+import playtimeLeaderboard from "../../subcommands/taw/playtimeleaderboard";
 
 const env = FetchEnvs();
 
@@ -57,6 +58,19 @@ if (
           .addBooleanOption((option) =>
             option.setName("public").setDescription("Show bot responses").setRequired(false)
           )
+      )
+      .addSubcommand((subcommand) =>
+        subcommand
+          .setName("playtime")
+          .setDescription("Show the playtime leaderboard")
+          .addIntegerOption((option) =>
+            option
+              .setName("limit")
+              .setDescription("Number of players to show (default: 10, max: 25)")
+              .setRequired(false)
+              .setMinValue(1)
+              .setMaxValue(25)
+          )
       ),
     options: {
       devOnly: false,
@@ -65,12 +79,20 @@ if (
 
     async run({ interaction, client, handler }: SlashCommandProps) {
       // Default to private responses
-      const publicResponse = interaction.options.getBoolean("public") || false;
-      await initialReply(interaction, !publicResponse);
-
       const subcommand = interaction.options.getSubcommand(true);
       const tags = interaction.options.getString("tags");
       const lookupUser = interaction.options.getUser("user");
+      const limit = interaction.options.getInteger("limit") || 10;
+
+      // Get the public option value
+      let publicResponse = interaction.options.getBoolean("public") || false;
+
+      // Override public response for playtime subcommand to always be true
+      if (subcommand === "playtime") {
+        publicResponse = true;
+      }
+
+      await initialReply(interaction, !publicResponse);
 
       if (subcommand === "tags") {
         changeTags(tags, interaction);
@@ -80,6 +102,9 @@ if (
       } else if (subcommand === "name") {
         setCommandCooldown(userCooldownKey(interaction.user.id, "taw"), 60);
         setCharacterName(interaction, lookupUser);
+      } else if (subcommand === "playtime") {
+        setCommandCooldown(userCooldownKey(interaction.user.id, "taw"), 30);
+        playtimeLeaderboard(interaction, limit);
       } else {
         await interaction.editReply("Unknown subcommand.");
       }

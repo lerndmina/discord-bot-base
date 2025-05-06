@@ -38,6 +38,121 @@ export interface CharacterData {
 }
 
 /**
+ * Represents a player entry for the playtime leaderboard
+ */
+export interface PlaytimeLeaderboardEntry {
+  citizenid: string;
+  firstname: string;
+  lastname: string;
+  playtime_minutes: number;
+  discord_id: string | null;
+}
+
+/**
+ * Format minutes into a readable time format (days, hours, minutes)
+ */
+export function formatPlaytime(minutes: number): string {
+  const days = Math.floor(minutes / 1440); // 1440 minutes in a day
+  const hours = Math.floor((minutes % 1440) / 60);
+  const remainingMinutes = minutes % 60;
+
+  const parts: string[] = [];
+  if (days > 0) parts.push(`${days} day${days !== 1 ? "s" : ""}`);
+  if (hours > 0) parts.push(`${hours} hour${hours !== 1 ? "s" : ""}`);
+  if (remainingMinutes > 0 || parts.length === 0)
+    parts.push(`${remainingMinutes} minute${remainingMinutes !== 1 ? "s" : ""}`);
+
+  return parts.join(", ");
+}
+
+/**
+ * Get the top players by playtime
+ * @param interaction The command interaction
+ * @param limit The number of players to retrieve (default: 10)
+ * @returns Array of PlaytimeLeaderboardEntry or null if error
+ */
+export async function getPlaytimeLeaderboard(
+  interaction: CommandInteraction,
+  limit: number = 10
+): Promise<PlaytimeLeaderboardEntry[] | null> {
+  await interaction.editReply("Checking database connection...");
+
+  if (!fivemPool) {
+    await interaction.editReply(
+      "Database connection is not available. Please contact the server admin."
+    );
+    return null;
+  }
+
+  interaction.editReply("Database connection is available. Creating connection thread...");
+
+  const { data: fivemDb, error: dbConnectionError } = await tryCatch(fivemPool.getConnection());
+  if (dbConnectionError) {
+    await interaction.editReply(`Failed to connect to the database: ${dbConnectionError.message}`);
+    return null;
+  }
+
+  try {
+    // Query for top players by playtime
+    await interaction.editReply("Fetching playtime leaderboard data...");
+
+    // Join player_identifiers with players to get character names
+    const query = `
+      SELECT pi.citizenid, pi.playtime_minutes, pi.discord, 
+             JSON_EXTRACT(p.charinfo, '$.firstname') AS firstname, 
+             JSON_EXTRACT(p.charinfo, '$.lastname') AS lastname
+      FROM player_identifiers pi
+      JOIN players p ON pi.citizenid = p.citizenid
+      ORDER BY pi.playtime_minutes DESC
+      LIMIT ?
+    `;
+
+    const { data: rows, error: queryError } = await tryCatch(fivemDb.query(query, [limit]));
+
+    if (queryError) {
+      await interaction.editReply(`Failed to execute query: ${queryError.message}`);
+      return null;
+    }
+
+    await interaction.editReply(
+      `Leaderboard data fetched. Processing ${rows?.length || 0} entries...`
+    );
+
+    if (!rows?.length) {
+      await interaction.editReply("No playtime data found.");
+      return [];
+    }
+
+    // Process the results to clean up the data
+    const leaderboard: PlaytimeLeaderboardEntry[] = rows.map((row: any) => {
+      // Extract discord ID from the discord field (format: 'discord:123456789')
+      const discordId = row.discord?.startsWith("discord:") ? row.discord.substring(8) : null;
+
+      // Clean up the JSON extracted fields (they come with quotes)
+      const firstname = row.firstname?.replace(/"/g, "") || "Unknown";
+      const lastname = row.lastname?.replace(/"/g, "") || "Unknown";
+
+      return {
+        citizenid: row.citizenid,
+        firstname,
+        lastname,
+        playtime_minutes: row.playtime_minutes || 0,
+        discord_id: discordId,
+      };
+    });
+
+    await interaction.editReply("Leaderboard data processed successfully.");
+    return leaderboard;
+  } catch (error) {
+    await interaction.editReply(`An unexpected error occurred: ${(error as Error).message}`);
+    return null;
+  } finally {
+    // Always release the connection back to the pool
+    fivemDb.release();
+  }
+}
+
+/**
  * Get character information for a Discord user
  * @param interaction The command interaction
  * @param userToLookup The Discord user to lookup
