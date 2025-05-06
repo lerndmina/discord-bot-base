@@ -34,7 +34,7 @@ async function setNickname(
     return `The provided name exceeds Discord's 32 character limit. Please provide a shorter name.`;
   }
 
-  await interaction.editReply(`Setting nickname to: ${cleanName}`);
+  env.DEBUG_LOG && (await interaction.editReply(`Setting nickname to: ${cleanName}`));
 
   const { data: _, error } = await tryCatch(targetMember.setNickname(cleanName));
   if (error) {
