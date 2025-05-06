@@ -40,5 +40,6 @@ export default async function playtimeLeaderboard(
         leaderboardFields
       ),
     ],
+    content: "",
   });
 }
