@@ -112,10 +112,10 @@ if (
       if (subcommand === "tags") {
         changeTags(tags, interaction);
       } else if (subcommand === "lookup") {
-        setCommandCooldown(globalCooldownKey("taw"), publicResponse ? 60 : 15);
+        setCommandCooldown(userCooldownKey(interaction.user.id, "taw"), publicResponse ? 60 : 15);
         lookup(interaction, lookupUser);
       } else if (subcommand === "name") {
-        setCommandCooldown(globalCooldownKey("taw"), publicResponse ? 120 : 60);
+        setCommandCooldown(userCooldownKey(interaction.user.id, "taw"), publicResponse ? 120 : 60);
         setCharacterName(interaction, lookupUser);
       } else if (subcommand === "playtime") {
         setCommandCooldown(globalCooldownKey("taw"), publicResponse ? 120 : 60);
