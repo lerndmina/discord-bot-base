@@ -38,7 +38,10 @@ export default async function setCharacterName(
     return; // Error messages already handled in getCharacterInfo
   }
 
-  const { charInfoParsed } = characterInfo;
+  const { charInfoParsed, playerIdentifiers } = characterInfo;
+
+  // Check if player is online - could be used for additional logic
+  const isPlayerOnline = playerIdentifiers.is_online === 1;
 
   // Preserve TAW tags if they exist
   const existingTags = targetMember.nickname?.match(/\[(.*?)\]$/)?.[0] || "";
@@ -49,7 +52,7 @@ export default async function setCharacterName(
   }`;
 
   await interaction.editReply(`Attempting to set nickname to: ${newName}`);
-  sleep(3000);
+  await sleep(3000);
 
   // Check if name is too long (Discord limit is 32 characters)
   if (newName.length > 32) {

@@ -40,6 +40,9 @@ if (
               .setDescription("User to look up (defaults to yourself)")
               .setRequired(false)
           )
+          .addBooleanOption((option) =>
+            option.setName("public").setDescription("Show bot responses").setRequired(false)
+          )
       )
       .addSubcommand((subcommand) =>
         subcommand
@@ -51,6 +54,9 @@ if (
               .setDescription("User to set name for (defaults to yourself)")
               .setRequired(false)
           )
+          .addBooleanOption((option) =>
+            option.setName("public").setDescription("Show bot responses").setRequired(false)
+          )
       ),
     options: {
       devOnly: false,
@@ -58,7 +64,9 @@ if (
     },
 
     async run({ interaction, client, handler }: SlashCommandProps) {
-      await initialReply(interaction, true);
+      // Default to private responses
+      const publicResponse = interaction.options.getBoolean("public") || false;
+      await initialReply(interaction, !publicResponse);
 
       const subcommand = interaction.options.getSubcommand(true);
       const tags = interaction.options.getString("tags");
