@@ -1,24 +1,12 @@
 import { CommandInteraction, User } from "discord.js";
 import BasicEmbed from "../../utils/BasicEmbed";
-import { getCharacterInfo } from "./commons";
+import {
+  getCharacterInfo,
+  formatPlaytime,
+  parseActivityData,
+  getRecentActivityHistory,
+} from "./commons";
 import { getDiscordDate, TimeType } from "../../utils/TinyUtils";
-
-/**
- * Format minutes into a readable time format (days, hours, minutes)
- */
-function formatPlaytime(minutes: number): string {
-  const days = Math.floor(minutes / 1440); // 1440 minutes in a day
-  const hours = Math.floor((minutes % 1440) / 60);
-  const remainingMinutes = minutes % 60;
-
-  const parts: string[] = [];
-  if (days > 0) parts.push(`${days} day${days !== 1 ? "s" : ""}`);
-  if (hours > 0) parts.push(`${hours} hour${hours !== 1 ? "s" : ""}`);
-  if (remainingMinutes > 0 || parts.length === 0)
-    parts.push(`${remainingMinutes} minute${remainingMinutes !== 1 ? "s" : ""}`);
-
-  return parts.join(", ");
-}
 
 export default async function lookup(interaction: CommandInteraction, targetUser: User | null) {
   const userToLookup = targetUser || interaction.user;
@@ -30,8 +18,15 @@ export default async function lookup(interaction: CommandInteraction, targetUser
 
   const { citizenId, charInfoParsed, userToProcess, playerIdentifiers } = characterInfo;
 
+  // Format the last seen date from milliseconds since epoch
+  const lastSeen = getDiscordDate(playerIdentifiers.last_seen, TimeType.FULL_SHORT);
+  const lastSeenTimeAgo = getDiscordDate(playerIdentifiers.last_seen, TimeType.RELATIVE);
   // Format playtime
   const playtimeFormatted = formatPlaytime(playerIdentifiers.playtime_minutes);
+
+  // Parse activity data and get recent history
+  const activityRecords = parseActivityData(playerIdentifiers.last_active_data);
+  const recentActivity = getRecentActivityHistory(activityRecords, 3);
 
   // Create a more detailed embed with the additional info
   await interaction.editReply({
@@ -39,7 +34,7 @@ export default async function lookup(interaction: CommandInteraction, targetUser
       BasicEmbed(
         interaction.client,
         `Info for ${charInfoParsed.firstname} ${charInfoParsed.lastname}`,
-        `Character of <@${userToProcess.id}> (${userToProcess.id})`,
+        `Character of <@${userToProcess.id}>`,
         [
           { name: "Citizen ID", value: `${citizenId}`, inline: true },
           { name: "Discord ID", value: `${userToProcess.id}`, inline: true },
@@ -52,15 +47,9 @@ export default async function lookup(interaction: CommandInteraction, targetUser
             value: playerIdentifiers.is_online ? "Online" : "Offline",
             inline: true,
           },
-          {
-            name: "Last Seen",
-            value: `${getDiscordDate(
-              playerIdentifiers.last_seen,
-              TimeType.FULL_LONG
-            )} (${getDiscordDate(playerIdentifiers.last_seen, TimeType.RELATIVE)})`,
-            inline: true,
-          },
+          { name: "Last Seen", value: `${lastSeen}\n(${lastSeenTimeAgo})`, inline: true },
           { name: "Total Playtime", value: playtimeFormatted, inline: true },
+          { name: "Recent Activity", value: recentActivity, inline: false },
         ]
       ),
     ],
