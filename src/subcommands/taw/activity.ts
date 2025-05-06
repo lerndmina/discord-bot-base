@@ -5,7 +5,7 @@ import { getCharacterInfo, parseActivityData, formatTimestamp } from "./commons"
 export default async function activityHistory(
   interaction: CommandInteraction,
   targetUser: User | null,
-  limit: number = 10
+  limit: number = 5
 ) {
   const userToLookup = targetUser || interaction.user;
   const characterInfo = await getCharacterInfo(interaction, userToLookup);

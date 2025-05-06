@@ -99,27 +99,29 @@ if (
 
     async run({ interaction, client, handler }: SlashCommandProps) {
       // Default to private responses
-      const publicResponse = interaction.options.getBoolean("public") || false;
-      await initialReply(interaction, !publicResponse);
+      let publicResponse = interaction.options.getBoolean("public") || false;
 
       const subcommand = interaction.options.getSubcommand(true);
       const tags = interaction.options.getString("tags");
       const lookupUser = interaction.options.getUser("user");
       const limit = interaction.options.getInteger("limit") || 10;
 
+      if (subcommand === "playtime") publicResponse = true;
+
+      await initialReply(interaction, !publicResponse);
       if (subcommand === "tags") {
         changeTags(tags, interaction);
       } else if (subcommand === "lookup") {
-        setCommandCooldown(globalCooldownKey("taw"), 15);
+        setCommandCooldown(globalCooldownKey("taw"), publicResponse ? 60 : 15);
         lookup(interaction, lookupUser);
       } else if (subcommand === "name") {
-        setCommandCooldown(globalCooldownKey("taw"), 60);
+        setCommandCooldown(globalCooldownKey("taw"), publicResponse ? 120 : 60);
         setCharacterName(interaction, lookupUser);
       } else if (subcommand === "playtime") {
-        setCommandCooldown(globalCooldownKey("taw"), 30);
+        setCommandCooldown(globalCooldownKey("taw"), publicResponse ? 120 : 60);
         playtimeLeaderboard(interaction, limit);
       } else if (subcommand === "activity") {
-        setCommandCooldown(globalCooldownKey("taw"), 15);
+        setCommandCooldown(globalCooldownKey("taw"), publicResponse ? 300 : 120);
         activityHistory(interaction, lookupUser, limit);
       } else {
         await interaction.editReply("Unknown subcommand.");
