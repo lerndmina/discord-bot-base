@@ -15,100 +15,126 @@ import { fivemPool } from "../../../Bot";
 import BasicEmbed from "../../../utils/BasicEmbed";
 import { tryCatch } from "../../../utils/trycatch";
 import canRunCommand from "../../../utils/canRunCommand";
+import { CommandOptions, SlashCommandProps } from "commandkit";
 
 /**
  * Admin command: Creates a new event with a wizard interface
  */
-export default async function eventCreate(interaction: CommandInteraction) {
-  return await tryCatch(
-    async () => {
-      // Check if user has permission to create events
-      if (!(await canRunCommand(interaction, "ManageEvents"))) {
-        await interaction.editReply({
-          embeds: [
-            BasicEmbed(
-              interaction.client,
-              "Permission Denied",
-              "You do not have permission to create events. This command requires the ManageEvents permission."
-            ),
-          ],
-        });
-        return;
-      }
+export default async function eventCreate(props: SlashCommandProps) {
+  const { interaction, client, handler } = props;
+  const options: CommandOptions = {
+    userPermissions: ["ManageEvents"],
+  };
 
-      // Create the modal for event creation
-      const modal = new ModalBuilder()
-        .setCustomId("event-create-modal")
-        .setTitle("Create New Event");
+  // Check if user has permission to create events
+  if (!(await canRunCommand(props, options))) {
+    await interaction.editReply({
+      embeds: [
+        BasicEmbed(
+          interaction.client,
+          "Permission Denied",
+          "You do not have permission to create events. This command requires the ManageEvents permission."
+        ),
+      ],
+    });
+    return;
+  }
 
-      // Add inputs for event details
-      const nameInput = new TextInputBuilder()
-        .setCustomId("event-name")
-        .setLabel("Event Name")
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder("Enter event name")
-        .setRequired(true)
-        .setMaxLength(100);
+  // Create the modal for event creation
+  const modal = new ModalBuilder().setCustomId("event-create-modal").setTitle("Create New Event");
 
-      const descriptionInput = new TextInputBuilder()
-        .setCustomId("event-description")
-        .setLabel("Event Description")
-        .setStyle(TextInputStyle.Paragraph)
-        .setPlaceholder("Enter event description")
-        .setRequired(true)
-        .setMaxLength(1000);
+  // Add inputs for event details
+  const nameInput = new TextInputBuilder()
+    .setCustomId("event-name")
+    .setLabel("Event Name")
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder("Enter event name")
+    .setRequired(true)
+    .setMaxLength(100);
 
-      const startTimeInput = new TextInputBuilder()
-        .setCustomId("event-start-time")
-        .setLabel("Start Time (YYYY/MM/DD HH:MM:SS)")
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder("e.g. 2025/05/15 18:30:00")
-        .setRequired(true);
+  const descriptionInput = new TextInputBuilder()
+    .setCustomId("event-description")
+    .setLabel("Event Description")
+    .setStyle(TextInputStyle.Paragraph)
+    .setPlaceholder("Enter event description")
+    .setRequired(true)
+    .setMaxLength(1000);
 
-      const durationInput = new TextInputBuilder()
-        .setCustomId("event-duration")
-        .setLabel("Duration (e.g. 3h 20m 30s)")
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder("e.g. 2h 30m")
-        .setRequired(true);
+  const startTimeInput = new TextInputBuilder()
+    .setCustomId("event-start-time")
+    .setLabel("Start Time (YYYY/MM/DD HH:MM:SS)")
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder("e.g. 2025/05/15 18:30:00")
+    .setRequired(true);
 
-      // Add inputs to action rows (required for modals)
-      const firstRow = new ActionRowBuilder<TextInputBuilder>().addComponents(nameInput);
-      const secondRow = new ActionRowBuilder<TextInputBuilder>().addComponents(descriptionInput);
-      const thirdRow = new ActionRowBuilder<TextInputBuilder>().addComponents(startTimeInput);
-      const fourthRow = new ActionRowBuilder<TextInputBuilder>().addComponents(durationInput);
+  const durationInput = new TextInputBuilder()
+    .setCustomId("event-duration")
+    .setLabel("Duration (e.g. 3h 20m 30s)")
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder("e.g. 2h 30m")
+    .setRequired(true);
 
-      // Add rows to the modal
-      modal.addComponents(firstRow, secondRow, thirdRow, fourthRow);
+  // Add inputs to action rows (required for modals)
+  const firstRow = new ActionRowBuilder<TextInputBuilder>().addComponents(nameInput);
+  const secondRow = new ActionRowBuilder<TextInputBuilder>().addComponents(descriptionInput);
+  const thirdRow = new ActionRowBuilder<TextInputBuilder>().addComponents(startTimeInput);
+  const fourthRow = new ActionRowBuilder<TextInputBuilder>().addComponents(durationInput);
 
-      // Show the modal to the user
-      await interaction.showModal(modal);
+  // Add rows to the modal
+  modal.addComponents(firstRow, secondRow, thirdRow, fourthRow);
 
-      // Wait for modal submission
-      const filter = (i: any) => i.customId === "event-create-modal";
-      try {
-        const modalResponse = await interaction.awaitModalSubmit({ filter, time: 300000 }); // 5 minute timeout
+  // Show the modal to the user
+  await interaction.showModal(modal);
 
-        // Process form submission
-        await handleModalSubmit(modalResponse, interaction);
-      } catch (error) {
-        console.error("Modal submission error or timeout:", error);
-        // We don't need to notify the user if they simply closed the modal without submitting
-      }
-    },
-    interaction,
-    "Failed to create event"
-  );
+  // Wait for modal submission
+  const filter = (i: any) => i.customId === "event-create-modal";
+  try {
+    const modalResponse = await interaction.awaitModalSubmit({ filter, time: 300000 }); // 5 minute timeout
+
+    // Process form submission
+    await handleModalSubmit(modalResponse, props);
+  } catch (error) {
+    console.error("Modal submission error or timeout:", error);
+    // We don't need to notify the user if they simply closed the modal without submitting
+  }
 }
 
 /**
  * Handles the modal submission for event creation
  */
-async function handleModalSubmit(
-  modalSubmit: ModalSubmitInteraction,
-  originalInteraction: CommandInteraction
-) {
+async function handleModalSubmit(modalSubmit: ModalSubmitInteraction, props: SlashCommandProps) {
   await modalSubmit.deferReply({ ephemeral: true });
+  const { interaction, client } = props;
+
+  if (!fivemPool) {
+    await modalSubmit.editReply({
+      embeds: [
+        BasicEmbed(
+          modalSubmit.client,
+          "Database Connection Error",
+          "The fivem pool is not connected. Please contact an admin."
+        ),
+      ],
+    });
+    return;
+  }
+
+  const { data: connection, error: connectionError } = await tryCatch(fivemPool.getConnection());
+
+  if (!connection) {
+    await modalSubmit.editReply({
+      embeds: [
+        BasicEmbed(
+          modalSubmit.client,
+          "Database Connection Error",
+          "Failed to connect to the database. Please try again later.\n```\n" +
+            connectionError +
+            "\n```"
+        ),
+      ],
+    });
+    return;
+  }
 
   try {
     // Extract form values
@@ -121,7 +147,13 @@ async function handleModalSubmit(
     const startTime = parseDateTime(startTimeString);
     if (!startTime) {
       await modalSubmit.editReply({
-        embeds: [BasicEmbed("Invalid Date Format", "Please use the format YYYY/MM/DD HH:MM:SS")],
+        embeds: [
+          BasicEmbed(
+            modalSubmit.client,
+            "Invalid Date Format",
+            "Please use the format YYYY/MM/DD HH:MM:SS"
+          ),
+        ],
       });
       return;
     }
@@ -130,7 +162,13 @@ async function handleModalSubmit(
     const durationSeconds = parseDuration(durationString);
     if (durationSeconds <= 0) {
       await modalSubmit.editReply({
-        embeds: [BasicEmbed("Invalid Duration Format", "Please use a format like '3h 20m 30s'")],
+        embeds: [
+          BasicEmbed(
+            modalSubmit.client,
+            "Invalid Duration Format",
+            "Please use a format like '3h 20m 30s'"
+          ),
+        ],
       });
       return;
     }
@@ -143,7 +181,9 @@ async function handleModalSubmit(
     const guild = modalSubmit.guild;
     if (!guild) {
       await modalSubmit.editReply({
-        embeds: [BasicEmbed("Error", "This command can only be used in a guild.")],
+        embeds: [
+          BasicEmbed(modalSubmit.client, "Error", "This command can only be used in a guild."),
+        ],
       });
       return;
     }
@@ -167,6 +207,7 @@ async function handleModalSubmit(
       await modalSubmit.editReply({
         embeds: [
           BasicEmbed(
+            modalSubmit.client,
             "Discord Event Creation Failed",
             "Failed to create Discord event. Please check if your inputs are valid and try again."
           ),
@@ -179,7 +220,7 @@ async function handleModalSubmit(
     try {
       const startTimeUnix = Math.floor(startTime.getTime() / 1000);
 
-      const [result] = await fivemPool.query(
+      const [result] = await connection.query(
         `INSERT INTO wild_events (
           event_name,
           event_description,
@@ -196,6 +237,7 @@ async function handleModalSubmit(
       await modalSubmit.editReply({
         embeds: [
           BasicEmbed(
+            modalSubmit.client,
             "Event Created Successfully",
             `Your event "${eventName}" has been created!\n\n` +
               `**Event ID:** ${eventId}\n` +
@@ -221,6 +263,7 @@ async function handleModalSubmit(
       await modalSubmit.editReply({
         embeds: [
           BasicEmbed(
+            modalSubmit.client,
             "Database Error",
             "Failed to save the event to the database. The Discord event has been removed."
           ),
@@ -230,8 +273,14 @@ async function handleModalSubmit(
   } catch (error) {
     console.error("Error processing modal submission:", error);
     await modalSubmit.editReply({
-      embeds: [BasicEmbed("Error", "An error occurred while creating the event.")],
+      embeds: [
+        BasicEmbed(modalSubmit.client, "Error", "An error occurred while creating the event."),
+      ],
     });
+  } finally {
+    if (connection) {
+      connection.release();
+    }
   }
 }
 
