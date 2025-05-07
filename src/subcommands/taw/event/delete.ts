@@ -2,6 +2,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ButtonInteraction } from 
 import BasicEmbed from "../../../utils/BasicEmbed";
 import { SlashCommandProps } from "commandkit";
 import { getDbConnection, hasEventPermission, getEventById } from "./commons";
+import { tryCatch } from "../../../utils/trycatch";
 
 /**
  * Admin command: Deletes an event with the given ID after confirmation
@@ -113,13 +114,27 @@ export default async function eventDelete(props: SlashCommandProps, eventId: num
             // Then delete the event itself
             await connection.query("DELETE FROM wild_events WHERE event_id = ?", [eventId]);
 
+            // Then end the discord event
+            const discordEvents = await interaction.guild?.scheduledEvents.fetch();
+            const discordEvent = discordEvents?.find((e) => e.id === event.discord_event_id);
+            let discordEventDeleteError = null;
+            if (discordEvent) {
+              const { data: _, error: deleteError } = await tryCatch(discordEvent.delete());
+            }
+
             // Confirm deletion
             await buttonInteraction.editReply({
               embeds: [
                 BasicEmbed(
                   buttonInteraction.client,
                   "Event Deleted",
-                  `Event "${event.event_name}" (ID: ${eventId}) has been successfully deleted.\n-# You monster! 😱`
+                  `Event "${
+                    event.event_name
+                  }" (ID: ${eventId}) has been successfully deleted.\n-# You monster! 😱${
+                    discordEventDeleteError
+                      ? `\n\nI was unable to delete the discord event.\nError: ${discordEventDeleteError}`
+                      : ""
+                  }`
                 ),
               ],
               components: [], // Remove buttons
