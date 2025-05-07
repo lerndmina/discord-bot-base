@@ -9,6 +9,8 @@ import log from "../../../utils/log";
 
 /**
  * Interface for event data from the wild_events table
+ *
+ * All times are in seconds since epoch
  */
 export interface EventInfo {
   event_id: number;
@@ -16,14 +18,16 @@ export interface EventInfo {
   event_description: string;
   event_scheduled_start: number;
   event_actual_start: number | null;
-  event_scheduled_end: number | null;
+  event_scheduled_end: number;
   event_actual_end: number | null;
-  is_running: number;
-  is_paused: number;
+  is_running: boolean;
+  is_paused: boolean;
 }
 
 /**
  * Interface for event participation data
+ *
+ * All times are in seconds since epoch
  */
 export interface EventParticipation {
   participation_id: number;
@@ -143,17 +147,25 @@ export async function getPlayerLicenseFromDiscord(
  * Get event by ID
  */
 export async function getEventById(connection: any, eventId: number): Promise<EventInfo | null> {
+  log.debug("[TawEvents Commons]", `Fetching event with ID: ${eventId}`);
+
   try {
-    const [events] = await connection.query("SELECT * FROM wild_events WHERE event_id = ?", [
+    const events = await connection.query("SELECT * FROM wild_events WHERE event_id = ?", [
       eventId,
     ]);
 
     if (!Array.isArray(events) || events.length === 0) {
+      log.debug("[TawEvents Commons]", `No event found with ID: ${eventId}`);
       return null;
     }
 
+    log.debug("[TawEvents Commons]", `Found event with ID: ${eventId}`, events[0]);
     return events[0] as EventInfo;
   } catch (error) {
+    log.debug("[TawEvents Commons]", `Error fetching event with ID: ${eventId}`, {
+      eventId,
+      error,
+    });
     console.error("Error getting event:", error);
     return null;
   }
@@ -163,19 +175,42 @@ export async function getEventById(connection: any, eventId: number): Promise<Ev
  * Get upcoming events
  */
 export async function getUpcomingEvents(connection: any): Promise<EventInfo[]> {
+  log.debug("[TawEvents Commons]", `Fetching upcoming events`);
+
   try {
-    const [events] = await connection.query(
+    const events = await connection.query(
       `SELECT * FROM wild_events 
        WHERE event_scheduled_end > UNIX_TIMESTAMP() OR event_scheduled_end IS NULL 
        ORDER BY event_scheduled_start ASC`
     );
 
     if (!Array.isArray(events) || events.length === 0) {
+      log.debug("[TawEvents Commons]", `No upcoming events found`);
       return [];
     }
 
-    return events as EventInfo[];
+    // Filter out events that have already ended (based on actual_end if it exists)
+    const filteredEvents = events.filter((event: EventInfo) => {
+      const currentTime = Math.floor(Date.now() / 1000);
+      log.debug(
+        "[TawEvents Commons]",
+        `Event ID: ${event.event_id}, Scheduled End: ${event.event_scheduled_end}, Actual End: ${event.event_actual_end} current seconds: ${currentTime}`,
+        { event }
+      );
+
+      // If event has an actual end time, it has already ended
+      if (event.event_actual_end !== null) {
+        return false;
+      }
+
+      // Otherwise, check the scheduled end time
+      return event.event_scheduled_end === null || event.event_scheduled_end > currentTime;
+    });
+
+    log.debug("[TawEvents Commons]", `Found ${filteredEvents.length} upcoming events`);
+    return filteredEvents as EventInfo[];
   } catch (error) {
+    log.debug("[TawEvents Commons]", `Error fetching upcoming events`, { error });
     console.error("Error getting upcoming events:", error);
     return [];
   }
@@ -276,8 +311,10 @@ export async function getEventParticipants(
   connection: any,
   eventId: number
 ): Promise<EventParticipation[]> {
+  log.debug("[TawEvents Commons]", `Fetching participants for event ID: ${eventId}`);
+
   try {
-    const [participants] = await connection.query(
+    const participants = await connection.query(
       `
       SELECT 
         ep.player_license, 
@@ -300,11 +337,20 @@ export async function getEventParticipants(
     );
 
     if (!Array.isArray(participants) || participants.length === 0) {
+      log.debug("[TawEvents Commons]", `No participants found for event ID: ${eventId}`);
       return [];
     }
 
+    log.debug(
+      "[TawEvents Commons]",
+      `Found ${participants.length} participants for event ID: ${eventId}`
+    );
     return participants as EventParticipation[];
   } catch (error) {
+    log.debug("[TawEvents Commons]", `Error fetching participants for event ID: ${eventId}`, {
+      eventId,
+      error,
+    });
     console.error("Error getting event participants:", error);
     return [];
   }
