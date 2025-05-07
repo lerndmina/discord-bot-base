@@ -31,20 +31,29 @@ export default async function eventInfo(props: SlashCommandProps) {
       return;
     }
 
-    const embed = new EmbedBuilder()
-      .setTitle("📅 Upcoming Events")
-      .setDescription("Here are all the upcoming in-game events:")
-      .setColor("#3498db");
+    const embed = BasicEmbed(
+      interaction.client,
+      "📅 Upcoming Events",
+      "Here are all the upcoming in-game events:"
+    ).setColor("#3498db");
 
     // Add each event to the embed
     events.forEach((event) => {
+      const startTime = event.event_actual_start || event.event_scheduled_start;
+      const endTime = event.event_actual_end || event.event_scheduled_end;
+
+      // Start and end times are in seconds since epoch
+      const isRunning = event.is_running
+        ? true
+        : startTime * 1000 < Date.now() && endTime * 1000 > Date.now();
+
       // Format the date/time nicely
       const startTimeFormatted = `<t:${event.event_scheduled_start}:F>`;
       const endTimeFormatted = event.event_scheduled_end
         ? `<t:${event.event_scheduled_end}:F>`
         : "TBD";
 
-      const statusEmoji = event.is_running ? "🟢 Running" : "⏱️ Upcoming";
+      const statusEmoji = isRunning ? "🟢 Running" : "⏱️ Upcoming";
 
       embed.addFields({
         name: `${statusEmoji} | ${event.event_name} (ID: ${event.event_id})`,
@@ -54,7 +63,7 @@ export default async function eventInfo(props: SlashCommandProps) {
       });
     });
 
-    await interaction.editReply({ embeds: [embed] });
+    await interaction.editReply({ embeds: [embed], content: null });
   } catch (error) {
     console.error("Error fetching event information:", error);
     await interaction.editReply({
