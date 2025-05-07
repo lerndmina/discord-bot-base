@@ -41,7 +41,7 @@ function canRun(
   }
   return { canRun: true };
 }
-function checkPerms(member: GuildMember, perms: PermissionsString[] | PermissionsString) {
+export function checkPerms(member: GuildMember, perms: PermissionsString[] | PermissionsString) {
   if (!Array.isArray(perms)) perms = [perms];
   return perms.every((perm) => member.permissions.has(perm));
 }

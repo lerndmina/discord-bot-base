@@ -1,42 +1,30 @@
 import {
   ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  CommandInteraction,
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
   ModalSubmitInteraction,
-  PermissionFlagsBits,
   GuildScheduledEventEntityType,
   GuildScheduledEventPrivacyLevel,
 } from "discord.js";
-import { fivemPool } from "../../../Bot";
 import BasicEmbed from "../../../utils/BasicEmbed";
-import { tryCatch } from "../../../utils/trycatch";
-import canRunCommand from "../../../utils/canRunCommand";
-import { CommandOptions, SlashCommandProps } from "commandkit";
+import { SlashCommandProps } from "commandkit";
+import {
+  getDbConnection,
+  hasEventPermission,
+  parseDateTime,
+  parseDuration,
+  formatDuration,
+} from "./commons";
 
 /**
  * Admin command: Creates a new event with a wizard interface
  */
 export default async function eventCreate(props: SlashCommandProps) {
-  const { interaction, client, handler } = props;
-  const options: CommandOptions = {
-    userPermissions: ["ManageEvents"],
-  };
+  const { interaction } = props;
 
-  // Check if user has permission to create events
-  if (!(await canRunCommand(props, options))) {
-    await interaction.editReply({
-      embeds: [
-        BasicEmbed(
-          interaction.client,
-          "Permission Denied",
-          "You do not have permission to create events. This command requires the ManageEvents permission."
-        ),
-      ],
-    });
+  // Check permissions
+  if (!(await hasEventPermission(props))) {
     return;
   }
 
@@ -104,37 +92,15 @@ export default async function eventCreate(props: SlashCommandProps) {
  */
 async function handleModalSubmit(modalSubmit: ModalSubmitInteraction, props: SlashCommandProps) {
   await modalSubmit.deferReply({ ephemeral: true });
-  const { interaction, client } = props;
 
-  if (!fivemPool) {
-    await modalSubmit.editReply({
-      embeds: [
-        BasicEmbed(
-          modalSubmit.client,
-          "Database Connection Error",
-          "The fivem pool is not connected. Please contact an admin."
-        ),
-      ],
-    });
-    return;
-  }
+  // Get database connection
+  const { connection } = await getDbConnection({
+    interaction: modalSubmit as any,
+    client: props.client,
+    handler: props.handler,
+  } as SlashCommandProps);
 
-  const { data: connection, error: connectionError } = await tryCatch(fivemPool.getConnection());
-
-  if (!connection) {
-    await modalSubmit.editReply({
-      embeds: [
-        BasicEmbed(
-          modalSubmit.client,
-          "Database Connection Error",
-          "Failed to connect to the database. Please try again later.\n```\n" +
-            connectionError +
-            "\n```"
-        ),
-      ],
-    });
-    return;
-  }
+  if (!connection) return;
 
   try {
     // Extract form values
@@ -154,6 +120,7 @@ async function handleModalSubmit(modalSubmit: ModalSubmitInteraction, props: Sla
             "Please use the format YYYY/MM/DD HH:MM:SS"
           ),
         ],
+        content: null,
       });
       return;
     }
@@ -169,6 +136,7 @@ async function handleModalSubmit(modalSubmit: ModalSubmitInteraction, props: Sla
             "Please use a format like '3h 20m 30s'"
           ),
         ],
+        content: null,
       });
       return;
     }
@@ -184,6 +152,7 @@ async function handleModalSubmit(modalSubmit: ModalSubmitInteraction, props: Sla
         embeds: [
           BasicEmbed(modalSubmit.client, "Error", "This command can only be used in a guild."),
         ],
+        content: null,
       });
       return;
     }
@@ -212,6 +181,7 @@ async function handleModalSubmit(modalSubmit: ModalSubmitInteraction, props: Sla
             "Failed to create Discord event. Please check if your inputs are valid and try again."
           ),
         ],
+        content: null,
       });
       return;
     }
@@ -247,6 +217,7 @@ async function handleModalSubmit(modalSubmit: ModalSubmitInteraction, props: Sla
               `**Discord Event:** ${discordEvent ? "Created" : "Failed"}`
           ),
         ],
+        content: null,
       });
     } catch (error) {
       console.error("Failed to insert event into database:", error);
@@ -268,6 +239,7 @@ async function handleModalSubmit(modalSubmit: ModalSubmitInteraction, props: Sla
             "Failed to save the event to the database. The Discord event has been removed."
           ),
         ],
+        content: null,
       });
     }
   } catch (error) {
@@ -276,85 +248,11 @@ async function handleModalSubmit(modalSubmit: ModalSubmitInteraction, props: Sla
       embeds: [
         BasicEmbed(modalSubmit.client, "Error", "An error occurred while creating the event."),
       ],
+      content: null,
     });
   } finally {
     if (connection) {
       connection.release();
     }
   }
-}
-
-/**
- * Parses a date-time string in format YYYY/MM/DD HH:MM:SS
- * @returns Date object or null if invalid
- */
-function parseDateTime(dateTimeStr: string): Date | null {
-  // Try to parse the date string
-  try {
-    // Match YYYY/MM/DD HH:MM:SS format
-    const match = dateTimeStr.match(
-      /^(\d{4})\/(\d{1,2})\/(\d{1,2}) (\d{1,2}):(\d{1,2}):(\d{1,2})$/
-    );
-    if (!match) return null;
-
-    const [_, year, month, day, hours, minutes, seconds] = match;
-    const date = new Date(
-      parseInt(year),
-      parseInt(month) - 1, // JavaScript months are 0-indexed
-      parseInt(day),
-      parseInt(hours),
-      parseInt(minutes),
-      parseInt(seconds)
-    );
-
-    // Validate the date is valid
-    if (isNaN(date.getTime())) return null;
-    return date;
-  } catch (error) {
-    return null;
-  }
-}
-
-/**
- * Parses a duration string like "3h 20m 30s" into seconds
- */
-function parseDuration(durationStr: string): number {
-  let totalSeconds = 0;
-
-  // Match hours
-  const hoursMatch = durationStr.match(/(\d+)h/);
-  if (hoursMatch) {
-    totalSeconds += parseInt(hoursMatch[1]) * 3600;
-  }
-
-  // Match minutes
-  const minutesMatch = durationStr.match(/(\d+)m/);
-  if (minutesMatch) {
-    totalSeconds += parseInt(minutesMatch[1]) * 60;
-  }
-
-  // Match seconds
-  const secondsMatch = durationStr.match(/(\d+)s/);
-  if (secondsMatch) {
-    totalSeconds += parseInt(secondsMatch[1]);
-  }
-
-  return totalSeconds;
-}
-
-/**
- * Formats duration in seconds to a human-readable string
- */
-function formatDuration(seconds: number): string {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const remainingSeconds = seconds % 60;
-
-  let formattedTime = "";
-  if (hours > 0) formattedTime += `${hours} hour${hours > 1 ? "s" : ""} `;
-  if (minutes > 0) formattedTime += `${minutes} minute${minutes > 1 ? "s" : ""} `;
-  if (remainingSeconds > 0)
-    formattedTime += `${remainingSeconds} second${remainingSeconds > 1 ? "s" : ""} `;
-
-  return formattedTime.trim();
 }

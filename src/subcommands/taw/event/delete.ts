@@ -1,36 +1,16 @@
-import {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  CommandInteraction,
-  ButtonInteraction,
-} from "discord.js";
-import { fivemPool } from "../../../Bot";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ButtonInteraction } from "discord.js";
 import BasicEmbed from "../../../utils/BasicEmbed";
-import { tryCatch } from "../../../utils/trycatch";
-import canRunCommand from "../../../utils/canRunCommand";
-import { CommandOptions, SlashCommandProps } from "commandkit";
+import { SlashCommandProps } from "commandkit";
+import { getDbConnection, hasEventPermission, getEventById } from "./commons";
 
 /**
  * Admin command: Deletes an event with the given ID after confirmation
  */
 export default async function eventDelete(props: SlashCommandProps, eventId: number | null) {
-  const { interaction, client, handler } = props;
-  const options: CommandOptions = {
-    userPermissions: ["ManageEvents"],
-  };
+  const { interaction } = props;
 
-  // Check if user has permission to delete events
-  if (!(await canRunCommand(props, options))) {
-    await interaction.editReply({
-      embeds: [
-        BasicEmbed(
-          interaction.client,
-          "Permission Denied",
-          "You do not have permission to delete events. This command requires the ManageEvents permission."
-        ),
-      ],
-    });
+  // Check permissions
+  if (!(await hasEventPermission(props))) {
     return;
   }
 
@@ -44,47 +24,20 @@ export default async function eventDelete(props: SlashCommandProps, eventId: num
           "Please provide a valid event ID to delete."
         ),
       ],
+      content: null,
     });
     return;
   }
 
-  if (!fivemPool) {
-    await interaction.editReply({
-      embeds: [
-        BasicEmbed(
-          interaction.client,
-          "Database Connection Error",
-          "The fivem pool is not connected. Please contact an admin."
-        ),
-      ],
-    });
-    return;
-  }
-
-  const { data: connection, error: connectionError } = await tryCatch(fivemPool.getConnection());
-
-  if (!connection) {
-    await interaction.editReply({
-      embeds: [
-        BasicEmbed(
-          interaction.client,
-          "Database Connection Error",
-          "Failed to connect to the database. Please try again later.\n```\n" +
-            connectionError +
-            "\n```"
-        ),
-      ],
-    });
-    return;
-  }
+  // Get database connection
+  const { connection } = await getDbConnection(props);
+  if (!connection) return;
 
   try {
-    // First, fetch the event details to confirm it exists and to show details
-    const [events] = await connection.query("SELECT * FROM wild_events WHERE event_id = ?", [
-      eventId,
-    ]);
+    // Get event details
+    const event = await getEventById(connection, eventId);
 
-    if (!Array.isArray(events) || events.length === 0) {
+    if (!event) {
       await interaction.editReply({
         embeds: [
           BasicEmbed(interaction.client, "Event Not Found", `No event found with ID ${eventId}.`),
@@ -92,11 +45,6 @@ export default async function eventDelete(props: SlashCommandProps, eventId: num
       });
       return;
     }
-
-    const event = events[0];
-
-    // Get Discord event ID if it exists (not implemented in current schema)
-    // This would be added to the schema in a future update
 
     // Create confirmation buttons
     const confirmButton = new ButtonBuilder()
@@ -133,16 +81,18 @@ export default async function eventDelete(props: SlashCommandProps, eventId: num
             `**Start Time:** ${startTimeFormatted}\n` +
             `**End Time:** ${endTimeFormatted}\n` +
             `**Status:** ${event.is_running ? "🟢 Running" : "⏱️ Scheduled"}\n\n` +
-            `⚠️ **Warning:** This action cannot be undone. All event participation data will be permanently deleted.`
+            `⚠️ **Warning:** This action cannot be undone. All event participation data will be permanently deleted.\n\n` +
+            `-# Please note. This will time out after 1 minute if no action is taken. At that time the buttons will be removed.`
         ),
       ],
       components: [row],
+      content: null,
     });
 
     // Wait for button interaction
     try {
       // Create collector for button interactions
-      const filter = (i: ButtonInteraction) =>
+      const filter = (i: any) =>
         i.user.id === interaction.user.id &&
         (i.customId === `confirm-delete-${eventId}` || i.customId === `cancel-delete-${eventId}`);
 
@@ -157,8 +107,6 @@ export default async function eventDelete(props: SlashCommandProps, eventId: num
           await buttonInteraction.deferUpdate();
 
           try {
-            // Check if there's a Discord event to delete (would be implemented in future)
-
             // Delete the event from the database
             // This will cascade to delete all participation records due to foreign key constraints
             await connection.query("DELETE FROM wild_events WHERE event_id = ?", [eventId]);
