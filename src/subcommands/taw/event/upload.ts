@@ -7,6 +7,7 @@ import {
   getEventsWithParticipants,
   getEventParticipants,
 } from "./commons";
+import log from "../../../utils/log";
 
 /**
  * Admin command: Uploads event participation data as a CSV
@@ -24,16 +25,57 @@ export default async function eventUpload(props: SlashCommandProps) {
   if (!connection) return;
 
   try {
-    // Get completed events with participants
-    const events = await getEventsWithParticipants(connection, true);
+    // Log the current time to help diagnose timestamp issues
+    const currentTimeSecs = Math.floor(Date.now() / 1000);
+    log.debug("[TawEvents Upload]", `Current timestamp (seconds): ${currentTimeSecs}`);
 
-    if (events.length === 0) {
+    // Get all events with participants first (without filtering for completed)
+    const allEvents = await getEventsWithParticipants(connection, false);
+    log.debug(
+      "[TawEvents Upload]",
+      `Found ${allEvents.length} events with participants (including uncompleted)`
+    );
+
+    // Debug info about all events
+    if (allEvents.length > 0) {
+      for (const event of allEvents) {
+        log.debug(
+          "[TawEvents Upload]",
+          `Event ${event.event_id} (${event.event_name}) - ` +
+            `scheduled_end: ${event.event_scheduled_end}, ` +
+            `actual_end: ${event.event_actual_end}, ` +
+            `is_running: ${event.is_running}`
+        );
+      }
+    }
+
+    // Try to use all events that have participation data first
+    let eventsToUse = allEvents;
+    let messagePrefix = "";
+
+    // Get only completed events with participants if we have any
+    const completedEvents = await getEventsWithParticipants(connection, true);
+    log.debug(
+      "[TawEvents Upload]",
+      `Found ${completedEvents.length} completed events with participants`
+    );
+
+    // If we have completed events, use those instead
+    if (completedEvents.length > 0) {
+      eventsToUse = completedEvents;
+    } else {
+      messagePrefix =
+        "Note: No completed events found. Including all events with participation data.\n\n";
+    }
+
+    if (eventsToUse.length === 0) {
       await interaction.editReply({
         embeds: [
           BasicEmbed(
             interaction.client,
             "No Events to Upload",
-            "There are no completed events with participation data to upload."
+            "There are no events with participation data to upload.\n\n" +
+              `Current server time (seconds): ${currentTimeSecs}`
           ),
         ],
         content: null,
@@ -43,11 +85,17 @@ export default async function eventUpload(props: SlashCommandProps) {
 
     // Generate CSV data for all events with participation data
     let csvContent =
-      "Player_License,TAW_Name,Event_ID,Event_Name,Time_Joined,Time_Left,Time_Participated_Seconds,Time_Participated_Minutes\n";
+      "Player_License,Name,Event_ID,Event_Name,Time_Joined,Time_Left,Time_Participated_Seconds,Time_Participated_Minutes\n";
+    let totalParticipants = 0;
 
-    for (const event of events) {
+    for (const event of eventsToUse) {
       // Get participants for each event
       const participants = await getEventParticipants(connection, event.event_id);
+      log.debug(
+        "[TawEvents Upload]",
+        `Event ${event.event_id} has ${participants.length} participants`
+      );
+      totalParticipants += participants.length;
 
       if (participants.length > 0) {
         for (const participant of participants) {
@@ -83,7 +131,7 @@ export default async function eventUpload(props: SlashCommandProps) {
         BasicEmbed(
           interaction.client,
           "Event Participation Data",
-          `Generated CSV file containing participation data for ${events.length} event(s).`
+          `${messagePrefix}Generated CSV file containing participation data for ${eventsToUse.length} event(s) with ${totalParticipants} total participant records.`
         ),
       ],
       files: [attachment],
