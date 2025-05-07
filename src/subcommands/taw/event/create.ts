@@ -10,6 +10,7 @@ import {
   ButtonStyle,
   ButtonInteraction,
   MessageComponentInteraction,
+  GuildScheduledEvent,
 } from "discord.js";
 import BasicEmbed from "../../../utils/BasicEmbed";
 import { SlashCommandProps } from "commandkit";
@@ -177,19 +178,41 @@ async function handleModalSubmit(modalSubmit: ModalSubmitInteraction, props: Sla
     const durationString = modalSubmit.fields.getTextInputValue("event-duration");
 
     // Parse start time
-    const startTime = parseDateTime(startTimeString);
+    let startTime = parseDateTime(startTimeString);
     if (!startTime) {
       await modalSubmit.editReply({
         embeds: [
           BasicEmbed(
             modalSubmit.client,
             "Invalid Date Format",
-            "Please use the format YYYY/MM/DD HH:MM:SS"
+            "Please use the format YYYY/MM/DD HH:MM:SS\n\n" +
+              "Your inputs were:\n" +
+              "**Event Name:**\n```" +
+              eventName +
+              "```\n" +
+              "**Event Description:**\n```" +
+              eventDescription +
+              "```\n" +
+              "**Start Time:**\n```" +
+              startTimeString +
+              "```\n" +
+              "**Duration:**\n```" +
+              durationString +
+              "```"
           ),
         ],
         content: null,
       });
       return;
+    }
+
+    // Check if the start time is in the past
+    const now = new Date();
+    let pastTimeAdjusted = false;
+    if (startTime < now) {
+      // If start time is in the past, set it to now (plus a minute to be safe)
+      startTime = new Date(now.getTime() + 60000); // Add 1 minute to current time
+      pastTimeAdjusted = true;
     }
 
     // Parse duration
@@ -200,7 +223,20 @@ async function handleModalSubmit(modalSubmit: ModalSubmitInteraction, props: Sla
           BasicEmbed(
             modalSubmit.client,
             "Invalid Duration Format",
-            "Please use a format like '3h 20m 30s'"
+            "Please use a format like '3h 20m 30s'\n\n" +
+              "Your inputs were:\n" +
+              "**Event Name:**\n```" +
+              eventName +
+              "```\n" +
+              "**Event Description:**\n```" +
+              eventDescription +
+              "```\n" +
+              "**Start Time:**\n```" +
+              startTimeString +
+              "```\n" +
+              "**Duration:**\n```" +
+              durationString +
+              "```"
           ),
         ],
         content: null,
@@ -209,7 +245,8 @@ async function handleModalSubmit(modalSubmit: ModalSubmitInteraction, props: Sla
     }
 
     // Calculate end time
-    const endTimeUnix = Math.floor(startTime.getTime() / 1000) + durationSeconds;
+    const startTimeUnix = Math.floor(startTime.getTime() / 1000);
+    const endTimeUnix = startTimeUnix + durationSeconds;
     const endTime = new Date(endTimeUnix * 1000);
 
     // Get guild from interaction for creating Discord event
@@ -225,7 +262,8 @@ async function handleModalSubmit(modalSubmit: ModalSubmitInteraction, props: Sla
     }
 
     // Create Discord scheduled event
-    let discordEvent;
+    // Define interface for Discord event
+    let discordEvent: GuildScheduledEvent | null = null;
     try {
       discordEvent = await guild.scheduledEvents.create({
         name: eventName,
@@ -245,7 +283,20 @@ async function handleModalSubmit(modalSubmit: ModalSubmitInteraction, props: Sla
           BasicEmbed(
             modalSubmit.client,
             "Discord Event Creation Failed",
-            "Failed to create Discord event. Please check if your inputs are valid and try again."
+            "Failed to create Discord event. Please check if your inputs are valid and try again.\n\n" +
+              "Your inputs were:\n" +
+              "**Event Name:**\n```" +
+              eventName +
+              "```\n" +
+              "**Event Description:**\n```" +
+              eventDescription +
+              "```\n" +
+              "**Start Time:**\n```" +
+              startTimeString +
+              "```\n" +
+              "**Duration:**\n```" +
+              durationString +
+              "```"
           ),
         ],
         content: null,
@@ -255,8 +306,6 @@ async function handleModalSubmit(modalSubmit: ModalSubmitInteraction, props: Sla
 
     // Insert event into database
     try {
-      const startTimeUnix = Math.floor(startTime.getTime() / 1000);
-
       // Log the query parameters for debugging
       console.log("Event database insertion parameters:", {
         eventName,
@@ -265,14 +314,15 @@ async function handleModalSubmit(modalSubmit: ModalSubmitInteraction, props: Sla
         endTimeUnix,
       });
 
-      const [result] = await connection.query(
+      const result = await connection.query(
         `INSERT INTO wild_events (
           event_name,
           event_description,
           event_scheduled_start,
-          event_scheduled_end
-        ) VALUES (?, ?, ?, ?)`,
-        [eventName, eventDescription, startTimeUnix, endTimeUnix]
+          event_scheduled_end,
+          discord_event_id
+        ) VALUES (?, ?, ?, ?, ?)`,
+        [eventName, eventDescription, startTimeUnix, endTimeUnix, discordEvent.id]
       );
 
       // Debug log the result
@@ -290,20 +340,23 @@ async function handleModalSubmit(modalSubmit: ModalSubmitInteraction, props: Sla
 
       // If we have an eventId, the insertion was successful
       if (eventId !== null && eventId !== undefined) {
+        // Construct the success message
+        let successMessage =
+          `Your event "${eventName}" has been created!\n\n` +
+          `**Event ID:** ${eventId}\n` +
+          `**Start Time:** <t:${startTimeUnix}:F>\n` +
+          `**End Time:** <t:${endTimeUnix}:F>\n` +
+          `**Duration:** ${formatDuration(durationSeconds)}\n` +
+          `**Discord Event:** ${discordEvent ? discordEvent.url : "Failed"}`;
+
+        // Add a note if the start time was adjusted
+        if (pastTimeAdjusted) {
+          successMessage += `\n\n**Note:** Your original start time was in the past. The event has been scheduled to start now.`;
+        }
+
         // Confirm successful creation
         await modalSubmit.editReply({
-          embeds: [
-            BasicEmbed(
-              modalSubmit.client,
-              "Event Created Successfully",
-              `Your event "${eventName}" has been created!\n\n` +
-                `**Event ID:** ${eventId}\n` +
-                `**Start Time:** <t:${startTimeUnix}:F>\n` +
-                `**End Time:** <t:${endTimeUnix}:F>\n` +
-                `**Duration:** ${formatDuration(durationSeconds)}\n` +
-                `**Discord Event:** ${discordEvent ? "Created" : "Failed"}`
-            ),
-          ],
+          embeds: [BasicEmbed(modalSubmit.client, "Event Created Successfully", successMessage)],
           content: null,
         });
         return;
@@ -327,7 +380,20 @@ async function handleModalSubmit(modalSubmit: ModalSubmitInteraction, props: Sla
           BasicEmbed(
             modalSubmit.client,
             "Database Error",
-            "Failed to save the event to the database. The Discord event has been removed."
+            "Failed to save the event to the database. The Discord event has been removed.\n\n" +
+              "Your inputs were:\n" +
+              "**Event Name:**\n```" +
+              eventName +
+              "```\n" +
+              "**Event Description:**\n```" +
+              eventDescription +
+              "```\n" +
+              "**Start Time:**\n```" +
+              startTimeString +
+              "```\n" +
+              "**Duration:**\n```" +
+              durationString +
+              "```"
           ),
         ],
         content: null,
