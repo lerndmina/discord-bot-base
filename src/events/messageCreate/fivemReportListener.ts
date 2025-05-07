@@ -20,9 +20,13 @@ if (env.ENABLE_FIVEM_SYSTEMS && env.FIVEM_MYSQL_URI !== DEFAULT_OPTIONAL_STRING)
       if (message.author.id === client.user?.id) return false;
       if (message.channel.type !== ChannelType.GuildText) return false;
 
-      const reportConfig = await db.findOne(FivemReportListener, {
-        listenChannelId: message.channel.id,
-      });
+      const reportConfig = await db.findOne(
+        FivemReportListener,
+        {
+          listenChannelId: message.channel.id,
+        },
+        true
+      );
       if (!reportConfig) return false;
       if (!message.content.startsWith(reportConfig.prefix)) return false;
       log.debug(`[FivemReportListener]`, {
