@@ -11,6 +11,7 @@ import {
   ButtonInteraction,
   MessageComponentInteraction,
   GuildScheduledEvent,
+  MessageFlags,
 } from "discord.js";
 import BasicEmbed from "../../../utils/BasicEmbed";
 import { SlashCommandProps } from "commandkit";
@@ -118,9 +119,9 @@ async function showEventCreationModal(
 
   const startTimeInput = new TextInputBuilder()
     .setCustomId("event-start-time")
-    .setLabel("Start Time (YYYY/MM/DD HH:MM:SS)")
+    .setLabel("Start Time (DD/MM/YYYY HH:MM)")
     .setStyle(TextInputStyle.Short)
-    .setPlaceholder("e.g. 2025/05/15 18:30:00")
+    .setPlaceholder("e.g. DD/MM/YYYY HH:MM")
     .setRequired(true);
 
   const durationInput = new TextInputBuilder()
@@ -159,7 +160,7 @@ async function showEventCreationModal(
  * Handles the modal submission for event creation
  */
 async function handleModalSubmit(modalSubmit: ModalSubmitInteraction, props: SlashCommandProps) {
-  await modalSubmit.deferReply({ ephemeral: true });
+  await modalSubmit.deferReply({ flags: [MessageFlags.Ephemeral] });
 
   // Get database connection
   const { connection } = await getDbConnection({
@@ -185,7 +186,7 @@ async function handleModalSubmit(modalSubmit: ModalSubmitInteraction, props: Sla
           BasicEmbed(
             modalSubmit.client,
             "Invalid Date Format",
-            "Please use the format YYYY/MM/DD HH:MM:SS\n\n" +
+            "Please use the format DD/MM/YYYY HH:MM\n\n" +
               "Your inputs were:\n" +
               "**Event Name:**\n```" +
               eventName +
