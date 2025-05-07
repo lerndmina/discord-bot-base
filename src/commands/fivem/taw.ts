@@ -2,7 +2,7 @@ import type { SlashCommandProps, CommandOptions } from "commandkit";
 import { InteractionContextType, SlashCommandBuilder } from "discord.js";
 import { globalCooldownKey, setCommandCooldown, userCooldownKey } from "../../Bot";
 import { initialReply } from "../../utils/initialReply";
-import FetchEnvs, { DEFAULT_OPTIONAL_STRING } from "../../utils/FetchEnvs";
+import FetchEnvs, { DEFAULT_OPTIONAL_STRING, envExists } from "../../utils/FetchEnvs";
 
 // Import subcommands
 import changeTags from "../../subcommands/taw/tags";
@@ -10,14 +10,21 @@ import lookup from "../../subcommands/taw/lookup";
 import setCharacterName from "../../subcommands/taw/name";
 import playtimeLeaderboard from "../../subcommands/taw/playtimeleaderboard";
 import activityHistory from "../../subcommands/taw/activity";
+// Import event subcommands
+import eventInfo from "../../subcommands/taw/event/info";
+import eventHistory from "../../subcommands/taw/event/history";
+import eventCreate from "../../subcommands/taw/event/create";
+import eventDelete from "../../subcommands/taw/event/delete";
+import eventUpload from "../../subcommands/taw/event/upload";
+import { tryCatch } from "../../utils/trycatch";
 
 const env = FetchEnvs();
 
 // This command requires fivem systems, the taw command and a fivem mysql uri to be defined in the env
 if (
-  env.ENABLE_FIVEM_SYSTEMS &&
-  env.ENABLE_TAW_COMMAND &&
-  env.FIVEM_MYSQL_URI !== DEFAULT_OPTIONAL_STRING
+  envExists(env.ENABLE_FIVEM_SYSTEMS) &&
+  envExists(env.ENABLE_TAW_COMMAND) &&
+  envExists(env.FIVEM_MYSQL_URI)
 ) {
   module.exports = {
     data: new SlashCommandBuilder()
@@ -97,41 +104,106 @@ if (
               .setMinValue(1)
               .setMaxValue(20)
           )
+      )
+      // Add event subcommand group
+      .addSubcommandGroup((group) =>
+        group
+          .setName("event")
+          .setDescription("Manage in-game events")
+          .addSubcommand((subcommand) =>
+            subcommand.setName("info").setDescription("Lists all planned in-game events")
+          )
+          .addSubcommand((subcommand) =>
+            subcommand.setName("history").setDescription("Lists your event participation history")
+          )
+          .addSubcommand((subcommand) =>
+            subcommand.setName("create").setDescription("Create a new in-game event (Admin only)")
+          )
+          .addSubcommand((subcommand) =>
+            subcommand
+              .setName("delete")
+              .setDescription("Delete an in-game event (Admin only)")
+              .addIntegerOption((option) =>
+                option
+                  .setName("event_id")
+                  .setDescription("The ID of the event to delete")
+                  .setRequired(true)
+              )
+          )
+          .addSubcommand((subcommand) =>
+            subcommand.setName("upload").setDescription("Upload event timesheet data (Admin only)")
+          )
       ),
     options: {
       devOnly: false,
       deleted: false,
     },
 
-    async run({ interaction, client, handler }: SlashCommandProps) {
+    async run(props: SlashCommandProps) {
+      const { interaction, client, handler } = props;
+
       // Default to private responses
       let publicResponse = interaction.options.getBoolean("public") || false;
 
       const subcommand = interaction.options.getSubcommand(true);
+      const subcommandGroup = interaction.options.getSubcommandGroup();
       const tags = interaction.options.getString("tags");
       const lookupUser = interaction.options.getUser("user");
       const limit = interaction.options.getInteger("limit") || 10;
       const name = interaction.options.getString("name");
+      const eventId = interaction.options.getInteger("event_id");
 
       if (subcommand === "playtime") publicResponse = true;
 
       await initialReply(interaction, !publicResponse);
-      if (subcommand === "tags") {
-        changeTags(tags, interaction);
-      } else if (subcommand === "lookup") {
-        setCommandCooldown(userCooldownKey(interaction.user.id, "taw"), publicResponse ? 60 : 15);
-        lookup(interaction, lookupUser);
-      } else if (subcommand === "name") {
-        setCommandCooldown(userCooldownKey(interaction.user.id, "taw"), publicResponse ? 120 : 60);
-        setCharacterName(interaction, lookupUser, name);
-      } else if (subcommand === "playtime") {
-        setCommandCooldown(globalCooldownKey("taw"), publicResponse ? 120 : 60);
-        playtimeLeaderboard(interaction, limit);
-      } else if (subcommand === "activity") {
-        setCommandCooldown(globalCooldownKey("taw"), publicResponse ? 300 : 120);
-        activityHistory(interaction, lookupUser, limit);
+
+      let commandResult: { error: any; data: any } = { error: null, data: null };
+
+      // Handle event subcommands
+      if (subcommandGroup === "event") {
+        if (subcommand === "info") {
+          commandResult = await tryCatch(eventInfo(props));
+        } else if (subcommand === "history") {
+          commandResult = await tryCatch(eventHistory(props));
+        } else if (subcommand === "create") {
+          commandResult = await tryCatch(eventCreate(props));
+        } else if (subcommand === "delete") {
+          commandResult = await tryCatch(eventDelete(props, eventId));
+        } else if (subcommand === "upload") {
+          commandResult = await tryCatch(eventUpload(props));
+        } else {
+          await interaction.editReply("Unknown event subcommand.");
+        }
+
+        if (commandResult.error) {
+          console.error("Error in event subcommand:", commandResult.error);
+          await interaction.editReply(
+            "An uncaught error occured while processing the event subcommand.\nDetails: " +
+              commandResult.error
+          );
+        }
       } else {
-        await interaction.editReply("Unknown subcommand.");
+        // Handle existing subcommands
+        if (subcommand === "tags") {
+          changeTags(tags, interaction);
+        } else if (subcommand === "lookup") {
+          setCommandCooldown(userCooldownKey(interaction.user.id, "taw"), publicResponse ? 60 : 15);
+          lookup(interaction, lookupUser);
+        } else if (subcommand === "name") {
+          setCommandCooldown(
+            userCooldownKey(interaction.user.id, "taw"),
+            publicResponse ? 120 : 60
+          );
+          setCharacterName(interaction, lookupUser, name);
+        } else if (subcommand === "playtime") {
+          setCommandCooldown(globalCooldownKey("taw"), publicResponse ? 120 : 60);
+          playtimeLeaderboard(interaction, limit);
+        } else if (subcommand === "activity") {
+          setCommandCooldown(globalCooldownKey("taw"), publicResponse ? 300 : 120);
+          activityHistory(interaction, lookupUser, limit);
+        } else {
+          await interaction.editReply("Unknown subcommand.");
+        }
       }
     },
   };
