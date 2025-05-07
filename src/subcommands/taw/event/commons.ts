@@ -178,10 +178,12 @@ export async function getEventById(connection: any, eventId: number): Promise<Ev
 export async function getUpcomingEvents(connection: any): Promise<EventInfo[]> {
   log.debug("[TawEvents Commons]", `Fetching upcoming events`);
 
+  const nowSeconds = Math.floor(Date.now() / 1000);
+
   try {
     const events = await connection.query(
       `SELECT * FROM wild_events 
-       WHERE event_scheduled_end > UNIX_TIMESTAMP() OR event_scheduled_end IS NULL 
+       WHERE event_scheduled_end > ${nowSeconds} OR event_scheduled_end IS NULL OR is_running = 1
        ORDER BY event_scheduled_start ASC`
     );
 
@@ -192,6 +194,10 @@ export async function getUpcomingEvents(connection: any): Promise<EventInfo[]> {
 
     // Filter out events that have already ended (based on actual_end if it exists)
     const filteredEvents = events.filter((event: EventInfo) => {
+      if (event.is_running) {
+        return true; // Event is currently running
+      }
+
       const currentTime = Math.floor(Date.now() / 1000);
       log.debug(
         "[TawEvents Commons]",
