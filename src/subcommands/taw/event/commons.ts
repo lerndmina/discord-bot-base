@@ -22,6 +22,7 @@ export interface EventInfo {
   event_actual_end: number | null;
   is_running: boolean;
   is_paused: boolean;
+  discord_event_id: string | null;
 }
 
 /**
@@ -281,11 +282,17 @@ export async function getEventsWithParticipants(
   onlyCompleted: boolean = true
 ): Promise<EventInfo[]> {
   try {
+    // The timestamps are stored in seconds, not milliseconds
+    const currentTime = Math.floor(Date.now() / 1000);
+
+    // An event is completed if:
+    // 1. It has an actual end time (event_actual_end IS NOT NULL), OR
+    // 2. Its scheduled end time has passed (event_scheduled_end < current time in seconds)
     const whereClause = onlyCompleted
-      ? "WHERE e.event_actual_end IS NOT NULL OR e.event_scheduled_end < UNIX_TIMESTAMP()"
+      ? `WHERE e.event_actual_end IS NOT NULL OR e.event_scheduled_end < ${currentTime}`
       : "";
 
-    const [events] = await connection.query(`
+    const events = await connection.query(`
       SELECT DISTINCT e.* 
       FROM wild_events e
       JOIN wild_events_players ep ON e.event_id = ep.event_id
@@ -329,7 +336,7 @@ export async function getEventParticipants(
       JOIN
         wild_events e ON ep.event_id = e.event_id
       LEFT JOIN
-        vrp_users u ON ep.player_license = u.license
+        players u ON ep.player_license = u.license
       WHERE 
         ep.event_id = ?
     `,
@@ -374,23 +381,21 @@ export function formatDuration(seconds: number): string {
 }
 
 /**
- * Parse a date-time string in format YYYY/MM/DD HH:MM:SS
+ * Parse a date-time string in format DD/MM/YYYY HH:MM
  */
 export function parseDateTime(dateTimeStr: string): Date | null {
   try {
-    const match = dateTimeStr.match(
-      /^(\d{4})\/(\d{1,2})\/(\d{1,2}) (\d{1,2}):(\d{1,2}):(\d{1,2})$/
-    );
+    const match = dateTimeStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4}) (\d{1,2}):(\d{1,2})$/);
     if (!match) return null;
 
-    const [_, year, month, day, hours, minutes, seconds] = match;
+    const [_, day, month, year, hours, minutes] = match;
     const date = new Date(
       parseInt(year),
       parseInt(month) - 1, // JavaScript months are 0-indexed
       parseInt(day),
       parseInt(hours),
       parseInt(minutes),
-      parseInt(seconds)
+      0 // No seconds in the input format
     );
 
     if (isNaN(date.getTime())) return null;
