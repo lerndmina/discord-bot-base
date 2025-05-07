@@ -6,6 +6,10 @@ import {
   ModalSubmitInteraction,
   GuildScheduledEventEntityType,
   GuildScheduledEventPrivacyLevel,
+  ButtonBuilder,
+  ButtonStyle,
+  ButtonInteraction,
+  MessageComponentInteraction,
 } from "discord.js";
 import BasicEmbed from "../../../utils/BasicEmbed";
 import { SlashCommandProps } from "commandkit";
@@ -28,8 +32,71 @@ export default async function eventCreate(props: SlashCommandProps) {
     return;
   }
 
+  const buttoneventId = interaction.user.id + "-start-event-creation" + interaction.id;
+
+  // Create a button to start the event creation process
+  const createEventButton = new ButtonBuilder()
+    .setCustomId(interaction.user.id + "-start-event-creation-" + interaction.id)
+    .setLabel("Create New Event")
+    .setStyle(ButtonStyle.Primary);
+
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(createEventButton);
+
+  // Send the initial message with button
+  const reply = await interaction.editReply({
+    embeds: [
+      BasicEmbed(
+        interaction.client,
+        "Event Creation",
+        "Click the button below to start creating a new event. You will have 10 mins to fill out the form."
+      ),
+    ],
+    components: [row],
+    content: null,
+  });
+
+  // Create a collector for the button interaction
+  const collectorFilter = (i: MessageComponentInteraction) => i.user.id === interaction.user.id;
+  const collector = reply.createMessageComponentCollector({
+    filter: collectorFilter,
+    time: 5 * 60 * 1000,
+  });
+
+  collector?.on("collect", async (interaction) => {
+    // Assert the interaction as ButtonInteraction
+    await showEventCreationModal(interaction as ButtonInteraction, props);
+  });
+
+  collector?.on("end", (collected) => {
+    if (collected.size === 0) {
+      interaction
+        .editReply({
+          embeds: [
+            BasicEmbed(
+              interaction.client,
+              "Event Creation Timeout",
+              "The event creation process timed out. Please try again if you still want to create an event."
+            ),
+          ],
+          components: [], // Remove the button since it's no longer active
+          content: null,
+        })
+        .catch(console.error);
+    }
+  });
+}
+
+/**
+ * Shows the event creation modal when the button is clicked
+ */
+async function showEventCreationModal(
+  buttonInteraction: ButtonInteraction,
+  props: SlashCommandProps
+) {
   // Create the modal for event creation
-  const modal = new ModalBuilder().setCustomId("event-create-modal").setTitle("Create New Event");
+  const modal = new ModalBuilder()
+    .setCustomId("event-create-modal-" + buttonInteraction.id)
+    .setTitle("Create New Event");
 
   // Add inputs for event details
   const nameInput = new TextInputBuilder()
@@ -72,12 +139,12 @@ export default async function eventCreate(props: SlashCommandProps) {
   modal.addComponents(firstRow, secondRow, thirdRow, fourthRow);
 
   // Show the modal to the user
-  await interaction.showModal(modal);
+  await buttonInteraction.showModal(modal);
 
-  // Wait for modal submission
-  const filter = (i: any) => i.customId === "event-create-modal";
   try {
-    const modalResponse = await interaction.awaitModalSubmit({ filter, time: 300000 }); // 5 minute timeout
+    // Wait for modal submission
+    const filter = (i: any) => i.customId === "event-create-modal-" + buttonInteraction.id;
+    const modalResponse = await buttonInteraction.awaitModalSubmit({ filter, time: 600000 }); // 5 minute timeout
 
     // Process form submission
     await handleModalSubmit(modalResponse, props);
@@ -190,6 +257,14 @@ async function handleModalSubmit(modalSubmit: ModalSubmitInteraction, props: Sla
     try {
       const startTimeUnix = Math.floor(startTime.getTime() / 1000);
 
+      // Log the query parameters for debugging
+      console.log("Event database insertion parameters:", {
+        eventName,
+        eventDescription,
+        startTimeUnix,
+        endTimeUnix,
+      });
+
       const [result] = await connection.query(
         `INSERT INTO wild_events (
           event_name,
@@ -200,25 +275,41 @@ async function handleModalSubmit(modalSubmit: ModalSubmitInteraction, props: Sla
         [eventName, eventDescription, startTimeUnix, endTimeUnix]
       );
 
-      // Get the event ID from the insertion result
-      const eventId = result.insertId;
+      // Debug log the result
+      console.log("Database insertion result:", result);
 
-      // Confirm successful creation
-      await modalSubmit.editReply({
-        embeds: [
-          BasicEmbed(
-            modalSubmit.client,
-            "Event Created Successfully",
-            `Your event "${eventName}" has been created!\n\n` +
-              `**Event ID:** ${eventId}\n` +
-              `**Start Time:** <t:${startTimeUnix}:F>\n` +
-              `**End Time:** <t:${endTimeUnix}:F>\n` +
-              `**Duration:** ${formatDuration(durationSeconds)}\n` +
-              `**Discord Event:** ${discordEvent ? "Created" : "Failed"}`
-          ),
-        ],
-        content: null,
-      });
+      // Check if we have a valid result with an insertId
+      let eventId = null;
+      if (result && typeof result === "object") {
+        if ("insertId" in result) {
+          eventId = result.insertId;
+        } else if (Array.isArray(result) && result[0] && "insertId" in result[0]) {
+          eventId = result[0].insertId;
+        }
+      }
+
+      // If we have an eventId, the insertion was successful
+      if (eventId !== null && eventId !== undefined) {
+        // Confirm successful creation
+        await modalSubmit.editReply({
+          embeds: [
+            BasicEmbed(
+              modalSubmit.client,
+              "Event Created Successfully",
+              `Your event "${eventName}" has been created!\n\n` +
+                `**Event ID:** ${eventId}\n` +
+                `**Start Time:** <t:${startTimeUnix}:F>\n` +
+                `**End Time:** <t:${endTimeUnix}:F>\n` +
+                `**Duration:** ${formatDuration(durationSeconds)}\n` +
+                `**Discord Event:** ${discordEvent ? "Created" : "Failed"}`
+            ),
+          ],
+          content: null,
+        });
+        return;
+      } else {
+        throw new Error("Database insertion did not return a valid ID");
+      }
     } catch (error) {
       console.error("Failed to insert event into database:", error);
 
