@@ -61,11 +61,11 @@ export default async function eventHistory(props: SlashCommandProps) {
       return;
     }
 
-    const embed = new EmbedBuilder()
-      .setTitle("🏆 Your Event Participation History")
-      .setDescription(`Here's a record of your event participation:`)
-      .setColor("#2ecc71")
-      .setFooter({ text: `Discord ID: ${discordId}` });
+    const embed = BasicEmbed(
+      interaction.client,
+      "🏆 Your Event Participation History",
+      `Here's a record of your event participation:`
+    ).setColor("#2ecc71");
 
     // Add each event participation record to the embed
     history.forEach((record: any) => {
