@@ -188,8 +188,10 @@ export async function getPlayerEventHistory(
   connection: any,
   playerLicense: string
 ): Promise<EventParticipation[]> {
+  log.debug("[TawEvents Commons]", `Fetching event history for player license: ${playerLicense}`);
+
   try {
-    const [history] = await connection.query(
+    const history = await connection.query(
       `SELECT 
         ep.participation_id,
         ep.event_id,
@@ -214,12 +216,23 @@ export async function getPlayerEventHistory(
       [playerLicense]
     );
 
+    log.debug(
+      "[TawEvents Commons]",
+      `Found ${history?.length || 0} event participation records for player: ${playerLicense}`,
+      history
+    );
+
     if (!Array.isArray(history) || history.length === 0) {
+      log.debug("[TawEvents Commons]", `No event history found for player: ${playerLicense}`);
       return [];
     }
 
     return history as EventParticipation[];
   } catch (error) {
+    log.debug("[TawEvents Commons]", `Error fetching player event history: ${error}`, {
+      playerLicense,
+      error,
+    });
     console.error("Error getting player event history:", error);
     return [];
   }
