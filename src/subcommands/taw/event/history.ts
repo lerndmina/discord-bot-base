@@ -91,7 +91,7 @@ export default async function eventHistory(props: SlashCommandProps) {
       });
     });
 
-    await interaction.editReply({ embeds: [embed] });
+    await interaction.editReply({ embeds: [embed], content: null });
   } catch (error) {
     console.error("Error fetching event history:", error);
     await interaction.editReply({
