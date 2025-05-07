@@ -107,8 +107,10 @@ export default async function eventDelete(props: SlashCommandProps, eventId: num
           await buttonInteraction.deferUpdate();
 
           try {
-            // Delete the event from the database
-            // This will cascade to delete all participation records due to foreign key constraints
+            // First delete the participation records
+            await connection.query("DELETE FROM wild_events_players WHERE event_id = ?", [eventId]);
+
+            // Then delete the event itself
             await connection.query("DELETE FROM wild_events WHERE event_id = ?", [eventId]);
 
             // Confirm deletion
@@ -117,7 +119,7 @@ export default async function eventDelete(props: SlashCommandProps, eventId: num
                 BasicEmbed(
                   buttonInteraction.client,
                   "Event Deleted",
-                  `Event "${event.event_name}" (ID: ${eventId}) has been successfully deleted.`
+                  `Event "${event.event_name}" (ID: ${eventId}) has been successfully deleted.\n-# You monster! 😱`
                 ),
               ],
               components: [], // Remove buttons
