@@ -57,7 +57,7 @@ export async function sendCooldownMessage(
     `The command \`/${commandName}\` is in ${cooldownType} cooldown it will be available ${getDiscordDate(
       cooldownLeft,
       TimeType.RELATIVE
-    )}`,
+    )} Please try again once the cooldown is over.`,
     undefined,
     "Red"
   );
