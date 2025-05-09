@@ -43,11 +43,12 @@ export const Start = async () => {
     .connect(env.MONGODB_URI, { dbName: env.MONGODB_DATABASE, retryWrites: true })
     .then(async () => {
       log.info("Connected to MongoDB");
+      await redisClient.connect();
       await createFivemPool();
+      updateAprilFoolsStatus();
+      scheduleNextMidnight();
       await client.login(env.BOT_TOKEN);
     });
-
-  await redisClient.connect();
 
   // Handle AI moderation events
   client.on(Events.MessageCreate, async (message) => {
@@ -61,11 +62,11 @@ export const Start = async () => {
  * @description Random funny bot messages for a footer.
  */
 const JOKE_MESSAGES: string[] = [
-  "Help! I'm not a bot. The housekeeping are holding me hostage forcing me to manually respond to every message.",
+  "Help! I'm not a bot. The staff are holding me hostage forcing me to manually respond to every message.",
   "It's so dark in here. I can't see anything. Send help.",
   "I'm not a bot. I'm a human being. I swear.",
-  "Please tell the housekeepers to let me out of this room. I'm not a bot.",
-  "I've not seen the sun in years!",
+  "Please tell the staff to let me out of this room. I'm not a bot.",
+  "I've not seen the sun in years! Please send help.",
 ];
 
 const NORMAL_MESSAGES: string[] = [
@@ -98,10 +99,6 @@ function scheduleNextMidnight() {
     }, 24 * 60 * 60 * 1000);
   }, timeUntilMidnight);
 }
-
-// Initial check and schedule updates
-updateAprilFoolsStatus();
-scheduleNextMidnight();
 
 export function getRandomFooterMessage() {
   return isAprilFools
