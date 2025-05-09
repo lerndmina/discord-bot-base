@@ -1,3 +1,7 @@
+// Load environment variables first before any imports
+import { config as dotenvConfig } from "dotenv";
+dotenvConfig(); // This ensures environment variables are loaded at the very beginning
+
 import {
   BaseInteraction,
   Client,
@@ -9,7 +13,6 @@ import {
 import { CommandKit } from "commandkit";
 import path from "path";
 import mongoose, { Collection } from "mongoose";
-import { config as dotenvConfig } from "dotenv";
 import { createClient } from "redis";
 import fetchEnvs, { envExists } from "./utils/FetchEnvs";
 import { debugMsg } from "./utils/TinyUtils";
@@ -17,6 +20,13 @@ import log from "./utils/log";
 import healthCheck from "./Health";
 import aiModeration from "./services/aiModeration";
 import mariadb from "mariadb";
+// Configure logger to use environment variables
+dotenvConfig();
+log.info("Configuring logger with environment variables");
+log.configure({
+  minLevel: process.env.DEBUG_LOG === "true" ? log.LogLevel.DEBUG : log.LogLevel.INFO,
+  enableFileLogging: process.env.LOG_TO_FILE === "true",
+});
 const env = fetchEnvs();
 
 export const Start = async () => {

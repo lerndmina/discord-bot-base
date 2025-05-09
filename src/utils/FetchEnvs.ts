@@ -1,8 +1,8 @@
 import { SnowflakeUtil } from "discord.js";
-
-import dotenv from "dotenv";
 import log from "./log";
-dotenv.config();
+import { configDotenv } from "dotenv";
+
+configDotenv(); // Load environment variables from .env file
 
 export const DEFAULT_OPTIONAL_STRING = "optional";
 
@@ -73,11 +73,11 @@ function getter() {
     }
     if (value === DEFAULT_OPTIONAL_STRING || value[0] === DEFAULT_OPTIONAL_STRING) {
       if (accessedCount > 0) continue;
-      console.warn(`Env ${key} is optional and is not set.`);
+      log.warn(`Env ${key} is optional and is not set.`);
     }
   }
   if (missingKeys.length > 0) {
-    console.error(`ENV ${missingKeys.join(", ")} are missing and are required.`);
+    log.error(`ENV ${missingKeys.join(", ")} are missing and are required.`);
     process.exit(1);
   }
 
@@ -87,7 +87,7 @@ function getter() {
     const snowflake = SnowflakeUtil.deconstruct(id);
     if (snowflake.timestamp < DISCORD_EPOCH) {
       // Discord Epoch (2015-01-01)
-      console.error(`Env TEST_SERVERS contains an invalid snowflake: ${id}`);
+      log.error(`Env TEST_SERVERS contains an invalid snowflake: ${id}`);
       process.exit(1);
     }
   });
@@ -96,7 +96,7 @@ function getter() {
     const snowflake = SnowflakeUtil.deconstruct(id);
     if (snowflake.timestamp < DISCORD_EPOCH) {
       // Discord Epoch (2015-01-01)
-      console.error(`Env OWNER_IDS contains an invalid snowflake: ${id}`);
+      log.error(`Env OWNER_IDS contains an invalid snowflake: ${id}`);
       process.exit(1);
     }
   });
