@@ -102,15 +102,13 @@ async function createRepoIssue(
       throw new Error(`Repository ${owner}/${repo} not found or no access`);
     }
 
-    const repoId = repoResponse.data.data.repository.id;
-
-    // Then create the issue
+    const repoId = repoResponse.data.data.repository.id; // Then create the issue - using a properly structured mutation with variables
     const mutation = `
-      mutation {
+      mutation CreateIssue($repositoryId: ID!, $title: String!, $body: String!) {
         createIssue(input: {
-          repositoryId: "${repoId}"
-          title: "${title}"
-          body: "${body}"
+          repositoryId: $repositoryId
+          title: $title
+          body: $body
         }) {
           issue {
             id
@@ -120,10 +118,16 @@ async function createRepoIssue(
         }
       }
     `;
-
     const response = await axios.post(
       "https://api.github.com/graphql",
-      { query: mutation },
+      {
+        query: mutation,
+        variables: {
+          repositoryId: repoId,
+          title: title,
+          body: body,
+        },
+      },
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -134,6 +138,13 @@ async function createRepoIssue(
 
     console.log("Created repository issue:");
     console.log(JSON.stringify(response.data, null, 2));
+
+    // Safely access the issue data with proper error checking
+    if (!response.data || !response.data.data || !response.data.data.createIssue) {
+      console.error("Invalid response format from GitHub API:", response.data);
+      throw new Error("Invalid response from GitHub API when creating issue");
+    }
+
     return response.data.data.createIssue.issue;
   } catch (error) {
     console.error("Error creating repository issue:", error);
@@ -244,6 +255,14 @@ export async function createGitHubIssue(
   const projectId = env.GITHUB_PROJECT_ID;
   categoryName = categoryName || env.GITHUB_PROJECT_FIELD || "Suggestions"; // Default to "Suggestions"
 
+  // Replace double quotes in title and description
+  title = title.replace(/"/g, "'");
+  description = description.replace(/"/g, "'");
+
+  // Escape special characters in title and description
+  title = title.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+  description = description.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+
   // Default organization name (from repository format: "org/repo")
   const repoSplit = repo.split("/");
   if (repoSplit.length !== 2) {
@@ -317,8 +336,14 @@ export async function createGitHubIssue(
       issueUrl: issue.url,
       projectItemId: projectItemId,
     };
-  } catch (error) {
+  } catch (error: any) {
     log.error("Error creating GitHub issue:", error);
+
+    // Extract more detailed error information if available
+    if (error.response && error.response.data) {
+      log.error("GitHub API error details:", error.response.data);
+    }
+
     return null;
   }
 }
