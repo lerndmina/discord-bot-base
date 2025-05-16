@@ -246,6 +246,7 @@ async function newModmail(
             channel: config.forumChannelId,
             staffRoleId: config.staffRoleId,
           }),
+          description: config.guildDescription,
         });
       }
     }

@@ -5,6 +5,10 @@ const ModmailConfig = new Schema({
     type: String,
     required: true,
   },
+  guildDescription: {
+    type: String,
+    required: false,
+  },
   forumChannelId: {
     type: String,
     required: true,
