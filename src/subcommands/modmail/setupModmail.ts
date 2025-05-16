@@ -18,6 +18,7 @@ export default async function setupModmail({ interaction, client, handler }: Sla
   await interaction.reply(waitingEmoji);
   const channel = interaction.options.getChannel("channel");
   const role = interaction.options.getRole("role");
+  const description = interaction.options.getString("description");
   if (!channel || !role) {
     return interaction.editReply({
       content: "",
@@ -42,6 +43,21 @@ export default async function setupModmail({ interaction, client, handler }: Sla
   }
   const forumChannel = channel as ForumChannel;
 
+  if (description && description.length > 60) {
+    return interaction.editReply({
+      content: "",
+      embeds: [
+        BasicEmbed(
+          client,
+          "Error",
+          "The description must be 60 characters or less.",
+          undefined,
+          "Red"
+        ),
+      ],
+    });
+  }
+
   try {
     // Create a webhook for the server
     const webhook = await forumChannel.createWebhook({
@@ -56,6 +72,7 @@ export default async function setupModmail({ interaction, client, handler }: Sla
       { guildId: interaction.guild?.id },
       {
         guildId: interaction.guild?.id,
+        guildDescription: description || undefined,
         forumChannelId: forumChannel.id,
         staffRoleId: role.id,
         webhookId: webhook.id,
@@ -70,7 +87,9 @@ export default async function setupModmail({ interaction, client, handler }: Sla
         BasicEmbed(
           client,
           "Success",
-          `Modmail has been setup successfully! The forum channel ${forumChannel} will be used for modmail threads and the role ${role} will be pinged when a new thread is created.`,
+          `Modmail has been setup successfully! The forum channel ${forumChannel} will be used for modmail threads and the role ${role} will be pinged when a new thread is created.${
+            description ? `\n\nDescription: ${description}` : ""
+          }`,
           undefined,
           "Green"
         ),

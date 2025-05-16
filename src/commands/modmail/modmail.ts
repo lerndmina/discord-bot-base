@@ -91,6 +91,14 @@ export const data = new SlashCommandBuilder()
           .setDescription("The role to ping when a new modmail is created")
           .setRequired(true)
       )
+      .addStringOption((option) =>
+        option
+          .setName("description")
+          .setDescription(
+            "The description for this server in the modmail system (60 characters max)"
+          )
+          .setRequired(false)
+      )
   )
   .addSubcommand((subcommand) =>
     subcommand
