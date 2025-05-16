@@ -24,12 +24,6 @@ export const data = new SlashCommandBuilder()
       .setDescription("Default channel where moderation reports will be sent")
       .setRequired(true)
   )
-  .addBooleanOption((option) =>
-    option
-      .setName("moderate_images")
-      .setDescription("Whether to flag messages containing images")
-      .setRequired(false)
-  )
   .addBooleanOption((option) => option.setName("sexual").setDescription("Moderate sexual content"))
   .addBooleanOption((option) =>
     option.setName("sexual_minors").setDescription("Moderate sexual content involving minors")
@@ -75,7 +69,6 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
 
   const enabled = interaction.options.getBoolean("enabled") ?? true;
   const modlogChannel = interaction.options.getChannel("modlog");
-  const moderateImages = interaction.options.getBoolean("moderate_images");
 
   log.debug(
     `Default moderation command triggered by ${interaction.user.tag} for guild ${
@@ -85,7 +78,7 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
   log.debug(
     `Default moderation ${enabled ? "enabled" : "disabled"}, modlog: ${
       modlogChannel?.name || "none"
-    }, moderate images: ${moderateImages === null ? "default (true)" : moderateImages}`
+    }`
   );
 
   if (!interaction.guildId) {
@@ -135,7 +128,6 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
         isEnabled: enabled,
         moderationCategories: categories,
         modlogChannelId: modlogChannel?.id,
-        moderateImages: moderateImages !== null ? moderateImages : true,
         isGuildDefault: true,
       },
       { upsert: true, new: true }
@@ -147,18 +139,14 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
         isGuildDefault: result?.isGuildDefault,
         isEnabled: result?.isEnabled,
         modlogChannelId: result?.modlogChannelId,
-        moderateImages: result?.moderateImages,
         categoriesCount: result?.moderationCategories?.length || 0,
       })}`
     );
-
     await interaction.editReply({
       content: `Default AI moderation for this server has been ${
         enabled ? "enabled" : "disabled"
-      }.${modlogChannel ? ` Moderation reports will be sent to <#${modlogChannel.id}>.` : ""}${
-        moderateImages !== null
-          ? ` Image moderation is ${moderateImages ? "enabled" : "disabled"}.`
-          : ""
+      }.${
+        modlogChannel ? ` Moderation reports will be sent to <#${modlogChannel.id}>.` : ""
       } These settings will apply to all channels without specific moderation settings.`,
     });
   } catch (error) {

@@ -11,63 +11,9 @@ const openai = new OpenAI();
 const env = FetchEnvs();
 const db = new Database();
 
-// Function to check if URL is an image
-function isImageUrl(url: string): boolean {
-  try {
-    const imageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".tiff"];
-    // Handle URLs with query parameters or fragments
-    const urlObj = new URL(url);
-    const path = urlObj.pathname.toLowerCase();
-    return imageExtensions.some((ext) => path.endsWith(ext));
-  } catch (error) {
-    // If URL parsing fails, try simpler approach
-    const lowerUrl = url.toLowerCase();
-    const imageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".tiff"];
-    return imageExtensions.some((ext) => lowerUrl.includes(ext));
-  }
-}
-
-// Function to check if URL is a Tenor GIF
-function isTenorUrl(url: string): boolean {
-  return url.toLowerCase().includes("tenor.com");
-}
-
 // Function to extract text content for moderation
 function extractTextContent(message: Message): string {
   return message.content.trim();
-}
-
-// Function to extract image URLs from message
-function extractImageUrls(message: Message): string[] {
-  const imageUrls: string[] = [];
-
-  // Get image attachments
-  for (const attachment of message.attachments.values()) {
-    if (attachment.contentType?.startsWith("image/")) {
-      imageUrls.push(attachment.url);
-    }
-  }
-
-  // Extract image URLs from message content
-  const urlRegex = /(https?:\/\/[^\s]+)/g;
-  const urls = message.content.match(urlRegex);
-
-  if (urls) {
-    for (const url of urls) {
-      try {
-        if (isImageUrl(url) || isTenorUrl(url)) {
-          // For added safety, try to construct a valid URL object
-          new URL(url); // This will throw if the URL is invalid
-          imageUrls.push(url);
-          log.debug(`Detected image URL: ${url}`);
-        }
-      } catch (error) {
-        log.warn(`Invalid URL detected in message: ${url}`);
-      }
-    }
-  }
-
-  return imageUrls;
 }
 
 export default async (message: Message, client: Client<true>) => {
@@ -125,21 +71,16 @@ export default async (message: Message, client: Client<true>) => {
       return;
     }
 
-    // Extract text and image URLs
+    // Extract text content
     const textContent = extractTextContent(message);
-    const imageUrls = extractImageUrls(message);
 
     // Skip if no content to moderate
-    if (!textContent && imageUrls.length === 0) {
+    if (!textContent) {
       log.debug(`No content to moderate in message, skipping`);
       return;
     }
 
-    log.debug(
-      `Content to moderate: text=${!!textContent}, images=${
-        imageUrls.length > 0 ? imageUrls.length : 0
-      }`
-    );
+    log.debug(`Content to moderate: text=${!!textContent}`);
 
     // Track if content is flagged and what type
     let isContentFlagged = false;
@@ -148,72 +89,44 @@ export default async (message: Message, client: Client<true>) => {
     // Track confidence scores for each flagged category
     const confidenceScores: Record<string, number> = {};
 
-    // Moderate text content if exists
-    if (textContent) {
-      contentTypes.push("text");
-      log.debug(
-        `Moderating text in ${message.channel.name}: ${textContent.substring(0, 50)}${
-          textContent.length > 50 ? "..." : ""
-        }`
+    // Moderate text content
+    contentTypes.push("text");
+    log.debug(
+      `Moderating text in ${message.channel.name}: ${textContent.substring(0, 50)}${
+        textContent.length > 50 ? "..." : ""
+      }`
+    );
+
+    try {
+      const textResponse = await openai.moderations.create({
+        input: textContent,
+      });
+
+      const textResult = processModerationResult(
+        textResponse,
+        channelConfig.moderationCategories as ModerationCategory[]
       );
 
-      try {
-        const textResponse = await openai.moderations.create({
-          input: textContent,
-        });
-
-        const textResult = processModerationResult(
-          textResponse,
-          channelConfig.moderationCategories as ModerationCategory[]
-        );
-
-        if (textResult.flagged) {
-          isContentFlagged = true;
-
-          // Add flagged categories and store their confidence scores
-          Object.entries(textResult.categories)
-            .filter(([_, isFlagged]) => isFlagged)
-            .forEach(([category]) => {
-              if (!flaggedCategories.includes(category as ModerationCategory)) {
-                flaggedCategories.push(category as ModerationCategory);
-
-                // Store the confidence score if available
-                const categoryScores = textResponse.results[0]?.category_scores;
-                if (categoryScores && categoryScores[category]) {
-                  confidenceScores[category] = categoryScores[category];
-                }
-              }
-            });
-        }
-      } catch (error) {
-        log.error("Error in text moderation:", error);
-      }
-    }
-
-    // Moderate images if exist
-    if (imageUrls.length > 0) {
-      contentTypes.push("images");
-      log.debug(`Moderating ${imageUrls.length} images in ${message.channel.name}`);
-
-      // Dump the current moderateImages setting for debugging
-      log.debug(
-        `Image moderation setting: ${JSON.stringify({
-          channelId: message.channel.id,
-          isGuildDefault: channelConfig.isGuildDefault || false,
-          moderateImages: channelConfig.moderateImages,
-          configSource: channelConfig.isGuildDefault ? "guild-default" : "channel-specific",
-        })}`
-      );
-
-      // Currently, OpenAI moderation API doesn't support image moderation directly
-      // Flag messages with images for manual review
-      if (channelConfig.moderateImages === true) {
-        log.debug(`Image moderation is enabled, flagging message`);
+      if (textResult.flagged) {
         isContentFlagged = true;
-        flaggedCategories.push("other" as ModerationCategory);
-      } else {
-        log.debug(`Image moderation is disabled, not flagging message`);
+
+        // Add flagged categories and store their confidence scores
+        Object.entries(textResult.categories)
+          .filter(([_, isFlagged]) => isFlagged)
+          .forEach(([category]) => {
+            if (!flaggedCategories.includes(category as ModerationCategory)) {
+              flaggedCategories.push(category as ModerationCategory);
+
+              // Store the confidence score if available
+              const categoryScores = textResponse.results[0]?.category_scores;
+              if (categoryScores && categoryScores[category]) {
+                confidenceScores[category] = categoryScores[category];
+              }
+            }
+          });
       }
+    } catch (error) {
+      log.error("Error in text moderation:", error);
     }
 
     // If any content is flagged, take action

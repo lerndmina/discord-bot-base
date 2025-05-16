@@ -53,11 +53,6 @@ const ModeratedChannelSchema = new Schema(
       type: String,
       required: false,
     },
-    moderateImages: {
-      type: Boolean,
-      default: false,
-      required: false,
-    },
     isGuildDefault: {
       type: Boolean,
       default: false,
@@ -76,7 +71,14 @@ const ModeratedChannelSchema = new Schema(
 );
 
 // Create a compound index for faster queries
-ModeratedChannelSchema.index({ guildId: 1, channelId: 1 }, { unique: true, sparse: true });
+ModeratedChannelSchema.index(
+  { guildId: 1, channelId: 1 },
+  {
+    unique: true,
+    sparse: true,
+    partialFilterExpression: { channelId: { $exists: true } },
+  }
+);
 
 // Create an index for guild defaults
 ModeratedChannelSchema.index(

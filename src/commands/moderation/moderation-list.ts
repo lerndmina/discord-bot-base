@@ -66,10 +66,6 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
         defaultValue += `**Reports sent to:** <#${guildDefaults.modlogChannelId}>\n`;
       }
 
-      defaultValue += `**Image moderation:** ${
-        guildDefaults.moderateImages !== false ? "Enabled" : "Disabled"
-      }\n`;
-
       // Add categories info if specific categories are set
       if (
         guildDefaults.moderationCategories &&
@@ -90,7 +86,6 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
       {
         channels: string[];
         categories: string[];
-        moderateImages?: boolean;
       }
     > = {};
 
@@ -106,7 +101,6 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
         channelGroups[modlogKey] = {
           channels: [],
           categories: [],
-          moderateImages: undefined,
         };
       }
 
@@ -119,11 +113,6 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
         channel.moderationCategories.length < allCategories.length
       ) {
         channelGroups[modlogKey].categories = channel.moderationCategories;
-      }
-
-      // Store image moderation setting
-      if (channel.moderateImages !== undefined) {
-        channelGroups[modlogKey].moderateImages = channel.moderateImages;
       }
     }
 
@@ -148,11 +137,6 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
         // Add categories info if specific categories are set
         if (group.categories.length > 0) {
           fieldValue += `\n**Categories:** ${group.categories.join(", ")}`;
-        }
-
-        // Add image moderation info
-        if (group.moderateImages !== undefined) {
-          fieldValue += `\n**Image moderation:** ${group.moderateImages ? "Enabled" : "Disabled"}`;
         }
 
         embed.addFields({
