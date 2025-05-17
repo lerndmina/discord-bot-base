@@ -36,6 +36,8 @@ function getter() {
     ENABLE_FIVEM_SYSTEMS: boolean;
     ENABLE_TAW_COMMAND: boolean;
     FIVEM_MYSQL_URI: string;
+    TAW_API_URL: string;
+    TAW_API_KEY: string;
   } = {
     BOT_TOKEN: process.env.BOT_TOKEN || "",
     OWNER_IDS: (process.env.OWNER_IDS || "").trim().split(","),
@@ -62,6 +64,8 @@ function getter() {
     ENABLE_FIVEM_SYSTEMS: process.env.ENABLE_FIVEM_SYSTEMS === "true",
     ENABLE_TAW_COMMAND: process.env.ENABLE_TAW_COMMAND === "true",
     FIVEM_MYSQL_URI: process.env.FIVEM_MYSQL_URI || DEFAULT_OPTIONAL_STRING,
+    TAW_API_URL: process.env.TAW_API_URL || DEFAULT_OPTIONAL_STRING,
+    TAW_API_KEY: process.env.TAW_API_KEY || DEFAULT_OPTIONAL_STRING,
   };
 
   var missingKeys: string[] = [];
