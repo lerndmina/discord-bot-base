@@ -328,3 +328,26 @@ export async function getCharacterInfo(
     fivemDb.release();
   }
 }
+
+export type TawMemberData = TawMemberDataFound;
+
+interface TawMemberDataFound {
+  callsign: string;
+  steamId?: string;
+  rank?: string;
+  rankDuration?: string;
+  units?: string[];
+  status?: string;
+  location?: string;
+  timeInTaw?: string;
+  daysInTaw?: string;
+  joinDate?: string;
+  bio?: string;
+  avatarUrl?: string;
+}
+
+export interface TawMemberFetchResponse {
+  username: string;
+  memberData: TawMemberData;
+  rawHtml: string;
+}
