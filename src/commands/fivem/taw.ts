@@ -16,6 +16,7 @@ import eventHistory from "../../subcommands/taw/event/history";
 import eventCreate from "../../subcommands/taw/event/create";
 import eventDelete from "../../subcommands/taw/event/delete";
 import eventUpload from "../../subcommands/taw/event/upload";
+import tawLink from "../../subcommands/taw/link";
 import { tryCatch } from "../../utils/trycatch";
 
 const env = FetchEnvs();
@@ -105,6 +106,23 @@ if (
               .setMaxValue(20)
           )
       )
+      .addSubcommand((subcommand) =>
+        subcommand
+          .setName("link")
+          .setDescription("Link your TAW account to your Discord account")
+          .addStringOption((option) =>
+            option.setName("callsign").setDescription("Your TAW callsign").setRequired(true)
+          )
+          .addUserOption((option) =>
+            option
+              .setName("discorduser")
+              .setDescription("User to link (defaults to yourself)")
+              .setRequired(false)
+          )
+          .addBooleanOption((option) =>
+            option.setName("public").setDescription("Show bot responses").setRequired(false)
+          )
+      )
       // Add event subcommand group
       .addSubcommandGroup((group) =>
         group
@@ -152,6 +170,8 @@ if (
       const limit = interaction.options.getInteger("limit") || 10;
       const name = interaction.options.getString("name");
       const eventId = interaction.options.getInteger("event_id");
+      const tawUser = interaction.options.getString("callsign");
+      const tawUserDiscord = interaction.options.getUser("discorduser");
 
       if (subcommand === "playtime") publicResponse = true;
 
@@ -201,6 +221,19 @@ if (
         } else if (subcommand === "activity") {
           setCommandCooldown(globalCooldownKey("taw"), publicResponse ? 300 : 120);
           activityHistory(interaction, lookupUser, limit);
+        } else if (subcommand === "link") {
+          setCommandCooldown(
+            userCooldownKey(interaction.user.id, "taw"),
+            publicResponse ? 120 : 60
+          );
+          if (!envExists(env.TAW_API_KEY) || !envExists(env.TAW_API_URL)) {
+            await interaction.editReply(
+              "This function is not enabled. Please contact the server owner if you think this is a mistake."
+            );
+            return;
+          }
+
+          tawLink(interaction, tawUser, tawUserDiscord, env.TAW_API_KEY, env.TAW_API_URL);
         } else {
           await interaction.editReply("Unknown subcommand.");
         }
