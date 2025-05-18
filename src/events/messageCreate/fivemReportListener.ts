@@ -16,7 +16,7 @@ const db = new Database();
 if (env.ENABLE_FIVEM_SYSTEMS && env.FIVEM_MYSQL_URI !== DEFAULT_OPTIONAL_STRING) {
   module.exports = {
     default: async (message: Message, client: Client<true>): Promise<boolean | void> => {
-      if (!message.author.bot && !message.webhookId) return false;
+      if (!message.webhookId) return false;
       if (message.author.id === client.user?.id) return false;
       if (message.channel.type !== ChannelType.GuildText) return false;
 
