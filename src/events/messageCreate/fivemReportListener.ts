@@ -124,35 +124,50 @@ if (env.ENABLE_FIVEM_SYSTEMS && env.FIVEM_MYSQL_URI !== DEFAULT_OPTIONAL_STRING)
 
       // Check for media attachments
       const firstMessage = report.messages[0];
-      const hasMedia = firstMessage && firstMessage.media && firstMessage.media.length > 0;
-
-      // If there's media, add it to the embed - screenshots are especially important for bug reports
+      const hasMedia = firstMessage && firstMessage.media && firstMessage.media.length > 0; // If there's media, add it to the embed - screenshots are especially important for bug reports
       if (hasMedia) {
         const firstMediaItem = firstMessage.media[0];
 
-        // Add the first media as image if it has a URL
-        if (firstMediaItem.fileURL) {
+        // Check if it's an image by URL or file extension
+        const isImage = (url: string): boolean => {
+          const imageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"];
+          const lowercaseUrl = url.toLowerCase();
+          return (
+            imageExtensions.some((ext) => lowercaseUrl.endsWith(ext)) ||
+            lowercaseUrl.includes("/image/") ||
+            lowercaseUrl.includes("/img/")
+          );
+        };
+
+        // Add the first media as image if it has an image URL
+        if (firstMediaItem.fileURL && isImage(firstMediaItem.fileURL)) {
           reportEmbed.setImage(firstMediaItem.fileURL);
+        }
 
-          // If there are multiple media items, add them all as links
-          if (firstMessage.media.length > 1) {
-            // Create a string with all media links
-            const mediaLinks = firstMessage.media
-              .slice(1) // Skip the first one since it's displayed as image
-              .map((media, index) => {
-                if (media.fileURL) {
-                  return `[Screenshot ${index + 2}](${media.fileURL})`;
-                }
-                return null;
-              })
-              .filter(Boolean) // Remove nulls (in case some media don't have URLs)
-              .join(" • ");
+        // If there are multiple media items, or if the first item wasn't an image
+        if (
+          firstMessage.media.length > 1 ||
+          (firstMediaItem.fileURL && !isImage(firstMediaItem.fileURL))
+        ) {
+          // Determine starting index based on whether first item was used as an image
+          const startIndex = firstMediaItem.fileURL && isImage(firstMediaItem.fileURL) ? 1 : 0;
 
-            reportEmbed.addFields({
-              name: "📷 Additional Screenshots",
-              value: mediaLinks || "No viewable screenshots available",
-            });
-          }
+          // Create a string with all media links
+          const mediaLinks = firstMessage.media
+            .slice(startIndex) // Skip the first one if it was displayed as image
+            .map((media, index) => {
+              if (media.fileURL) {
+                return `[Screenshot ${index + startIndex + 1}](${media.fileURL})`;
+              }
+              return null;
+            })
+            .filter(Boolean) // Remove nulls (in case some media don't have URLs)
+            .join(" • ");
+
+          reportEmbed.addFields({
+            name: "📷 Additional Media",
+            value: mediaLinks || "No viewable Media available",
+          });
         }
       }
 
