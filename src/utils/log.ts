@@ -30,6 +30,7 @@ type LoggerConfig = {
   logFilePath: string;
   timestampFormat: "locale" | "iso";
   showCallerInfo: boolean;
+  callerPathDepth: number; // Number of path components to show in caller info
 };
 
 // Default configuration
@@ -39,6 +40,7 @@ const config: LoggerConfig = {
   logFilePath: path.join(__dirname, "../..", "logs/bot.log"),
   timestampFormat: "locale",
   showCallerInfo: true,
+  callerPathDepth: 2, // Show up to 2 parts of the path by default
 };
 
 // Formats the current timestamp based on configuration
@@ -63,10 +65,22 @@ const getCallerInfo = () => {
   if (!callerMatch) return "";
 
   const [, , filePath, line] = callerMatch;
+  // Get the last 2 parts of the path for better context
   const filePathParts = filePath?.split(/[/\\]/) || [];
-  const fileName = filePathParts[filePathParts.length - 1];
+  const pathDepth = Math.min(config.callerPathDepth, filePathParts.length);
 
-  return `[${fileName}:${line}]`;
+  // Create path with the last N directory components
+  let displayPath = "";
+  if (pathDepth > 1) {
+    // Get last N path parts (includes directories + filename)
+    const relevantParts = filePathParts.slice(-pathDepth);
+    displayPath = relevantParts.join("/");
+  } else {
+    // Fallback to just filename if we don't have enough path parts
+    displayPath = filePathParts[filePathParts.length - 1];
+  }
+
+  return `[${displayPath}:${line}]`;
 };
 
 // Improved message formatting including better object handling
@@ -173,7 +187,8 @@ const log = Object.assign(
         Log level: ${LogLevel[config.minLevel]}
         Log path: ${config.logFilePath}
         Timestamp format: ${config.timestampFormat}
-        Caller info: ${config.showCallerInfo ? "enabled" : "disabled"}\n`
+        Caller info: ${config.showCallerInfo ? "enabled" : "disabled"}
+        Caller path depth: ${config.callerPathDepth}\n`
       );
     },
     /**
