@@ -119,9 +119,6 @@ if (
               .setDescription("User to link (defaults to yourself)")
               .setRequired(false)
           )
-          .addBooleanOption((option) =>
-            option.setName("public").setDescription("Show bot responses").setRequired(false)
-          )
       )
       // Add event subcommand group
       .addSubcommandGroup((group) =>
@@ -222,10 +219,6 @@ if (
           setCommandCooldown(globalCooldownKey("taw"), publicResponse ? 300 : 120);
           activityHistory(interaction, lookupUser, limit);
         } else if (subcommand === "link") {
-          setCommandCooldown(
-            userCooldownKey(interaction.user.id, "taw"),
-            publicResponse ? 120 : 60
-          );
           if (!envExists(env.TAW_API_KEY) || !envExists(env.TAW_API_URL)) {
             await interaction.editReply(
               "This function is not enabled. Please contact the server owner if you think this is a mistake."

@@ -20,6 +20,7 @@ import ButtonWrapper from "../../utils/ButtonWrapper";
 import { sleep } from "../../utils/TinyUtils";
 import { initialReply } from "../../utils/initialReply";
 import log from "../../utils/log";
+import { globalCooldownKey, setCommandCooldown } from "../../Bot";
 const db = new Database();
 const env = FetchEnvs();
 /*
@@ -89,6 +90,8 @@ export default async function tawLink(
     }
   }
 
+  setCommandCooldown(globalCooldownKey("taw"), 5); // Short pre-cooldown to prevent spam
+
   const { data: apiUrl, error: urlError } = tryCatchSync(() => new URL(apiUrlString));
   if (urlError) {
     await interaction.editReply(
@@ -156,7 +159,7 @@ export default async function tawLink(
 
   embed.addFields({
     name: "Link Code",
-    value: `\`\`\`${tawLinkData.linkCode}\`\`\``,
+    value: `\`\`\`Fivem Heimdall Bot Link Code: ${tawLinkData.linkCode}\`\`\``,
     inline: true,
   });
 
@@ -187,6 +190,9 @@ export default async function tawLink(
         embeds: [],
         components: [],
       });
+
+      // Now that we are about to hit the API, we can set the cooldown
+      setCommandCooldown(globalCooldownKey("taw"), 120);
 
       const url = new URL(apiUrl + "member");
       url.searchParams.append("username", tawUserToLink);
