@@ -100,7 +100,7 @@ export default async function tawLink(
     return;
   }
 
-  let tawLinkData = await db.findOne(TawLinks, { discordUserId: member.user.id });
+  let tawLinkData = await TawLinks.findOne({ discordUserId: member.user.id });
   if (tawLinkData && tawLinkData.fullyLinked) {
     // Check if the user has already linked their account
     await interaction.editReply(
