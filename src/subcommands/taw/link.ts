@@ -181,163 +181,183 @@ export default async function tawLink(
     filter: collectorFilter,
     time: 5 * 60 * 1000, // 5 minutes
   });
-
   collector.on("collect", async (i: MessageComponentInteraction) => {
     if (i.customId === "taw-link-confirm_" + tawLinkData.linkCode) {
-      await i.deferUpdate();
-      await interaction.editReply({
-        content: "Looking up your account " + env.WAITING_EMOJI,
-        embeds: [],
-        components: [],
-      });
-
-      // Now that we are about to hit the API, we can set the cooldown
+      try {
+        await i.deferUpdate();
+        await interaction.editReply({
+          content: "Looking up your account " + env.WAITING_EMOJI,
+          embeds: [],
+          components: [],
+        });
+      } catch (error) {
+        log.error(`Error updating interaction: ${error}`, error);
+        // Continue with the process even if we can't update the interaction
+      } // Now that we are about to hit the API, we can set the cooldown
       setCommandCooldown(globalCooldownKey("taw"), 120);
 
-      const url = new URL(apiUrl + "member");
-      url.searchParams.append("username", tawUserToLink);
-      url.searchParams.append("apiKey", apiKey);
+      try {
+        const url = new URL(apiUrl + "member");
+        url.searchParams.append("username", tawUserToLink);
+        url.searchParams.append("apiKey", apiKey);
 
-      const { data: response, error: responseError } = await tryCatch(
-        fetch(url, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        })
-      );
-      if (responseError) {
-        await interaction.editReply({
-          content:
-            "Failed to link TAW account. A backend error occurred. Please report this to the developers.",
-          embeds: [],
-          components: [],
-        });
-        log.error(`Failed to link TAW account. Error: ${responseError}`, responseError);
-        return;
-      }
-      if (!response.ok && response.status !== 404) {
-        await interaction.editReply({
-          content:
-            "Failed to link TAW account. A backend error occurred. Please report this to the developers.",
-          embeds: [],
-          components: [],
-        });
-        log.error(`Failed to link TAW account. Error: ${response.statusText}`, response);
-        return;
-      }
-
-      if (response.status === 404) {
-        await interaction.editReply({
-          content: "TAW account not found. Please check the username and try again.",
-          embeds: [],
-          components: [],
-        });
-        log.debug(
-          `TAW account not found. Username: ${tawUserToLink}, Discord ID: ${member.user.id}`,
-          tawLinkData,
-          tawUserToLink,
-          response,
-          url
+        const { data: response, error: responseError } = await tryCatch(
+          fetch(url, {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+            },
+          })
         );
-        return;
-      }
-
-      const { data: tawUserDataJson, error: tawUserDataParseError } = await tryCatch(
-        response.json()
-      );
-      if (tawUserDataParseError) {
-        await interaction.editReply({
-          content:
-            "Failed to link TAW account. A backend error occurred. Please report this to the developers.",
-          embeds: [],
-          components: [],
-        });
-        log.error(
-          `Failed to parse TAW user data. Error: ${tawUserDataParseError}`,
-          tawUserDataParseError
-        );
-        return;
-      }
-
-      const tawResponse = tawUserDataJson as TawMemberFetchResponse;
-      const userData = tawResponse.memberData;
-
-      if (!tawLinkData.linkCode || !userData.bio?.includes(tawLinkData.linkCode)) {
-        await interaction.editReply({
-          content:
-            "The code does not appear to match your TAW profile. Please check the code and try again. Make sure to save your profile after entering the code in your bio.",
-          embeds: [],
-          components: [],
-        });
-        log.debug(
-          `Invalid code provided. Code: ${tawLinkData.linkCode}, Bio: ${userData.bio}`,
-          tawLinkData,
-          tawUserToLink,
-          response,
-          url
-        );
-        return;
-      }
-
-      tawLinkData.fullyLinked = true;
-      tawLinkData.tawUserCallsign = userData.callsign;
-
-      // Create an update object without the _id field to avoid MongoDB's immutable field error
-      const updateData = {
-        fullyLinked: tawLinkData.fullyLinked,
-        tawUserCallsign: tawLinkData.tawUserCallsign,
-        linkCode: tawLinkData.linkCode,
-        codeExpiresAt: tawLinkData.codeExpiresAt,
-      };
-
-      await db.findOneAndUpdate(
-        TawLinks,
-        { discordUserId: tawLinkData.discordUserId },
-        updateData,
-        { upsert: true, new: false }
-      );
-
-      const embed = BasicEmbed(
-        interaction.client,
-        "Linking TAW Account",
-        `Successfully linked your TAW account to your Discord account.\n\nPlease note that this process is irreversible. If you want to unlink your account, please contact an admin.\n\nYou can now remove the code from your TAW profile bio if you want to.`
-      ).addFields(
-        { name: "TAW Callsign", value: userData.callsign, inline: true },
-        { name: "Discord Username", value: member.user.username, inline: true },
-        {
-          name: "TAW Profile",
-          value: `https://taw.net/member/${userData.callsign}.aspx`,
-          inline: true,
+        if (responseError) {
+          await interaction.editReply({
+            content:
+              "Failed to link TAW account. A backend error occurred. Please report this to the developers.",
+            embeds: [],
+            components: [],
+          });
+          log.error(`Failed to link TAW account. Error: ${responseError}`, responseError);
+          return;
         }
-      );
+        if (!response.ok && response.status !== 404) {
+          await interaction.editReply({
+            content:
+              "Failed to link TAW account. A backend error occurred. Please report this to the developers.",
+            embeds: [],
+            components: [],
+          });
+          log.error(`Failed to link TAW account. Error: ${response.statusText}`, response);
+          return;
+        }
 
-      if (userData.rank) embed.addFields({ name: "Rank", value: userData.rank, inline: true });
-      if (userData.rankDuration)
-        embed.addFields({ name: "Time In Rank", value: userData.rankDuration, inline: true });
-      if (userData.timeInTaw)
-        embed.addFields({ name: "Time in TAW", value: userData.timeInTaw, inline: true });
+        if (response.status === 404) {
+          await interaction.editReply({
+            content: "TAW account not found. Please check the username and try again.",
+            embeds: [],
+            components: [],
+          });
+          log.debug(
+            `TAW account not found. Username: ${tawUserToLink}, Discord ID: ${member.user.id}`,
+            tawLinkData,
+            tawUserToLink,
+            response,
+            url
+          );
+          return;
+        }
 
-      if (userData.units)
-        embed.addFields({
-          name: "Units",
-          value: userData.units.map((unit) => unit).join(", "),
-          inline: true,
+        const { data: tawUserDataJson, error: tawUserDataParseError } = await tryCatch(
+          response.json()
+        );
+        if (tawUserDataParseError) {
+          await interaction.editReply({
+            content:
+              "Failed to link TAW account. A backend error occurred. Please report this to the developers.",
+            embeds: [],
+            components: [],
+          });
+          log.error(
+            `Failed to parse TAW user data. Error: ${tawUserDataParseError}`,
+            tawUserDataParseError
+          );
+          return;
+        }
+
+        const tawResponse = tawUserDataJson as TawMemberFetchResponse;
+        const userData = tawResponse.memberData;
+
+        if (!tawLinkData.linkCode || !userData.bio?.includes(tawLinkData.linkCode)) {
+          await interaction.editReply({
+            content:
+              "The code does not appear to match your TAW profile. Please check the code and try again. Make sure to save your profile after entering the code in your bio.",
+            embeds: [],
+            components: [],
+          });
+          log.debug(
+            `Invalid code provided. Code: ${tawLinkData.linkCode}, Bio: ${userData.bio}`,
+            tawLinkData,
+            tawUserToLink,
+            response,
+            url
+          );
+          return;
+        }
+
+        tawLinkData.fullyLinked = true;
+        tawLinkData.tawUserCallsign = userData.callsign;
+
+        // Create an update object without the _id field to avoid MongoDB's immutable field error
+        const updateData = {
+          fullyLinked: tawLinkData.fullyLinked,
+          tawUserCallsign: tawLinkData.tawUserCallsign,
+          linkCode: tawLinkData.linkCode,
+          codeExpiresAt: tawLinkData.codeExpiresAt,
+        };
+
+        await db.findOneAndUpdate(
+          TawLinks,
+          { discordUserId: tawLinkData.discordUserId },
+          updateData,
+          { upsert: true, new: false }
+        );
+
+        const embed = BasicEmbed(
+          interaction.client,
+          "Linking TAW Account",
+          `Successfully linked your TAW account to your Discord account.\n\nPlease note that this process is irreversible. If you want to unlink your account, please contact an admin.\n\nYou can now remove the code from your TAW profile bio if you want to.`
+        ).addFields(
+          { name: "TAW Callsign", value: userData.callsign, inline: true },
+          { name: "Discord Username", value: member.user.username, inline: true },
+          {
+            name: "TAW Profile",
+            value: `https://taw.net/member/${userData.callsign}.aspx`,
+            inline: true,
+          }
+        );
+
+        if (userData.rank) embed.addFields({ name: "Rank", value: userData.rank, inline: true });
+        if (userData.rankDuration)
+          embed.addFields({ name: "Time In Rank", value: userData.rankDuration, inline: true });
+        if (userData.timeInTaw)
+          embed.addFields({ name: "Time in TAW", value: userData.timeInTaw, inline: true });
+
+        if (userData.units)
+          embed.addFields({
+            name: "Units",
+            value: userData.units.map((unit) => unit).join(", "),
+            inline: true,
+          });
+
+        await interaction.editReply({
+          content: "Successfully linked your TAW account to your Discord account.",
+          embeds: [embed],
+          components: [],
         });
-
-      await interaction.editReply({
-        content: "Successfully linked your TAW account to your Discord account.",
-        embeds: [embed],
-        components: [],
-      });
+      } catch (error) {
+        await interaction.editReply({
+          content:
+            "Failed to link TAW account. A backend error occurred. Please report this to the developers.",
+          embeds: [],
+          components: [],
+        });
+        log.error(`Failed to link TAW account. Error: ${error}`, error);
+      }
     }
   });
-  collector.on("end", async () => {
-    await interaction.editReply({
-      content: "The link process has timed out. Please try again.",
-      embeds: [],
-      components: [],
-    });
+  collector.on("end", async (collected) => {
+    try {
+      // Only attempt to update if no interactions were collected
+      if (collected.size === 0) {
+        await interaction.editReply({
+          content: "The link process has timed out. Please try again.",
+          embeds: [],
+          components: [],
+        });
+      }
+    } catch (error) {
+      log.error(`Error updating interaction at collector end: ${error}`, error);
+      // We can't update the interaction, but we can still log it
+    }
   });
 }
 

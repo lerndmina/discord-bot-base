@@ -226,7 +226,7 @@ if (
             return;
           }
 
-          tawLink(interaction, tawUser, tawUserDiscord, env.TAW_API_KEY, env.TAW_API_URL);
+          tryCatch(tawLink(interaction, tawUser, tawUserDiscord, env.TAW_API_KEY, env.TAW_API_URL));
         } else {
           await interaction.editReply("Unknown subcommand.");
         }
