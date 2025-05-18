@@ -123,7 +123,15 @@ export default async function tawLink(
         codeExpiresAt: getExpirationDate(),
       });
 
-      await db.findOneAndUpdate(TawLinks, { discordUserId: member.user.id }, tawLinkData, {
+      // Create an update object without the _id field
+      const updateData = {
+        discordUserId: member.user.id,
+        tawUserCallsign: tawUserToLink,
+        linkCode: tawLinkData.linkCode,
+        codeExpiresAt: tawLinkData.codeExpiresAt,
+      };
+
+      await db.findOneAndUpdate(TawLinks, { discordUserId: member.user.id }, updateData, {
         upsert: true,
         new: true,
       });
@@ -248,14 +256,21 @@ export default async function tawLink(
 
       const tawResponse = tawUserDataJson as TawMemberFetchResponse;
       const userData = tawResponse.memberData;
-
       tawLinkData.fullyLinked = true;
       tawLinkData.tawUserCallsign = userData.callsign;
+
+      // Create an update object without the _id field to avoid MongoDB's immutable field error
+      const updateData = {
+        fullyLinked: tawLinkData.fullyLinked,
+        tawUserCallsign: tawLinkData.tawUserCallsign,
+        linkCode: tawLinkData.linkCode,
+        codeExpiresAt: tawLinkData.codeExpiresAt,
+      };
 
       await db.findOneAndUpdate(
         TawLinks,
         { discordUserId: tawLinkData.discordUserId },
-        tawLinkData,
+        updateData,
         { upsert: true, new: false }
       );
 
