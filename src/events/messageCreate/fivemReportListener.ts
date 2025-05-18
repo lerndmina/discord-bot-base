@@ -157,7 +157,7 @@ if (env.ENABLE_FIVEM_SYSTEMS && env.FIVEM_MYSQL_URI !== DEFAULT_OPTIONAL_STRING)
             .slice(startIndex) // Skip the first one if it was displayed as image
             .map((media, index) => {
               if (media.fileURL) {
-                return `[Screenshot ${index + startIndex + 1}](${media.fileURL})`;
+                return `[Media ${index + startIndex + 1}](${media.fileURL})`;
               }
               return null;
             })
