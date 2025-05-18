@@ -85,12 +85,14 @@ export default async function eventUpload(props: SlashCommandProps) {
 
     // Generate CSV data for all events with participation data
     let csvContent =
-      "Player_License,Name,Event_ID,Event_Name,Time_Joined,Time_Left,Time_Participated_Seconds,Time_Participated_Minutes\n";
+      "Player_License,Name,Event_ID,Event_Name,Time_Joined,Time_Left,Time_Participated_Seconds,Time_Participated_Minutes,Taw_Callsign\n";
     let totalParticipants = 0;
 
     for (const event of eventsToUse) {
       // Get participants for each event
-      const participants = await getEventParticipants(connection, event.event_id);
+      const participants = await getEventParticipants(connection, event.event_id, {
+        onlyTawUsers: true,
+      });
       log.debug(
         "[TawEvents Upload]",
         `Event ${event.event_id} has ${participants.length} participants`
@@ -112,7 +114,13 @@ export default async function eventUpload(props: SlashCommandProps) {
           csvContent += `${participant.time_joined},`;
           csvContent += `${participant.time_left || ""},`;
           csvContent += `${participant.time_participated || ""},`;
-          csvContent += `${timeParticipatedMinutes}\n`;
+          csvContent += `${timeParticipatedMinutes},`;
+          // Add TAW Callsign if available
+          if (participant.taw_callsign) {
+            csvContent += `${participant.taw_callsign}\n`;
+          } else {
+            csvContent += `UNKNOWN\n`;
+          }
         }
       }
     }

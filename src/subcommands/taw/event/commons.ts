@@ -6,6 +6,7 @@ import canRunCommand, { checkPerms } from "../../../utils/canRunCommand";
 import { CommandOptions, SlashCommandProps } from "commandkit";
 import { PoolConnection } from "mariadb";
 import log from "../../../utils/log";
+import TawLinks from "../../../models/TawLinks";
 
 /**
  * Interface for event data from the wild_events table
@@ -39,6 +40,8 @@ export interface EventParticipation {
   time_spent_paused: number;
   time_participated: number | null;
   player_name?: string; // Optional when joined with player data
+  discord: string; // Discord ID of the player
+  taw_callsign?: string; // TAW callsign of the player if onlyTawUsers is true
 }
 
 /**
@@ -317,12 +320,17 @@ export async function getEventsWithParticipants(
   }
 }
 
+type getEventParticipantsExtraData = {
+  onlyTawUsers?: boolean;
+};
+
 /**
  * Get participants for an event
  */
 export async function getEventParticipants(
   connection: any,
-  eventId: number
+  eventId: number,
+  extraData: getEventParticipantsExtraData = {}
 ): Promise<EventParticipation[]> {
   log.debug("[TawEvents Commons]", `Fetching participants for event ID: ${eventId}`);
 
@@ -336,13 +344,16 @@ export async function getEventParticipants(
         e.event_name,
         ep.time_joined,
         ep.time_left,
-        ep.time_participated
+        ep.time_participated,
+        pid.discord
       FROM 
         wild_events_players ep
       JOIN
         wild_events e ON ep.event_id = e.event_id
-      LEFT JOIN
+      JOIN
         players u ON ep.player_license = u.license
+      JOIN 
+        player_identifiers pid ON pid.license = ep.player_license
       WHERE 
         ep.event_id = ?
     `,
@@ -356,8 +367,42 @@ export async function getEventParticipants(
 
     log.debug(
       "[TawEvents Commons]",
-      `Found ${participants.length} participants for event ID: ${eventId}`
+      `Found ${participants.length} participants for event ID: ${eventId}`,
+      participants
     );
+
+    // Filter out non-TAW users if requested
+    if (extraData.onlyTawUsers) {
+      for (const participant of participants) {
+        if (!participant.discord) {
+          log.debug(
+            "[TawEvents Commons]",
+            `Participant ${participant.player_license} has no Discord ID, skipping taw user check.`,
+            participant
+          );
+          participants.splice(participants.indexOf(participant), 1);
+        } else {
+          const discordId = participant.discord.split(":")[1];
+          const tawUser = await TawLinks.findOne({ discordUserId: discordId });
+          if (!tawUser || tawUser.discordUserId !== discordId) {
+            log.debug(
+              "[TawEvents Commons]",
+              `Participant ${participant.player_license} is not a TAW user, skipping.`,
+              participant
+            );
+            participants.splice(participants.indexOf(participant), 1);
+          } else {
+            log.debug(
+              "[TawEvents Commons]",
+              `Participant ${participant.player_license} is a TAW user.`,
+              { ...participant, callsign: tawUser.tawUserCallsign }
+            );
+            participant.taw_callsign = tawUser.tawUserCallsign;
+          }
+        }
+      }
+    }
+
     return participants as EventParticipation[];
   } catch (error) {
     log.debug("[TawEvents Commons]", `Error fetching participants for event ID: ${eventId}`, {

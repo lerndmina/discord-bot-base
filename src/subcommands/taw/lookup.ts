@@ -7,6 +7,9 @@ import {
   getRecentActivityHistory,
 } from "./commons";
 import { getDiscordDate, TimeType } from "../../utils/TinyUtils";
+import Database from "../../utils/data/database";
+import TawLinks from "../../models/TawLinks";
+const db = new Database();
 
 export default async function lookup(interaction: CommandInteraction, targetUser: User | null) {
   const userToLookup = targetUser || interaction.user;
@@ -28,31 +31,34 @@ export default async function lookup(interaction: CommandInteraction, targetUser
   const activityRecords = parseActivityData(playerIdentifiers.last_active_data);
   const recentActivity = getRecentActivityHistory(activityRecords, 3);
 
+  const embed = BasicEmbed(
+    interaction.client,
+    `Info for ${charInfoParsed.firstname} ${charInfoParsed.lastname}`,
+    `Character of <@${userToProcess.id}>`,
+    [
+      { name: "Citizen ID", value: `${citizenId}`, inline: true },
+      { name: "Discord ID", value: `${userToProcess.id}`, inline: true },
+      { name: "Birthdate", value: charInfoParsed.birthdate, inline: true },
+      { name: "IBAN", value: `${charInfoParsed.iban}`, inline: true },
+      { name: "Phone", value: charInfoParsed.phone || "None", inline: true },
+      { name: "Nationality", value: charInfoParsed.nationality, inline: true },
+    ]
+  );
+
+  const tawLinkData = await TawLinks.findOne({ discordUserId: userToProcess.id });
+  if (tawLinkData && tawLinkData.fullyLinked) {
+    embed.addFields({ name: "TAW Callsign", value: tawLinkData.tawUserCallsign, inline: true });
+  }
+
+  embed.addFields(
+    { name: "Last Seen", value: `${lastSeen}\n(${lastSeenTimeAgo})`, inline: true },
+    { name: "Total Playtime", value: playtimeFormatted, inline: true },
+    { name: "Recent Activity", value: recentActivity, inline: false }
+  );
+
   // Create a more detailed embed with the additional info
   await interaction.editReply({
-    embeds: [
-      BasicEmbed(
-        interaction.client,
-        `Info for ${charInfoParsed.firstname} ${charInfoParsed.lastname}`,
-        `Character of <@${userToProcess.id}>`,
-        [
-          { name: "Citizen ID", value: `${citizenId}`, inline: true },
-          { name: "Discord ID", value: `${userToProcess.id}`, inline: true },
-          { name: "Birthdate", value: charInfoParsed.birthdate, inline: true },
-          { name: "IBAN", value: `${charInfoParsed.iban}`, inline: true },
-          { name: "Phone", value: charInfoParsed.phone || "None", inline: true },
-          { name: "Nationality", value: charInfoParsed.nationality, inline: true },
-          {
-            name: "Online Status",
-            value: playerIdentifiers.is_online ? "Online" : "Offline",
-            inline: true,
-          },
-          { name: "Last Seen", value: `${lastSeen}\n(${lastSeenTimeAgo})`, inline: true },
-          { name: "Total Playtime", value: playtimeFormatted, inline: true },
-          { name: "Recent Activity", value: recentActivity, inline: false },
-        ]
-      ),
-    ],
+    embeds: [embed],
     content: null,
   });
 }
