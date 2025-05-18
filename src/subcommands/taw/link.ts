@@ -160,11 +160,10 @@ export default async function tawLink(
     inline: true,
   });
 
+  const buttonId = "taw-link-confirm_" + tawLinkData.linkCode;
+
   const buttons = ButtonWrapper([
-    new ButtonBuilder()
-      .setCustomId("taw-link-confirm_" + tawLinkData.linkCode)
-      .setLabel("Confirm")
-      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId(buttonId).setLabel("Confirm").setStyle(ButtonStyle.Primary),
   ]);
 
   await interaction.editReply({
@@ -173,7 +172,8 @@ export default async function tawLink(
     content: "",
   });
 
-  const collectorFilter = (i: MessageComponentInteraction) => i.user.id === member.user.id;
+  const collectorFilter = (i: MessageComponentInteraction) =>
+    i.user.id === member.user.id && i.customId === buttonId;
   const collector = interaction.channel.createMessageComponentCollector({
     filter: collectorFilter,
     time: 5 * 60 * 1000, // 5 minutes
@@ -256,6 +256,24 @@ export default async function tawLink(
 
       const tawResponse = tawUserDataJson as TawMemberFetchResponse;
       const userData = tawResponse.memberData;
+
+      if (!tawLinkData.linkCode || !userData.bio?.includes(tawLinkData.linkCode)) {
+        await interaction.editReply({
+          content:
+            "The code does not appear to match your TAW profile. Please check the code and try again. Make sure to save your profile after entering the code in your bio.",
+          embeds: [],
+          components: [],
+        });
+        log.debug(
+          `Invalid code provided. Code: ${tawLinkData.linkCode}, Bio: ${userData.bio}`,
+          tawLinkData,
+          tawUserToLink,
+          response,
+          url
+        );
+        return;
+      }
+
       tawLinkData.fullyLinked = true;
       tawLinkData.tawUserCallsign = userData.callsign;
 
