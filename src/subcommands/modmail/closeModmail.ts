@@ -8,6 +8,8 @@ import { CommandOptions, SlashCommandProps } from "commandkit";
 import log from "../../utils/log";
 import FetchEnvs from "../../utils/FetchEnvs";
 import { initialReply } from "../../utils/initialReply";
+import { handleTag } from "../../events/messageCreate/gotMail";
+import ModmailConfig from "../../models/ModmailConfig";
 
 const env = FetchEnvs();
 
@@ -58,6 +60,15 @@ export default async function ({ interaction, client, handler }: SlashCommandPro
   user.send({
     embeds: [embed],
   });
+
+  const db = new Database();
+  const config = await db.findOne(ModmailConfig, { guildId: interaction.guildId });
+  // Now add the closed tag to the modmail thread
+  if (config) {
+    const forumChannel = (await getter.getChannel(config.forumChannelId)) as ForumChannel;
+    await handleTag(null, config, db, forumThread, forumChannel);
+  }
+
   try {
     await forumThread.setLocked(true, `${closedBy} closed: ${reason}`);
     await forumThread.setArchived(true, `${closedBy} closed: ${reason}`);
@@ -68,9 +79,9 @@ export default async function ({ interaction, client, handler }: SlashCommandPro
     );
   }
 
-  const db = new Database();
   await db.deleteOne(Modmail, { forumThreadId: forumThread.id });
   await db.cleanCache(`${env.MONGODB_DATABASE}:${env.MODMAIL_TABLE}:userId:*`);
+
   await interaction.editReply(
     `🎉 Successfully closed modmail thread! (Closed by ${closedBy.toLowerCase()})`
   );

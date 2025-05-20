@@ -19,11 +19,12 @@ import {
   ForumChannel,
   Snowflake,
   EmbedBuilder,
+  GuildForumTagData,
 } from "discord.js";
 import { ButtonBuilder, ButtonStyle, SlashCommandBuilder } from "discord.js";
 import BasicEmbed from "../../utils/BasicEmbed";
-import Modmail from "../../models/Modmail";
-import ModmailConfig from "../../models/ModmailConfig";
+import Modmail, { ModmailType } from "../../models/Modmail";
+import ModmailConfig, { ModmailConfigType, ModmailStatus } from "../../models/ModmailConfig";
 import ButtonWrapper from "../../utils/ButtonWrapper";
 import { redisClient, removeMentions, waitingEmoji } from "../../Bot";
 import {
@@ -359,8 +360,8 @@ async function newModmail(
       const member = await getter.getMember(guild, i.user.id);
       const memberName = member.nickname || member.user.displayName;
 
-      const channel = (await getter.getChannel(channelId)) as unknown as ForumChannel; // TODO: This is unsafe
-      const threads = channel.threads;
+      const forumChannel = (await getter.getChannel(channelId)) as unknown as ForumChannel; // TODO: This is unsafe
+      const threads = forumChannel.threads;
       const noMentionsMessage = removeMentions(message.content);
       const { data: thread, error: threadCreateError } = await tryCatch(
         threads.create({
@@ -404,7 +405,7 @@ async function newModmail(
       if (!config || !config.webhookId || !config.webhookToken) {
         // If there's no webhook configured yet, create one and update the config (this allows for seamless migration)
         log.info("Creating new webhook for modmail config");
-        const webhook = await channel.createWebhook({
+        const webhook = await forumChannel.createWebhook({
           name: "Modmail System",
           avatar: client.user.displayAvatarURL(),
           reason: "Modmail system webhook for relaying user messages.",
@@ -451,6 +452,19 @@ async function newModmail(
           new: true,
         }
       );
+
+      // Handle updating the tag for the thread
+      if (config) {
+        await handleTag(
+          await db.findOne(Modmail, { userId: i.user.id }),
+          config,
+          db,
+          thread,
+          forumChannel
+        );
+      } else {
+        console.error(`Could not update tags: ModmailConfig is null for guild: ${guildId}`);
+      }
 
       reply.edit({
         content: ``,
@@ -604,4 +618,108 @@ async function handleReply(message: Message, client: Client<true>, staffUser: Us
   debugMsg("Sent message to user" + mail.userId + " in guild " + mail.guildId);
 
   return message.react("📨");
+}
+
+export async function handleTag(
+  modmail: ModmailType | null,
+  modmailConfig: ModmailConfigType,
+  db: Database,
+  thread: ThreadChannel,
+  forumChannel: ForumChannel
+) {
+  // Determine which status to set based on whether modmail exists
+  const targetStatus = modmail ? ModmailStatus.OPEN : ModmailStatus.CLOSED;
+
+  // First, ensure tags exist in the database config
+  if (!modmailConfig.tags || modmailConfig.tags.length !== Object.values(ModmailStatus).length) {
+    // Create tag data for all possible statuses
+    const tagData: GuildForumTagData[] = [];
+    for (const status of Object.values(ModmailStatus)) {
+      // For each status, create a tag with the status name
+      tagData.push({
+        name: status,
+        emoji: { name: status === ModmailStatus.OPEN ? "📬" : "📪", id: null },
+        id: getTagSnowflake(status),
+        moderated: true,
+      });
+    }
+
+    // Set available tags on the forum channel
+    await forumChannel.setAvailableTags(tagData);
+
+    // Update the config in the database with the new tags
+    await db.findOneAndUpdate(
+      ModmailConfig,
+      { guildId: modmailConfig.guildId },
+      {
+        tags: tagData.map((tag) => ({
+          snowflake: tag.id,
+          status: tag.name,
+        })),
+      },
+      { new: true, upsert: true }
+    );
+
+    // Retrieve the updated config
+    const updatedConfig = await db.findOne(ModmailConfig, { guildId: modmailConfig.guildId });
+    if (!updatedConfig) {
+      throw new Error(
+        `Failed to retrieve updated ModmailConfig for guild: ${modmailConfig.guildId}`
+      );
+    }
+    modmailConfig = updatedConfig;
+  }
+
+  // Now check if the forum tags actually exist
+  const forumTags = await forumChannel.availableTags;
+  const statusTagsExist = Object.values(ModmailStatus).every((status) =>
+    forumTags.some((tag) => tag.name === status)
+  );
+
+  // If forum tags don't match expected statuses, recreate them
+  if (!statusTagsExist) {
+    const tagData: GuildForumTagData[] = [];
+    for (const status of Object.values(ModmailStatus)) {
+      tagData.push({
+        name: status,
+        emoji: { name: status === ModmailStatus.OPEN ? "📬" : "❌", id: null },
+        id: getTagSnowflake(status),
+        moderated: true,
+      });
+    }
+    await forumChannel.setAvailableTags(tagData);
+  }
+
+  // Find the correct tag for the current status
+  const targetTag = forumChannel.availableTags.find((tag) => tag.name === targetStatus);
+
+  if (targetTag) {
+    // Apply the tag to the thread
+    await thread.setAppliedTags([targetTag.id]);
+
+    // If we have a modmail, update its record in the database
+    if (modmail) {
+      await db.findOneAndUpdate(
+        Modmail,
+        { userId: modmail.userId },
+        {
+          tags:
+            modmailConfig.tags ||
+            Object.values(ModmailStatus).map((status) => ({
+              snowflake: getTagSnowflake(status),
+              status: status,
+            })),
+        },
+        { new: true, upsert: true }
+      );
+    }
+  } else {
+    // Log error if tag wasn't found
+    console.error(`Could not find tag for status: ${targetStatus}`);
+  }
+}
+
+function getTagSnowflake(status: ModmailStatus) {
+  const statusNumber = Object.values(ModmailStatus).indexOf(status);
+  return statusNumber.toString();
 }

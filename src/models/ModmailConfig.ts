@@ -1,4 +1,24 @@
-import { Schema, model } from "mongoose";
+import { InferSchemaType, Schema, model } from "mongoose";
+
+export enum ModmailStatus {
+  OPEN = "open",
+  CLOSED = "closed",
+}
+
+const tagsSchema = new Schema(
+  {
+    snowflake: {
+      type: String,
+      required: true,
+    },
+    status: {
+      type: String,
+      enum: Object.values(ModmailStatus),
+      default: ModmailStatus.OPEN,
+    },
+  },
+  { _id: false }
+);
 
 const ModmailConfig = new Schema({
   guildId: {
@@ -25,6 +45,11 @@ const ModmailConfig = new Schema({
     type: String,
     required: false,
   },
+  tags: {
+    type: [tagsSchema],
+    required: false,
+  },
 });
 
 export default model("ModmailConfig", ModmailConfig);
+export type ModmailConfigType = InferSchemaType<typeof ModmailConfig>;
