@@ -5,6 +5,7 @@ import {
   ButtonInteraction,
   ButtonStyle,
   Client,
+  MessageFlags,
 } from "discord.js";
 import FetchEnvs from "../../utils/FetchEnvs";
 import Database from "../../utils/data/database";
@@ -87,6 +88,7 @@ export default async (interaction: ButtonInteraction, client: Client) => {
     if (!member.permissions.has("ManageMessages")) {
       await interaction.reply({
         content: "You do not have permission to manage this suggestion.",
+        flags: MessageFlags.Ephemeral,
       });
       return true;
     }
