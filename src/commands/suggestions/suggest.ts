@@ -10,6 +10,7 @@ import {
   ButtonStyle,
   Interaction,
   EmbedField,
+  ChannelType,
 } from "discord.js";
 import { globalCooldownKey, setCommandCooldown, userCooldownKey, waitingEmoji } from "../../Bot";
 import generateHelpFields from "../../utils/data/static/generateHelpFields";
@@ -22,6 +23,7 @@ import SuggestionModel, { SuggestionStatus, SuggestionsType } from "../../models
 import FetchEnvs from "../../utils/FetchEnvs";
 import OpenAI from "openai";
 import log from "../../utils/log";
+import { Channel } from "diagnostics_channel";
 
 export const data = new SlashCommandBuilder()
   .setName("suggest")
@@ -99,7 +101,17 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
   modal.addComponents(firstActionRow, secondActionRow);
 
   // Present the modal to the user
-  await interaction.showModal(modal);
+  try {
+    await interaction.showModal(modal);
+  } catch (error) {
+    console.error("Error showing modal:", error);
+    await interaction.reply({
+      content:
+        "There was an error showing the suggestion modal. Please try again in a few seconds. If you contineu to have issues, please contact the server admin.",
+      ephemeral: true,
+    });
+    return;
+  }
 
   // Wait for the modal submission
   const filter = (i: ModalSubmitInteraction) => i.customId === modalId;
@@ -142,10 +154,87 @@ async function submitSuggestion(
 ) {
   await initialReply(interaction, true);
 
-  try {
-    const title = await getSuggestionTitle(suggestion, reason);
+  let suggestionMessage: any = null;
 
-    // Create a new suggestion document - Mongoose will handle the ID generation
+  try {
+    log.debug("Starting suggestion submission process", {
+      userId: interaction.user.id,
+      guildId: interaction.guildId,
+      channelId: suggestionConfig.channelId,
+      suggestionLength: suggestion.length,
+      reasonLength: reason.length,
+    });
+
+    const title = await getSuggestionTitle(suggestion, reason);
+    log.debug("Generated suggestion title", { title, titleLength: title.length });
+
+    // Create a temporary suggestion object for display purposes
+    const tempSuggestion = {
+      userId: interaction.user.id,
+      guildId: interaction.guildId!,
+      channelId: suggestionConfig.channelId,
+      suggestion,
+      reason,
+      title,
+      status: SuggestionStatus.Pending,
+      id: `temp-${Date.now()}`, // Temporary ID for buttons
+      messageLink: "", // Temporary empty messageLink
+    };
+
+    // Send message to the suggestions channel first
+    log.debug("Attempting to fetch suggestions channel", { channelId: suggestionConfig.channelId });
+    const suggestionsChannel = await interaction.client.channels.fetch(suggestionConfig.channelId);
+    log.debug("Channel fetch completed", {
+      channelExists: !!suggestionsChannel,
+      channelType: suggestionsChannel?.type,
+      isTextBased: suggestionsChannel?.isTextBased(),
+    });
+
+    if (
+      !suggestionsChannel ||
+      !suggestionsChannel.isTextBased() ||
+      suggestionsChannel.type !== ChannelType.GuildText
+    ) {
+      log.debug("Channel validation failed", {
+        channelExists: !!suggestionsChannel,
+        isTextBased: suggestionsChannel?.isTextBased(),
+        channelType: suggestionsChannel?.type,
+        expectedType: ChannelType.GuildText,
+      });
+      await interaction.editReply({
+        content:
+          "There was an error accessing the suggestions channel. Please contact an administrator.",
+      });
+      return;
+    }
+
+    log.debug("Channel validation passed, creating embed and buttons");
+    const suggestionEmbed = getSuggestionEmbed(interaction, tempSuggestion as SuggestionsType);
+    const row = getSuggestionButtons(0, 0, tempSuggestion as SuggestionsType); // Initialize with 0 upvotes and downvotes
+    log.debug("Embed and buttons created, attempting to send message");
+
+    const { data: messageResult, error: messageError } = await tryCatch(
+      suggestionsChannel.send({
+        embeds: [suggestionEmbed],
+        components: [row],
+      })
+    );
+
+    if (!messageResult || messageError) {
+      log.error("Failed to send suggestion message to channel", { error: messageError });
+      await interaction.editReply({
+        content: "There was an error sending your suggestion message. Please try again later.",
+      });
+      return;
+    }
+
+    suggestionMessage = messageResult;
+    log.debug("Message sent successfully", {
+      messageId: suggestionMessage.id,
+      messageUrl: suggestionMessage.url,
+    });
+
+    // Now create and save the suggestion to the database with the message URL
     const newSuggestion = new SuggestionModel({
       userId: interaction.user.id,
       guildId: interaction.guildId!,
@@ -154,9 +243,17 @@ async function submitSuggestion(
       reason,
       title,
       status: SuggestionStatus.Pending,
+      messageLink: suggestionMessage.url,
+    });
+    log.debug("Created new suggestion model", {
+      modelId: newSuggestion.id,
+      status: newSuggestion.status,
+      hasTitle: !!newSuggestion.title,
+      hasMessageLink: !!newSuggestion.messageLink,
     });
 
     // Save the suggestion to the database
+    log.debug("Attempting to save suggestion to database", { suggestionId: newSuggestion.id });
     const savedSuggestion = await db.findOneAndUpdate(
       SuggestionModel,
       { id: newSuggestion.id },
@@ -166,9 +263,17 @@ async function submitSuggestion(
         new: true,
       }
     );
+    log.debug("Database save operation completed", {
+      savedSuggestionExists: !!savedSuggestion,
+      savedSuggestionId: savedSuggestion?.id,
+      savedSuggestionStatus: savedSuggestion?.status,
+    });
 
     if (!savedSuggestion || !savedSuggestion.id) {
-      log.error("Failed to generate ID for suggestion");
+      log.error("Failed to save suggestion to database");
+      // Delete the message since DB save failed
+      await tryCatch(suggestionMessage.delete());
+      log.debug("Deleted message due to database save failure");
       await interaction.editReply({
         content: "There was an error saving your suggestion. Please try again later.",
       });
@@ -177,44 +282,49 @@ async function submitSuggestion(
 
     log.info(`New suggestion created with ID: ${savedSuggestion.id}`);
 
-    // Send message to the suggestions channel
-    const suggestionsChannel = await interaction.client.channels.fetch(suggestionConfig.channelId);
+    // Update the message with the correct suggestion ID in buttons
+    const updatedEmbed = getSuggestionEmbed(interaction, savedSuggestion);
+    const updatedRow = getSuggestionButtons(0, 0, savedSuggestion);
 
-    if (suggestionsChannel && suggestionsChannel.isTextBased()) {
-      const suggestionEmbed = getSuggestionEmbed(interaction, savedSuggestion);
+    const { error: updateError } = await tryCatch(
+      suggestionMessage.edit({
+        embeds: [updatedEmbed],
+        components: [updatedRow],
+      })
+    );
 
-      const row = getSuggestionButtons(0, 0, savedSuggestion); // Initialize with 0 upvotes and downvotes
-
-      const { data: suggestionMessage, error: _ } = await suggestionsChannel.send({
-        embeds: [suggestionEmbed],
-        components: [row],
-      });
-
-      if (!suggestionMessage) {
-        log.error("Failed to send suggestion message to channel");
-        await interaction.editReply({
-          content: "There was an error sending your suggestion message. Please try again later.",
-        });
-        return;
-      }
-
-      // Update the suggestion with the message ID
-      savedSuggestion.messageLink = suggestionMessage.url;
-      await db.findOneAndUpdate(SuggestionModel, { id: savedSuggestion.id }, savedSuggestion, {
-        upsert: true,
-        new: true,
-      });
+    if (updateError) {
+      log.warn("Failed to update message with correct suggestion ID", { error: updateError });
     }
 
     // Reply to the user
+    log.debug("Sending final reply to user", { messageLink: savedSuggestion.messageLink });
     await interaction.editReply({
       content: `Thank you! Your suggestion has been submitted ${savedSuggestion.messageLink}`,
     });
+    log.debug("Final reply sent successfully");
 
     // Set cooldown
+    log.debug("Setting user cooldown", { userId: interaction.user.id, cooldownSeconds: 3600 });
     setCommandCooldown(userCooldownKey(interaction.user.id, "suggest"), 60 * 60); // 1 hour cooldown in seconds
+    log.debug("Suggestion submission process completed successfully");
   } catch (error) {
-    console.error("Error submitting suggestion:", error);
+    log.error("Error submitting suggestion:", error);
+    log.debug("Error context", {
+      userId: interaction.user.id,
+      guildId: interaction.guildId,
+      channelId: suggestionConfig.channelId,
+      errorName: error instanceof Error ? error.name : "Unknown",
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorStack: error instanceof Error ? error.stack : undefined,
+    });
+
+    // If we have a message and an error occurred, try to delete it
+    if (suggestionMessage) {
+      await tryCatch(suggestionMessage.delete());
+      log.debug("Deleted message due to error in submission process");
+    }
+
     await interaction.editReply({
       content: "There was an error submitting your suggestion. Please try again later.",
     });
