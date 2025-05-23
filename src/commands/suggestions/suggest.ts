@@ -429,7 +429,7 @@ export function getSuggestionEmbed(
     { name: "Suggestion (Your suggestion)", value: savedSuggestion.suggestion, inline: false },
     { name: "Reason (Why we should add this)", value: savedSuggestion.reason, inline: false },
     { name: "Submitted by", value: `<@${savedSuggestion.userId}>`, inline: true },
-    { name: "Created ", value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true },
+    { name: "Created / Updated", value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true },
     { name: "Status", value: savedSuggestion.status, inline: true },
   ];
 
