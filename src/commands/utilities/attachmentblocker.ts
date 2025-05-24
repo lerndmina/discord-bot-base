@@ -37,7 +37,8 @@ export const data = new SlashCommandBuilder()
         { name: "image", value: "image" },
         { name: "video", value: "video" },
         { name: "audio", value: "audio" },
-        { name: "all", value: "all" }
+        { name: "all", value: "all" },
+        { name: "none", value: "none" } // Used to block all attachments
       )
   )
   .addBooleanOption((option) =>

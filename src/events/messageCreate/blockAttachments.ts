@@ -52,21 +52,30 @@ export default async (message: Message, client: Client<true>) => {
   // Get channel configuration
   const config = await db.findOne(AttachmentBlocker, { channelId }, true);
   if (!config || config.attachmentTypes.length < 1) return;
-
   // If ALL is allowed, let everything through
   if (config.attachmentTypes.includes(AttachmentType.ALL)) return;
 
-  // Skip if message has no attachments and no content to check
-  if (message.attachments.size === 0 && !message.content) return;
+  // If NONE is set, block all attachments and GIF links
+  const isNoneSet = config.attachmentTypes.includes(AttachmentType.NONE);
+
+  // Skip if message has no attachments and no content to check (unless NONE is set)
+  if (!isNoneSet && message.attachments.size === 0 && !message.content) return;
 
   // Track if message should be deleted
   let shouldDelete = false;
   let blockedReasons: string[] = [];
-
   // Check each attachment
   for (const [_, attachment] of message.attachments.entries()) {
-    // Get file extension
     const mimeType = attachment.contentType?.toLowerCase() || "";
+
+    // If NONE is set, block all attachments
+    if (isNoneSet) {
+      shouldDelete = true;
+      if (blockedReasons.length < 1) {
+        blockedReasons.push(`No attachments allowed`);
+      }
+      continue;
+    }
 
     // Check if attachment type is allowed
     let isAllowed = false;
@@ -88,11 +97,10 @@ export default async (message: Message, client: Client<true>) => {
         blockedReasons.push(mimeType);
       }
     }
-  }
-  // Only check for GIF links if VIDEO type is NOT allowed
+  } // Only check for GIF links if VIDEO type is NOT allowed OR if NONE is set
   const isVideoAllowed = config.attachmentTypes.includes(AttachmentType.VIDEO);
 
-  if (!isVideoAllowed && message.content) {
+  if ((!isVideoAllowed || isNoneSet) && message.content) {
     // Check for GIF and media links in message content from various hosting platforms
     const gifPatterns = [
       // Direct .gif links

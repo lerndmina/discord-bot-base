@@ -5,6 +5,7 @@ export enum AttachmentType {
   VIDEO = "video",
   AUDIO = "audio",
   ALL = "all",
+  NONE = "none", // Used for no attachments allowed
 }
 
 export const AttachmentTypesResolved = {
@@ -62,6 +63,7 @@ export const AttachmentTypesResolved = {
     "audio/x-ms-wax",
   ],
   [AttachmentType.ALL]: ["all"],
+  [AttachmentType.NONE]: ["none"], // Used to block all attachments
 };
 
 const AttachmentBlocker = new Schema({
