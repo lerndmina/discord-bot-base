@@ -11,27 +11,55 @@ export const AttachmentTypesResolved = {
   [AttachmentType.IMAGE]: [
     "image/png",
     "image/jpeg",
+    "image/jpg",
     "image/webp",
     "image/bmp",
     "image/tiff",
+    "image/tif",
     "image/svg+xml",
+    "image/ico",
+    "image/x-icon",
+    "image/vnd.microsoft.icon",
+    "image/heic",
+    "image/heif",
+    "image/avif",
+    "image/jxl",
   ],
   [AttachmentType.VIDEO]: [
     "video/mp4",
     "video/webm",
     "video/ogg",
     "video/quicktime",
+    "video/x-msvideo", // AVI
+    "video/x-ms-wmv", // WMV
+    "video/x-flv", // FLV
+    "video/3gpp",
+    "video/3gpp2",
+    "video/x-matroska", // MKV
     "image/gif",
     "image/apng",
+    "image/webp", // WebP can be animated
   ], // Including GIF and APNG as video types
   [AttachmentType.AUDIO]: [
     "audio/mpeg",
+    "audio/mp3",
     "audio/wav",
+    "audio/wave",
+    "audio/x-wav",
     "audio/ogg",
     "audio/flac",
+    "audio/x-flac",
     "audio/x-m4a",
+    "audio/mp4", // M4A files sometimes use this
     "audio/aac",
+    "audio/x-aac",
     "audio/x-ms-wma",
+    "audio/opus",
+    "audio/webm",
+    "audio/3gpp",
+    "audio/3gpp2",
+    "audio/amr",
+    "audio/x-ms-wax",
   ],
   [AttachmentType.ALL]: ["all"],
 };
