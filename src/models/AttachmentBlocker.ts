@@ -11,13 +11,19 @@ export const AttachmentTypesResolved = {
   [AttachmentType.IMAGE]: [
     "image/png",
     "image/jpeg",
-    "image/gif",
     "image/webp",
     "image/bmp",
     "image/tiff",
     "image/svg+xml",
   ],
-  [AttachmentType.VIDEO]: ["video/mp4", "video/webm", "video/ogg", "video/quicktime"],
+  [AttachmentType.VIDEO]: [
+    "video/mp4",
+    "video/webm",
+    "video/ogg",
+    "video/quicktime",
+    "image/gif",
+    "image/apng",
+  ], // Including GIF and APNG as video types
   [AttachmentType.AUDIO]: [
     "audio/mpeg",
     "audio/wav",
