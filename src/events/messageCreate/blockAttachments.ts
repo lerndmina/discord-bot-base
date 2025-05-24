@@ -141,11 +141,9 @@ export default async (message: Message, client: Client<true>) => {
       const linkTypes = getDetectedLinkTypes(detectedGifLinks);
 
       if (blockedReasons.length < 1) {
-        blockedReasons.push(
-          `${linkTypes} not allowed (${gifCount} link${gifCount > 1 ? "s" : ""})`
-        );
+        blockedReasons.push(`${linkTypes} not allowed`);
       } else {
-        blockedReasons.push(`${linkTypes} (${gifCount} link${gifCount > 1 ? "s" : ""})`);
+        blockedReasons.push(`${linkTypes}`);
       }
     }
   }
