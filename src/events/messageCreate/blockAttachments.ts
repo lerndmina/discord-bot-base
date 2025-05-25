@@ -179,7 +179,9 @@ export default async (message: Message, client: Client<true>) => {
             BasicEmbed(
               client,
               "Attachment Blocker",
-              `Your message in <#${message.channel.id}> was removed: ${blockedReasons.join(", ")}${
+              `Your message in <#${
+                message.channel.id
+              }> was removed. It volated the channel rule: ${blockedReasons.join(", ")}${
                 config.timeoutDuration > 0
                   ? `\n\nYou have also been timed out for ${config.timeoutDuration / 1000} seconds.`
                   : ""
