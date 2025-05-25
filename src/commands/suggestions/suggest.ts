@@ -11,6 +11,7 @@ import {
   Interaction,
   EmbedField,
   ChannelType,
+  Message,
 } from "discord.js";
 import { globalCooldownKey, setCommandCooldown, userCooldownKey, waitingEmoji } from "../../Bot";
 import generateHelpFields from "../../utils/data/static/generateHelpFields";
@@ -154,7 +155,7 @@ async function submitSuggestion(
 ) {
   await initialReply(interaction, true);
 
-  let suggestionMessage: any = null;
+  let suggestionMessage: Message<true> | null = null;
 
   try {
     log.debug("Starting suggestion submission process", {
@@ -295,6 +296,17 @@ async function submitSuggestion(
 
     if (updateError) {
       log.warn("Failed to update message with correct suggestion ID", { error: updateError });
+    }
+
+    if (suggestionMessage && !suggestionMessage.hasThread) {
+      log.debug("Creating thread for suggestion message", { messageId: suggestionMessage.id });
+      await tryCatch(
+        suggestionMessage.startThread({
+          name: `Suggestion Discussion - ${savedSuggestion.title}`,
+          reason: `Suggestion discussion for ${savedSuggestion.title}`,
+        })
+      );
+      log.debug("Thread created successfully");
     }
 
     // Reply to the user
