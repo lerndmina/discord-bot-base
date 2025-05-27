@@ -12,6 +12,7 @@ import {
   EmbedField,
   ChannelType,
   Message,
+  userMention,
 } from "discord.js";
 import { globalCooldownKey, setCommandCooldown, userCooldownKey, waitingEmoji } from "../../Bot";
 import generateHelpFields from "../../utils/data/static/generateHelpFields";
@@ -300,12 +301,22 @@ async function submitSuggestion(
 
     if (suggestionMessage && !suggestionMessage.hasThread) {
       log.debug("Creating thread for suggestion message", { messageId: suggestionMessage.id });
-      await tryCatch(
+      const { data: thread, error: _ } = await tryCatch(
         suggestionMessage.startThread({
           name: `Suggestion Discussion - ${savedSuggestion.title}`,
           reason: `Suggestion discussion for ${savedSuggestion.title}`,
         })
       );
+
+      if (thread) {
+        thread.send({
+          content: `${userMention(
+            interaction.user.id
+          )} This thread has been created for discussion about the suggestion: ${
+            savedSuggestion.title
+          }. Please keep the discussion respectful and constructive.`,
+        });
+      }
       log.debug("Thread created successfully");
     }
 
