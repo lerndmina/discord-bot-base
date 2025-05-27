@@ -363,6 +363,20 @@ async function newModmail(
       const forumChannel = (await getter.getChannel(channelId)) as unknown as ForumChannel; // TODO: This is unsafe
       const threads = forumChannel.threads;
       const noMentionsMessage = removeMentions(message.content);
+
+      let messageContent = `Modmail thread for ${memberName} | ${i.user.id} | <@${
+        i.user.id
+      }>\n\n Original message: ${noMentionsMessage}${
+        member.pending ? "\n\nUser has not fully joined the guild." : ""
+      }`;
+
+      if (message.attachments.size > 0) {
+        messageContent += `\n\nAttachments:`;
+        for (const attachment of message.attachments.values()) {
+          messageContent += `\n- [${attachment.name}](${attachment.url})`;
+        }
+      }
+
       const { data: thread, error: threadCreateError } = await tryCatch(
         threads.create({
           name: `${
@@ -372,11 +386,7 @@ async function newModmail(
           } - ${memberName}`,
           autoArchiveDuration: ThreadAutoArchiveDuration.OneWeek,
           message: {
-            content: `Modmail thread for ${memberName} | ${i.user.id} | <@${
-              i.user.id
-            }>\n\n Original message: ${noMentionsMessage}${
-              member.pending ? "\n\nUser has not fully joined the guild." : ""
-            }`,
+            content: messageContent,
           },
         })
       );
