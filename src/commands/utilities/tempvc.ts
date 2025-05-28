@@ -53,6 +53,11 @@ export const data = new SlashCommandBuilder()
       .addChannelOption((option) =>
         option.setName("channel").setDescription("The users join.").setRequired(true)
       );
+  })
+  .addSubcommand((subcommand) => {
+    return subcommand
+      .setName("delete-all")
+      .setDescription("Delete all temporary voice channels for this guild.");
   });
 
 export const options: CommandOptions = {
@@ -239,6 +244,49 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
             client,
             "Error!",
             `Error deleting temp vc creator: \`\`\`${error}\`\`\``,
+            undefined,
+            "#0099ff"
+          ),
+        ],
+      });
+    }
+  } else if (subcommand === "delete-all") {
+    // Delete all temp VCs for this guild
+    const db = new Database();
+    const vcList = await db.findOne(GuildNewVC, query, true);
+    if (!vcList) {
+      await i.reply({
+        content: `There are no temp VCs for this guild.`,
+        ephemeral: true,
+      });
+      return;
+    }
+    await i.reply({
+      embeds: [BasicEmbed(client, "Deleting...", `Deleting all temp vc creators for this guild.`)],
+    });
+    try {
+      await db.deleteOne(GuildNewVC, query);
+      await i.editReply({
+        embeds: [
+          BasicEmbed(
+            client,
+            "Success!",
+            `Deleted all temp vc creators for this guild.`,
+            undefined,
+            "#0099ff"
+          ),
+        ],
+      });
+    } catch (error) {
+      log.info(`Error deleting all temp vc creators:`);
+      log.info(error as string);
+
+      await i.editReply({
+        embeds: [
+          BasicEmbed(
+            client,
+            "Error!",
+            `Error deleting all temp vc creators: \`\`\`${error}\`\`\``,
             undefined,
             "#0099ff"
           ),
