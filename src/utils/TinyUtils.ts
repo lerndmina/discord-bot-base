@@ -200,6 +200,7 @@ export async function returnMessage(
       embeds: [embed],
     });
   } catch (error) {
+    // @ts-expect-error
     await interaction.channel?.send({
       content: "",
       embeds: [embed],
