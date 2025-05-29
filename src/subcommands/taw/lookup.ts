@@ -13,7 +13,7 @@ const db = new Database();
 
 export default async function lookup(interaction: CommandInteraction, targetUser: User | null) {
   const userToLookup = targetUser || interaction.user;
-  const characterInfo = await getCharacterInfo(interaction, userToLookup);
+  const characterInfo = await getCharacterInfo(interaction, userToLookup, { includeJobInfo: true });
 
   if (!characterInfo) {
     return; // Error messages already handled in getCharacterInfo
@@ -55,6 +55,17 @@ export default async function lookup(interaction: CommandInteraction, targetUser
     { name: "Total Playtime", value: playtimeFormatted, inline: true },
     { name: "Recent Activity", value: recentActivity, inline: false }
   );
+
+  // Add job info if available
+  if (characterInfo.jobInfoParsed) {
+    for (const job of characterInfo.jobInfoParsed) {
+      embed.addFields({
+        name: `Job: ${job.name}`,
+        value: `Rank: ${job.grade}\nPlaytime (Week) ${job.week} minutes\nPlaytime (Total) ${job.total} minutes`,
+        inline: false,
+      });
+    }
+  }
 
   // Create a more detailed embed with the additional info
   await interaction.editReply({

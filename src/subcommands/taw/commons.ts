@@ -2,6 +2,8 @@ import { CommandInteraction, User } from "discord.js";
 import { fivemPool } from "../../Bot";
 import { tryCatch } from "../../utils/trycatch";
 import FetchEnvs from "../../utils/FetchEnvs";
+import log from "../../utils/log";
+import { GetJobNameFromId } from "../../commands/fivem/managejobs";
 const env = FetchEnvs();
 // Character info from the players table
 export interface CharacterInfo {
@@ -37,10 +39,20 @@ export interface ActivityRecord {
   time: number; // Unix timestamp
 }
 
+export interface FivemJob {
+  identifier: string;
+  name: string;
+  grade: number;
+  active: boolean;
+  total: number; // Playtime mins
+  week: number; // Playtime this week.
+}
+
 // Combined data for character processing
 export interface CharacterData {
   citizenId: string;
   charInfoParsed: CharacterInfo;
+  jobInfoParsed?: FivemJob[]; // Optional, only if includeJobInfo is true
   userToProcess: User;
   playerIdentifiers: PlayerIdentifiers;
 }
@@ -220,6 +232,10 @@ export async function getPlaytimeLeaderboard(
   }
 }
 
+interface CharacterFetchOptions {
+  includeJobInfo?: boolean; // Whether to include job info in the response
+}
+
 /**
  * Get character information for a Discord user
  * @param interaction The command interaction
@@ -228,7 +244,8 @@ export async function getPlaytimeLeaderboard(
  */
 export async function getCharacterInfo(
   interaction: CommandInteraction,
-  userToLookup: User
+  userToLookup: User,
+  options?: CharacterFetchOptions
 ): Promise<CharacterData | null> {
   // Check database connection
   env.DEBUG_LOG && (await interaction.editReply("Checking database connection..."));
@@ -313,10 +330,41 @@ export async function getCharacterInfo(
     const charInfoParsed = JSON.parse(charInfo) as CharacterInfo;
     env.DEBUG_LOG && (await interaction.editReply("Character information parsed."));
 
+    let jobInfoParsed: FivemJob[] | [] = [];
+
+    if (options?.includeJobInfo) {
+      // Query fivem_jobs table to get job information
+      env.DEBUG_LOG && (await interaction.editReply("Fetching job information..."));
+      const { data: jobRows, error: jobError } = await tryCatch(
+        fivemDb.query(`SELECT * FROM lunar_multijob WHERE identifier = ?`, [citizenId])
+      );
+
+      if (jobError) {
+        await interaction.editReply(`Failed to execute job query: ${jobError.message}`);
+        return null;
+      }
+      env.DEBUG_LOG &&
+        (await interaction.editReply(`Job query executed. Found ${jobRows?.length || 0} rows.`));
+      if (jobRows?.length > 0) {
+        // Parse job info
+        jobInfoParsed = jobRows.map((row: any) => ({
+          identifier: row.identifier,
+          name: GetJobNameFromId(row.name),
+          grade: row.grade,
+          active: row.active === 1, // Convert to boolean
+          total: row.total || 0, // Default to 0 if null
+          week: row.week || 0, // Default to 0 if null
+        }));
+      }
+    }
+
+    env.DEBUG_LOG && (await interaction.editReply("Job information processed."));
+
     // Return complete character data
     return {
       citizenId,
       charInfoParsed,
+      jobInfoParsed,
       userToProcess: userToLookup,
       playerIdentifiers: identifierRow,
     };
