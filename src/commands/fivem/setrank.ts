@@ -8,6 +8,7 @@ import Database from "../../utils/data/database";
 import FivemJob from "../../models/FivemJob";
 import FivemRankSetService from "../../services/FivemRankSetService";
 import log from "../../utils/log";
+import BasicEmbed from "../../utils/BasicEmbed";
 
 const env = FetchEnvs();
 const db = new Database();
@@ -92,8 +93,17 @@ if (envExists(env.ENABLE_FIVEM_SYSTEMS) && envExists(env.FIVEM_MYSQL_URI)) {
         });
       }
 
+      const embed = BasicEmbed(
+        client,
+        "Rank Set Successfully",
+        `Successfully set ${user.username} to ${GetJobNameFromId(job.name)} (${
+          job.name
+        }) grade ${rank}.`
+      );
+
       interaction.editReply({
-        content: result.message,
+        content: "",
+        embeds: [embed],
       });
     },
     async autocomplete({ interaction, client, handler }: AutocompleteProps) {
