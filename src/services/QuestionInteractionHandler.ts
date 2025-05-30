@@ -146,29 +146,24 @@ export class QuestionInteractionHandler {
 
     return components;
   }
-
   /**
    * Creates interaction components for a short form question
    */
   static createShortFormComponents(
     question: StringQuestion,
     questionIndex: number,
-    sessionId: string
+    sessionId: string,
+    session?: QuestionnaireSession
   ): ActionRowBuilder[] {
     const components: ActionRowBuilder[] = [];
 
-    // Modal button for immediate input
+    // Modal button for popup input
     const modalRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId(`questionnaire:${sessionId}:modal:${questionIndex}`)
         .setLabel("Answer in Popup")
         .setStyle(ButtonStyle.Primary)
-        .setEmoji("📝"),
-      new ButtonBuilder()
-        .setCustomId(`questionnaire:${sessionId}:message:${questionIndex}`)
-        .setLabel("Type Your Response")
-        .setStyle(ButtonStyle.Secondary)
-        .setEmoji("💬")
+        .setEmoji("📝")
     );
 
     components.push(modalRow);
@@ -314,6 +309,75 @@ export class QuestionInteractionHandler {
         iconURL: user.displayAvatarURL(),
       })
       .setTimestamp();
+  }
+
+  /**
+   * Creates a cumulative display embed showing all questions and answers
+   */
+  static createCumulativeDisplayEmbed(session: QuestionnaireSession, user: User): EmbedBuilder {
+    const embed = new EmbedBuilder()
+      .setTitle(`📋 ${session.questionnaireName}`)
+      .setDescription(
+        `Progress: ${session.responses.length}/${session.questions.length} questions completed`
+      )
+      .setColor(0x3498db)
+      .setFooter({
+        text: `${user.username}`,
+        iconURL: user.displayAvatarURL(),
+      })
+      .setTimestamp();
+
+    // Add previous questions and answers
+    session.responses.forEach((response, index) => {
+      const questionNumber = response.questionIndex + 1;
+      const answerText = Array.isArray(response.answer)
+        ? response.answer.join(", ")
+        : response.answer;
+
+      const displayAnswer =
+        answerText.length > 100 ? answerText.substring(0, 97) + "..." : answerText;
+
+      embed.addFields({
+        name: `✅ Q${questionNumber}: ${response.question}`,
+        value: `**Answer:** ${displayAnswer}`,
+        inline: false,
+      });
+    });
+
+    // Add current question if not at the end
+    if (session.currentQuestionIndex < session.questions.length) {
+      const currentQuestion = session.questions[session.currentQuestionIndex];
+      const questionNumber = session.currentQuestionIndex + 1;
+
+      embed.addFields({
+        name: `❓ Q${questionNumber}: ${currentQuestion.question}`,
+        value: "*Please provide your answer below*",
+        inline: false,
+      });
+
+      // Add options for multiple choice questions
+      if (isMultipleChoiceQuestion(currentQuestion)) {
+        const optionsText = currentQuestion.options
+          .map((option, index) => `${index + 1}. ${option}`)
+          .join("\n");
+
+        if (optionsText.length <= 1024) {
+          embed.addFields({
+            name: "Options:",
+            value: optionsText,
+            inline: false,
+          });
+        } else {
+          embed.addFields({
+            name: "Options:",
+            value: "Multiple options available - use the buttons below to select",
+            inline: false,
+          });
+        }
+      }
+    }
+
+    return embed;
   }
 
   /**

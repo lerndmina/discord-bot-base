@@ -3,11 +3,11 @@ import {
   User,
   Guild,
   TextChannel,
+  DMChannel,
   Message,
   ButtonInteraction,
   StringSelectMenuInteraction,
   ModalSubmitInteraction,
-  MessageCollector,
   ComponentType,
   InteractionType,
 } from "discord.js";
@@ -28,8 +28,6 @@ import { v4 as uuidv4 } from "uuid";
 export default class QuestionnaireRunner {
   private static sessions = new Map<string, QuestionnaireSession>();
   private static timeouts = new Map<string, NodeJS.Timeout>();
-  private static collectors = new Map<string, MessageCollector>();
-
   /**
    * Start a new questionnaire session
    */
@@ -37,22 +35,43 @@ export default class QuestionnaireRunner {
     questionnaire: QuestionnaireType,
     user: User,
     guild: Guild,
-    channel: TextChannel,
+    channel: TextChannel | DMChannel,
     client: Client
   ): Promise<string | null> {
-    // Check if user already has an active session
+    // Check if user already has an active session for this guild
     const existingSessionId = this.findActiveSession(user.id, guild.id);
     if (existingSessionId) {
-      await channel.send({
-        embeds: [
-          QuestionInteractionHandler.createProgressEmbed(
-            this.sessions.get(existingSessionId)!,
-            user
-          ),
-        ],
-        content:
-          "You already have an active questionnaire session. Please complete or cancel it first.",
-      });
+      const existingSession = this.sessions.get(existingSessionId);
+      if (existingSession) {
+        // Try to send the progress to the user's DM if the session is in DM
+        try {
+          const existingChannel = await client.channels.fetch(existingSession.channelId);
+          if (
+            existingChannel &&
+            (existingChannel instanceof DMChannel || existingChannel instanceof TextChannel)
+          ) {
+            await existingChannel.send({
+              embeds: [QuestionInteractionHandler.createProgressEmbed(existingSession, user)],
+              content:
+                "You already have an active questionnaire session. Please complete or cancel it first.",
+            });
+          } else {
+            // Fallback to the provided channel
+            await channel.send({
+              embeds: [QuestionInteractionHandler.createProgressEmbed(existingSession, user)],
+              content:
+                "You already have an active questionnaire session. Please complete or cancel it first.",
+            });
+          }
+        } catch (error) {
+          // Fallback to the provided channel if fetching fails
+          await channel.send({
+            embeds: [QuestionInteractionHandler.createProgressEmbed(existingSession, user)],
+            content:
+              "You already have an active questionnaire session. Please complete or cancel it first.",
+          });
+        }
+      }
       return null;
     }
     const sessionId = uuidv4();
@@ -79,7 +98,6 @@ export default class QuestionnaireRunner {
 
     return sessionId;
   }
-
   /**
    * Display the current question to the user
    */
@@ -92,18 +110,17 @@ export default class QuestionnaireRunner {
       await this.completeQuestionnaire(sessionId, client);
       return;
     }
-
     try {
       const user = await client.users.fetch(session.userId);
-      const channel = (await client.channels.fetch(session.channelId)) as TextChannel;
+      const channel = await client.channels.fetch(session.channelId);
 
-      const embed = QuestionInteractionHandler.createQuestionEmbed(
-        question,
-        session.currentQuestionIndex,
-        session.questions.length,
-        session.questionnaireName,
-        user
-      );
+      if (!channel || !(channel instanceof TextChannel || channel instanceof DMChannel)) {
+        log.error(`Invalid channel type for questionnaire session ${sessionId}`);
+        return;
+      }
+
+      // Use cumulative display instead of single question embed
+      const embed = QuestionInteractionHandler.createCumulativeDisplayEmbed(session, user);
 
       let components: any[] = [];
 
@@ -118,22 +135,38 @@ export default class QuestionnaireRunner {
         components = QuestionInteractionHandler.createShortFormComponents(
           question,
           session.currentQuestionIndex,
-          sessionId
+          sessionId,
+          session
         );
       }
 
-      const message = await channel.send({
-        embeds: [embed],
-        components,
-      });
-
-      session.messageId = message.id;
-      session.lastActivityAt = new Date();
-
-      // Set up message collector for text responses if it's a string question
-      if (isStringQuestion(question)) {
-        this.setupMessageCollector(sessionId, channel, user, client);
+      // Update existing message if we have one, otherwise send new message
+      if (session.messageId) {
+        try {
+          const existingMessage = await channel.messages.fetch(session.messageId);
+          await existingMessage.edit({
+            embeds: [embed],
+            components,
+          });
+        } catch (error) {
+          // If we can't fetch/edit the existing message, send a new one
+          log.warn(`Could not edit existing message ${session.messageId}, sending new one:`, error);
+          const message = await channel.send({
+            embeds: [embed],
+            components,
+          });
+          session.messageId = message.id;
+        }
+      } else {
+        // Send initial message
+        const message = await channel.send({
+          embeds: [embed],
+          components,
+        });
+        session.messageId = message.id;
       }
+
+      session.lastActivityAt = new Date();
     } catch (error) {
       log.error("Error displaying question:", error);
       await this.cancelQuestionnaire(
@@ -168,7 +201,6 @@ export default class QuestionnaireRunner {
     }
 
     session.lastActivityAt = new Date();
-
     switch (action) {
       case "mc": // Multiple choice button
         await this.handleMultipleChoiceButton(interaction, sessionId, parts, client);
@@ -178,9 +210,6 @@ export default class QuestionnaireRunner {
         break;
       case "modal": // Show modal for text input
         await this.handleModalButton(interaction, sessionId, parts, client);
-        break;
-      case "message": // Switch to message collector mode
-        await this.handleMessageButton(interaction, sessionId, client);
         break;
       case "prev": // Previous question
         await this.handlePreviousButton(interaction, sessionId, client);
@@ -287,7 +316,6 @@ export default class QuestionnaireRunner {
         });
         return;
       }
-
       await interaction.update({
         content: `✅ **Selected:** ${selectedOption}`,
         embeds: [],
@@ -334,7 +362,6 @@ export default class QuestionnaireRunner {
       });
       return;
     }
-
     await interaction.update({
       content: `✅ **Selected:** ${Array.isArray(answer) ? answer.join(", ") : answer}`,
       embeds: [],
@@ -390,7 +417,6 @@ export default class QuestionnaireRunner {
       });
       return;
     }
-
     await interaction.reply({
       content: `✅ **Your response:** ${
         response.length > 100 ? response.substring(0, 97) + "..." : response
@@ -399,25 +425,10 @@ export default class QuestionnaireRunner {
     });
 
     const session = this.sessions.get(sessionId)!;
+
     session.currentQuestionIndex++;
     setTimeout(() => this.displayQuestion(sessionId, client), 1000);
   }
-
-  /**
-   * Handle message mode button
-   */
-  private static async handleMessageButton(
-    interaction: ButtonInteraction,
-    sessionId: string,
-    client: Client
-  ): Promise<void> {
-    await interaction.reply({
-      content:
-        "💬 **Message mode activated!** Please type your response in this channel. You have 30 minutes to respond.",
-      ephemeral: true,
-    });
-  }
-
   /**
    * Handle previous button
    */ private static async handlePreviousButton(
@@ -426,11 +437,8 @@ export default class QuestionnaireRunner {
     client: Client
   ): Promise<void> {
     const session = this.sessions.get(sessionId)!;
-
     if (session.currentQuestionIndex > 0) {
-      session.currentQuestionIndex--;
-
-      // Remove the question from completed set and remove its response
+      session.currentQuestionIndex--; // Remove the question from completed set and remove its response
       session.completedQuestions.delete(session.currentQuestionIndex);
       session.responses = session.responses.filter(
         (r) => r.questionIndex !== session.currentQuestionIndex
@@ -470,7 +478,6 @@ export default class QuestionnaireRunner {
       });
       return;
     }
-
     await interaction.update({
       content: "⏭️ Question skipped.",
       embeds: [],
@@ -602,7 +609,12 @@ export default class QuestionnaireRunner {
 
     try {
       const user = await client.users.fetch(session.userId);
-      const channel = (await client.channels.fetch(session.channelId)) as TextChannel;
+      const channel = await client.channels.fetch(session.channelId);
+
+      if (!channel || !(channel instanceof TextChannel || channel instanceof DMChannel)) {
+        log.error(`Invalid channel type for questionnaire completion ${sessionId}`);
+        return;
+      }
 
       // Save responses to database
       await this.saveQuestionnaireResponse(session, user);
@@ -644,59 +656,6 @@ export default class QuestionnaireRunner {
       this.cleanupSession(sessionId);
     }
   }
-
-  /**
-   * Setup message collector for text responses
-   */
-  private static setupMessageCollector(
-    sessionId: string,
-    channel: TextChannel,
-    user: User,
-    client: Client
-  ): void {
-    const filter = (m: Message) => m.author.id === user.id && !m.author.bot;
-    const collector = channel.createMessageCollector({
-      filter,
-      time: 30 * 60 * 1000, // 30 minutes
-      max: 1,
-    });
-    collector.on("collect", async (message) => {
-      const session = this.sessions.get(sessionId);
-      if (!session) return;
-
-      const saved = await this.saveResponse(
-        sessionId,
-        session.currentQuestionIndex,
-        message.content
-      );
-
-      if (!saved) {
-        await message.reply({
-          content:
-            "❌ This question has already been answered or there was an error processing your response.",
-        });
-        return;
-      }
-
-      await message.reply({
-        content: `✅ **Your response recorded:** ${
-          message.content.length > 100 ? message.content.substring(0, 97) + "..." : message.content
-        }`,
-      });
-
-      session.currentQuestionIndex++;
-      setTimeout(() => this.displayQuestion(sessionId, client), 1000);
-    });
-
-    collector.on("end", (collected) => {
-      if (collected.size === 0) {
-        this.cancelQuestionnaire(sessionId, client, "No response received within 30 minutes.");
-      }
-    });
-
-    this.collectors.set(sessionId, collector);
-  }
-
   /**
    * Setup timeout handlers
    */
@@ -708,7 +667,6 @@ export default class QuestionnaireRunner {
 
     this.timeouts.set(sessionId, mainTimeout);
   }
-
   /**
    * Clean up session data
    */
@@ -719,12 +677,6 @@ export default class QuestionnaireRunner {
     if (timeout) {
       clearTimeout(timeout);
       this.timeouts.delete(sessionId);
-    }
-
-    const collector = this.collectors.get(sessionId);
-    if (collector) {
-      collector.stop();
-      this.collectors.delete(sessionId);
     }
   }
 
@@ -750,6 +702,17 @@ export default class QuestionnaireRunner {
    */
   static getAllActiveSessions(): Map<string, QuestionnaireSession> {
     return new Map(this.sessions);
+  }
+  /**
+   * Get active questionnaire session for a user (used for modmail integration)
+   */
+  static getActiveQuestionnaireSession(userId: string): QuestionnaireSession | null {
+    for (const [sessionId, session] of this.sessions.entries()) {
+      if (session.userId === userId) {
+        return session;
+      }
+    }
+    return null;
   }
 
   /**

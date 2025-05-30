@@ -28,13 +28,13 @@ export const options: CommandOptions = {
 };
 
 export async function run({ interaction, client, handler }: SlashCommandProps) {
-  if (!interaction.guild || !interaction.channel || !(interaction.channel instanceof TextChannel)) {
+  if (!interaction.guild) {
     await interaction.reply({
       embeds: [
         BasicEmbed(
           client,
           "Error",
-          "This command can only be used in a text channel within a server.",
+          "This command can only be used within a server.",
           undefined,
           "Red"
         ),
@@ -91,7 +91,7 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
         BasicEmbed(
           client,
           "Starting Questionnaire",
-          `Starting the "${questionnaire.name}" questionnaire...`,
+          `I'll send the "${questionnaire.name}" questionnaire to your DMs. Please check your direct messages to begin.`,
           undefined,
           "Green"
         ),
@@ -99,12 +99,13 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
       ephemeral: true,
     });
 
-    // Start the questionnaire session
+    // Create DM channel and start the questionnaire session there
+    const dmChannel = await interaction.user.createDM();
     const sessionId = await QuestionnaireRunner.startQuestionnaire(
       questionnaire,
       interaction.user,
       interaction.guild,
-      interaction.channel,
+      dmChannel,
       client
     );
 
@@ -114,7 +115,7 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
           BasicEmbed(
             client,
             "Could Not Start",
-            "Failed to start the questionnaire. You may already have an active session.",
+            "Failed to start the questionnaire. You may already have an active session or I cannot send you DMs. Please make sure your DMs are open and try again.",
             undefined,
             "Red"
           ),
@@ -124,17 +125,32 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
     }
   } catch (error) {
     log.error("Error starting questionnaire:", error);
-    await interaction.reply({
-      embeds: [
-        BasicEmbed(
-          client,
-          "Error",
-          "An error occurred while starting the questionnaire. Please try again later.",
-          undefined,
-          "Red"
-        ),
-      ],
-      ephemeral: true,
-    });
+    if (error instanceof Error && error.message.includes("Cannot send messages to this user")) {
+      await interaction.followUp({
+        embeds: [
+          BasicEmbed(
+            client,
+            "DM Error",
+            "I cannot send you direct messages. Please enable DMs from server members and try again.",
+            undefined,
+            "Red"
+          ),
+        ],
+        ephemeral: true,
+      });
+    } else {
+      await interaction.followUp({
+        embeds: [
+          BasicEmbed(
+            client,
+            "Error",
+            "An error occurred while starting the questionnaire. Please try again later.",
+            undefined,
+            "Red"
+          ),
+        ],
+        ephemeral: true,
+      });
+    }
   }
 }
