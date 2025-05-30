@@ -15,8 +15,7 @@ export default class Database {
    * @param model - Query parameters
    * @param saveNull - Whether to save null values to cache
    * @param cacheTime - Cache time in seconds
-   */
-  async findOne<T>(
+   */ async findOne<T>(
     schema: Model<T>,
     model: any,
     saveNull = false,
@@ -26,10 +25,11 @@ export default class Database {
     if (!schema || !model) {
       throw new Error("Missing schema or model");
     }
-    const mongoKey = Object.keys(model)[0];
-    const redisKey =
-      env.MONGODB_DATABASE + ":" + schema.modelName + ":" + mongoKey + ":" + model[mongoKey];
-    debugMsg(`Key: ${mongoKey} -> ${redisKey}`);
+    // Create a cache key that includes all query fields to avoid collisions
+    const queryKeys = Object.keys(model).sort(); // Sort for consistency
+    const keyParts = queryKeys.map((key) => `${key}:${model[key]}`).join("|");
+    const redisKey = `${env.MONGODB_DATABASE}:${schema.modelName}:${keyParts}`;
+    debugMsg(`Keys: ${queryKeys.join(", ")} -> ${redisKey}`);
 
     debugMsg(`Fetching from cache: ${redisKey}`);
     var data = await redisClient.get(redisKey);
@@ -60,8 +60,7 @@ export default class Database {
    * @param model - Query parameters
    * @param saveNull - Whether to save null values to cache
    * @param cacheTime - Cache time in seconds
-   */
-  async find<T>(
+   */ async find<T>(
     schema: Model<T>,
     model: any,
     saveNull = false,
@@ -71,10 +70,11 @@ export default class Database {
     if (!schema || !model) {
       throw new Error("Missing schema or model");
     }
-    const mongoKey = Object.keys(model)[0];
-    const redisKey =
-      env.MONGODB_DATABASE + ":" + schema.modelName + ":" + mongoKey + ":" + model[mongoKey];
-    debugMsg(`Key: ${mongoKey} -> ${redisKey}`);
+    // Create a cache key that includes all query fields to avoid collisions
+    const queryKeys = Object.keys(model).sort(); // Sort for consistency
+    const keyParts = queryKeys.map((key) => `${key}:${model[key]}`).join("|");
+    const redisKey = `${env.MONGODB_DATABASE}:${schema.modelName}:${keyParts}`;
+    debugMsg(`Keys: ${queryKeys.join(", ")} -> ${redisKey}`);
 
     debugMsg(`Fetching from cache: ${redisKey}`);
     var data = await redisClient.get(redisKey);
@@ -122,16 +122,17 @@ export default class Database {
     if (!schema || !model) {
       throw new Error("Missing schema or model");
     }
-    const mongoKey = Object.keys(model)[0];
-    const redisKey =
-      env.MONGODB_DATABASE + ":" + schema.modelName + ":" + mongoKey + ":" + model[mongoKey];
+    // Create a cache key that includes all query fields to avoid collisions
+    const queryKeys = Object.keys(model).sort(); // Sort for consistency
+    const keyParts = queryKeys.map((key) => `${key}:${model[key]}`).join("|");
+    const redisKey = `${env.MONGODB_DATABASE}:${schema.modelName}:${keyParts}`;
 
     const result = await schema.findOneAndUpdate(model, object, options);
     await redisClient.set(redisKey, JSON.stringify(result));
     await redisClient.expire(redisKey, cacheTime);
 
     if (env.DEBUG_LOG) debugMsg(`DB - update - Time taken: ${Date.now() - start!}ms`);
-    debugMsg(`Updated key: ${mongoKey} -> ${redisKey}`);
+    debugMsg(`Updated keys: ${queryKeys.join(", ")} -> ${redisKey}`);
     return result as T;
   }
 
@@ -140,16 +141,16 @@ export default class Database {
    * @generic T - The document type
    * @param schema - Mongoose model
    * @param model - Query parameters
-   */
-  async deleteOne<T>(schema: Model<T>, model: any): Promise<void> {
+   */ async deleteOne<T>(schema: Model<T>, model: any): Promise<void> {
     var start = env.DEBUG_LOG ? Date.now() : undefined;
     if (!schema || !model) {
       throw new Error("Missing schema or model");
     }
-    const mongoKey = Object.keys(model)[0];
-    const redisKey =
-      env.MONGODB_DATABASE + ":" + schema.modelName + ":" + mongoKey + ":" + model[mongoKey];
-    debugMsg(`Deleting key: ${mongoKey} -> ${redisKey}`);
+    // Create a cache key that includes all query fields to avoid collisions
+    const queryKeys = Object.keys(model).sort(); // Sort for consistency
+    const keyParts = queryKeys.map((key) => `${key}:${model[key]}`).join("|");
+    const redisKey = `${env.MONGODB_DATABASE}:${schema.modelName}:${keyParts}`;
+    debugMsg(`Deleting keys: ${queryKeys.join(", ")} -> ${redisKey}`);
 
     await redisClient.del(redisKey);
     await schema.deleteOne(model);
