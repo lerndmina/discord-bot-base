@@ -55,7 +55,6 @@ export default class QuestionnaireRunner {
       });
       return null;
     }
-
     const sessionId = uuidv4();
     const session: QuestionnaireSession = {
       userId: user.id,
@@ -67,6 +66,9 @@ export default class QuestionnaireRunner {
       startedAt: new Date(),
       lastActivityAt: new Date(),
       channelId: channel.id,
+      isProcessingResponse: false,
+      completedQuestions: new Set<number>(),
+      isCompleting: false,
     };
 
     this.sessions.set(sessionId, session);
@@ -273,10 +275,19 @@ export default class QuestionnaireRunner {
     if (!isMultipleChoiceQuestion(question)) return;
 
     const selectedOption = question.options[optionIndex];
-
     if (selectionType === "single") {
       // Single selection - immediately save and move to next question
-      await this.saveResponse(sessionId, questionIndex, selectedOption);
+      const saved = await this.saveResponse(sessionId, questionIndex, selectedOption);
+
+      if (!saved) {
+        await interaction.reply({
+          content:
+            "❌ This question has already been answered or there was an error processing your response.",
+          ephemeral: true,
+        });
+        return;
+      }
+
       await interaction.update({
         content: `✅ **Selected:** ${selectedOption}`,
         embeds: [],
@@ -310,11 +321,19 @@ export default class QuestionnaireRunner {
     const question = session.questions[questionIndex];
 
     if (!isMultipleChoiceQuestion(question)) return;
-
     const selectedOptions = interaction.values.map((value) => question.options[parseInt(value)]);
     const answer = selectionType === "single" ? selectedOptions[0] : selectedOptions;
 
-    await this.saveResponse(sessionId, questionIndex, answer);
+    const saved = await this.saveResponse(sessionId, questionIndex, answer);
+
+    if (!saved) {
+      await interaction.reply({
+        content:
+          "❌ This question has already been answered or there was an error processing your response.",
+        ephemeral: true,
+      });
+      return;
+    }
 
     await interaction.update({
       content: `✅ **Selected:** ${Array.isArray(answer) ? answer.join(", ") : answer}`,
@@ -361,7 +380,16 @@ export default class QuestionnaireRunner {
     const questionIndex = parseInt(parts[3]);
     const response = interaction.fields.getTextInputValue("response");
 
-    await this.saveResponse(sessionId, questionIndex, response);
+    const saved = await this.saveResponse(sessionId, questionIndex, response);
+
+    if (!saved) {
+      await interaction.reply({
+        content:
+          "❌ This question has already been answered or there was an error processing your response.",
+        ephemeral: true,
+      });
+      return;
+    }
 
     await interaction.reply({
       content: `✅ **Your response:** ${
@@ -392,8 +420,7 @@ export default class QuestionnaireRunner {
 
   /**
    * Handle previous button
-   */
-  private static async handlePreviousButton(
+   */ private static async handlePreviousButton(
     interaction: ButtonInteraction,
     sessionId: string,
     client: Client
@@ -402,10 +429,12 @@ export default class QuestionnaireRunner {
 
     if (session.currentQuestionIndex > 0) {
       session.currentQuestionIndex--;
-      // Remove the last response if going back
-      if (session.responses.length > session.currentQuestionIndex) {
-        session.responses.pop();
-      }
+
+      // Remove the question from completed set and remove its response
+      session.completedQuestions.delete(session.currentQuestionIndex);
+      session.responses = session.responses.filter(
+        (r) => r.questionIndex !== session.currentQuestionIndex
+      );
 
       await interaction.update({
         content: "⬅️ Going back to previous question...",
@@ -424,15 +453,23 @@ export default class QuestionnaireRunner {
 
   /**
    * Handle skip button
-   */
-  private static async handleSkipButton(
+   */ private static async handleSkipButton(
     interaction: ButtonInteraction,
     sessionId: string,
     client: Client
   ): Promise<void> {
     const session = this.sessions.get(sessionId)!;
 
-    await this.saveResponse(sessionId, session.currentQuestionIndex, "[Skipped]");
+    const saved = await this.saveResponse(sessionId, session.currentQuestionIndex, "[Skipped]");
+
+    if (!saved) {
+      await interaction.reply({
+        content:
+          "❌ This question has already been answered or there was an error processing your response.",
+        ephemeral: true,
+      });
+      return;
+    }
 
     await interaction.update({
       content: "⏭️ Question skipped.",
@@ -490,7 +527,6 @@ export default class QuestionnaireRunner {
     session.currentQuestionIndex++;
     setTimeout(() => this.displayQuestion(sessionId, client), 1000);
   }
-
   /**
    * Save a response and update session
    */
@@ -498,23 +534,56 @@ export default class QuestionnaireRunner {
     sessionId: string,
     questionIndex: number,
     answer: string | string[]
-  ): Promise<void> {
+  ): Promise<boolean> {
     const session = this.sessions.get(sessionId);
-    if (!session) return;
+    if (!session) {
+      log.warn(`Session ${sessionId} not found when saving response`);
+      return false;
+    }
 
-    const question = session.questions[questionIndex];
+    // Check if this question has already been completed
+    if (session.completedQuestions.has(questionIndex)) {
+      log.warn(`Question ${questionIndex} already completed for session ${sessionId}`);
+      return false;
+    }
 
-    const response: QuestionnaireResponse = {
-      questionIndex,
-      question: question.question,
-      answer,
-      timestamp: new Date(),
-    };
+    // Check if we're already processing a response
+    if (session.isProcessingResponse) {
+      log.warn(`Session ${sessionId} is already processing a response`);
+      return false;
+    }
 
-    // Remove any existing response for this question index
-    session.responses = session.responses.filter((r) => r.questionIndex !== questionIndex);
-    session.responses.push(response);
-    session.lastActivityAt = new Date();
+    // Set processing flag to prevent concurrent responses
+    session.isProcessingResponse = true;
+
+    try {
+      const question = session.questions[questionIndex];
+
+      const response: QuestionnaireResponse = {
+        questionIndex,
+        question: question.question,
+        answer,
+        timestamp: new Date(),
+      };
+
+      // Remove any existing response for this question index (shouldn't happen with new logic)
+      session.responses = session.responses.filter((r) => r.questionIndex !== questionIndex);
+      session.responses.push(response);
+
+      // Mark this question as completed
+      session.completedQuestions.add(questionIndex);
+
+      session.lastActivityAt = new Date();
+
+      log.info(`Response saved for session ${sessionId}, question ${questionIndex}`);
+      return true;
+    } catch (error) {
+      log.error(`Error saving response for session ${sessionId}:`, error);
+      return false;
+    } finally {
+      // Always clear the processing flag
+      session.isProcessingResponse = false;
+    }
   }
   /**
    * Complete the questionnaire
@@ -522,6 +591,14 @@ export default class QuestionnaireRunner {
   private static async completeQuestionnaire(sessionId: string, client: Client): Promise<void> {
     const session = this.sessions.get(sessionId);
     if (!session) return;
+
+    // Prevent duplicate completion
+    if (session.isCompleting) {
+      log.warn(`Questionnaire ${sessionId} is already being completed`);
+      return;
+    }
+
+    session.isCompleting = true;
 
     try {
       const user = await client.users.fetch(session.userId);
@@ -583,12 +660,23 @@ export default class QuestionnaireRunner {
       time: 30 * 60 * 1000, // 30 minutes
       max: 1,
     });
-
     collector.on("collect", async (message) => {
       const session = this.sessions.get(sessionId);
       if (!session) return;
 
-      await this.saveResponse(sessionId, session.currentQuestionIndex, message.content);
+      const saved = await this.saveResponse(
+        sessionId,
+        session.currentQuestionIndex,
+        message.content
+      );
+
+      if (!saved) {
+        await message.reply({
+          content:
+            "❌ This question has already been answered or there was an error processing your response.",
+        });
+        return;
+      }
 
       await message.reply({
         content: `✅ **Your response recorded:** ${

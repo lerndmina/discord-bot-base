@@ -46,6 +46,9 @@ export interface QuestionnaireSession {
   lastActivityAt: Date;
   messageId?: string;
   channelId: string;
+  isProcessingResponse?: boolean;
+  completedQuestions: Set<number>;
+  isCompleting?: boolean;
 }
 
 /**
