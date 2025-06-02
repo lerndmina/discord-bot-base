@@ -209,17 +209,45 @@ async function listTags(
       `You don't have the required permissions to list all tags as it's an expensive operation!`
     );
   }
-
   const db = new Database();
   const tags = await db.find(TagSchema, { guildId: guild.id });
   if (!tags || tags.length == 0) {
     return returnMessage(interaction, client, COMMAND_NAME_TITLE, `No tags found!`);
   }
   const fields: any = [];
-  tags.forEach((tag: any) => {
+  // Limit to 24 fields (Discord's max is 25, but we might add a note field)
+  const maxTagsToShow = tags.length > 25 ? 24 : 25;
+  const tagsToShow = tags.slice(0, maxTagsToShow);
+  tagsToShow.forEach((tag: any) => {
     const name = upperCaseFirstLetter(getTagName(tag.key));
-    fields.push({ name: name, value: `${tag.tag}`, inline: true });
+    let value = `${tag.tag || "No content"}`;
+
+    // Ensure name is not null/undefined and truncate if too long (max 256 characters)
+    const safeName = name || "Unknown Tag";
+    const fieldName = safeName.length > 256 ? safeName.substring(0, 253) + "..." : safeName;
+
+    // Truncate field value if too long (max 1024 characters)
+    if (value.length > 1024) {
+      value = value.substring(0, 1021) + "...";
+    }
+
+    // Ensure value is not empty (Discord requires non-empty field values)
+    if (!value || value.trim().length === 0) {
+      value = "No content";
+    }
+
+    fields.push({ name: fieldName, value: value, inline: true });
   });
+
+  // Add a note if there are more tags than we can display
+  if (tags.length > 25) {
+    fields.push({
+      name: "Note",
+      value: `Showing 25 of ${tags.length} tags. Some tags were not displayed due to Discord's embed limits.`,
+      inline: false,
+    });
+  }
+
   const embed = BasicEmbed(client, `Tags for ${guild.name}`, `*`, fields);
 
   return interaction.editReply({ content: "", embeds: [embed] });
