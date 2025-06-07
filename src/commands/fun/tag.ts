@@ -24,6 +24,7 @@ import { CommandOptions, SlashCommandProps } from "commandkit";
 import BasicEmbed from "../../utils/BasicEmbed";
 import { env } from "process";
 import { initialReply } from "../../utils/initialReply";
+import log from "../../utils/log";
 const COMMAND_NAME = "tag";
 const COMMAND_NAME_TITLE = "Tag";
 
@@ -185,10 +186,23 @@ async function sendTag(
   /* 15 seconds cooldown for the tag command */
 
   returnMessage(interaction, client, COMMAND_NAME_TITLE, `Sending tag \`${name}\`...`);
-  return interaction.channel!.send({
-    content: user ? userMention(user.id) : "",
-    embeds: [BasicEmbed(client, `Tags`, tag.tag)],
-  });
+  const channel = interaction.channel;
+  if (channel && "send" in channel) {
+    return channel.send({
+      content: user ? userMention(user.id) : "",
+      embeds: [BasicEmbed(client, `Tags`, tag.tag)],
+    });
+  } else {
+    log.error(
+      `Tried to send a tag in a channel that does not support sending messages! Channel ID: ${channel?.id}, Guild ID: ${guild.id}`
+    );
+    return returnMessage(
+      interaction,
+      client,
+      COMMAND_NAME_TITLE,
+      `This channel does not support sending messages! This should never happen. Please report this to the bot developer.`
+    );
+  }
 }
 
 async function listTags(
