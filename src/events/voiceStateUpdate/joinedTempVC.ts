@@ -16,6 +16,14 @@ import log from "../../utils/log";
 import Database from "../../utils/data/database";
 import { redisClient } from "../../Bot";
 import { tryCatch } from "../../utils/trycatch";
+import {
+  interactionDeleteVC_REQUEST,
+  interactionLimitUsers,
+  interactionLockVC,
+  interactionPostBanMenu,
+  interactionRenameVC,
+  interactionSendInvite,
+} from "../interactionCreate/tempvc-button-handler";
 
 /**
  *
@@ -85,49 +93,92 @@ export default async (oldState: VoiceState, newState: VoiceState, client: Client
 
     const buttons = [
       new ButtonBuilder()
-        .setCustomId(`tempvc-delete-${newChannel.id}`)
+        .setCustomId(`${interactionDeleteVC_REQUEST}-${newChannel.id}`)
         .setLabel("Delete")
         .setStyle(ButtonStyle.Danger)
         .setEmoji("🗑️"),
       new ButtonBuilder()
-        .setCustomId(`tempvc-rename-${newChannel.id}`)
+        .setCustomId(`${interactionRenameVC}-${newChannel.id}`)
         .setLabel("Rename")
         .setStyle(ButtonStyle.Primary)
         .setEmoji("📝"),
       new ButtonBuilder()
-        .setCustomId(`tempvc-invite-${newChannel.id}`)
+        .setCustomId(`${interactionSendInvite}-${newChannel.id}`)
         .setLabel("Invite")
         .setStyle(ButtonStyle.Success)
         .setEmoji("📨"),
       new ButtonBuilder()
-        .setCustomId(`tempvc-ban-${newChannel.id}`)
+        .setCustomId(`${interactionPostBanMenu}-${newChannel.id}`)
         .setLabel("Ban")
         .setStyle(ButtonStyle.Danger)
         .setEmoji("🔨"),
       new ButtonBuilder()
-        .setCustomId(`tempvc-limit-${newChannel.id}`)
+        .setCustomId(`${interactionLimitUsers}-${newChannel.id}`)
         .setLabel("Limit")
         .setStyle(ButtonStyle.Primary)
         .setEmoji("🔢"),
+      new ButtonBuilder()
+        .setCustomId(`${interactionLockVC}-${newChannel.id}`)
+        .setLabel("Lock / Unlock")
+        .setStyle(ButtonStyle.Primary)
+        .setEmoji("🔒"),
     ];
-
     newChannel.send({
       content: `<@${newState.id}>`,
       embeds: [
         BasicEmbed(
           client,
-          "Hello! 👋",
-          `Welcome to your new channel! \n You can change the channel name and permissions by clicking the settings icon next to the channel name. \n Once the channel is empty, it will be deleted automatically.`,
+          "🎉 Welcome to Your Temporary Voice Channel!",
+          `**Channel Owner:** <@${newState.id}>\n**Created:** <t:${Math.floor(
+            Date.now() / 1000
+          )}:R>\n\n**🔧 Quick Setup Tips:**\n• Right-click the channel name to change settings manually\n• Use the buttons below for quick actions\n• Channel will be automatically deleted when empty`,
           [
             {
-              name: "Control Menu",
-              value: "Please use the buttons below to control the channel you have created.",
+              name: "🗑️ Delete Channel",
+              value: "Permanently remove this channel with confirmation",
               inline: false,
             },
-          ]
+            {
+              name: "📝 Rename Channel",
+              value: "Change the channel name to something custom",
+              inline: false,
+            },
+            {
+              name: "📨 Create Invite",
+              value:
+                "Generate a 10-minute invite link (max 10 uses & only works when the channel is public)",
+              inline: false,
+            },
+            {
+              name: "🔨 Ban Users",
+              value: "Remove and ban specific users from this channel",
+              inline: false,
+            },
+            {
+              name: "🔢 Set User Limit",
+              value: "Configure maximum number of users allowed",
+              inline: false,
+            },
+            {
+              name: "🔒 Lock/Unlock Channel",
+              value: "Toggle public channel access",
+              inline: false,
+            },
+            {
+              name: "ℹ️ Channel Info",
+              value: `**Type:** Temporary Voice Channel\n**Auto-delete:** When empty\n**Permissions:** You have full control`,
+              inline: false,
+            },
+            {
+              name: "💡 Pro Tips",
+              value: `• Right-click channel name for Discord's built-in settings\n• Channel survives as long as someone is connected\n• Drag users into the channel to invite them`,
+              inline: false,
+            },
+          ],
+          "#7289da"
         ),
       ],
-      components: ButtonWrapper(buttons),
+      components: ButtonWrapper(buttons, false),
     });
 
     const db = new Database();
