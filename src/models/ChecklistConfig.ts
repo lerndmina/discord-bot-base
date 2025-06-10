@@ -33,7 +33,7 @@ const ChecklistConfig = new Schema({
       },
     },
   ],
-  callbackFunction: {
+  footerDescription: {
     type: String,
     default: "",
   },

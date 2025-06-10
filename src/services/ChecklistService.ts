@@ -12,11 +12,13 @@ import {
   ThreadChannel,
   User,
   GuildMember,
+  userMention,
+  roleMention,
 } from "discord.js";
 import ChecklistConfig, { ChecklistConfigType } from "../models/ChecklistConfig";
 import ChecklistInstance, { ChecklistInstanceType } from "../models/ChecklistInstance";
 import Checklist, { ChecklistType } from "../models/Checklist";
-import ChecklistGuildConfig from "../models/ChecklistGuildConfig";
+import ChecklistGuildConfig, { ChecklistGuildConfigType } from "../models/ChecklistGuildConfig";
 import log from "../utils/log";
 
 interface ChecklistBuilder {
@@ -29,14 +31,11 @@ interface ChecklistBuilder {
     description: string;
     totalSteps: number;
   }>;
-  callbackFunction: string;
   createdBy: string;
+  footerDescription?: string; // Optional footer description
 }
 
-type CallbackFunction = (checklistInstance: ChecklistInstanceType, user: User) => Promise<void>;
-
 export class ChecklistService {
-  private static callbacks: Map<string, CallbackFunction> = new Map();
   private static builders: Map<string, ChecklistBuilder> = new Map();
   /**
    * Parse interaction customId to extract action and builderId
@@ -72,13 +71,6 @@ export class ChecklistService {
       return { modalType, builderId };
     }
   }
-
-  /**
-   * Register a callback function that will be executed when a checklist is completed
-   */
-  static registerCallback(name: string, callback: CallbackFunction): void {
-    this.callbacks.set(name, callback);
-  }
   /**
    * Start the interactive checklist creation process
    */
@@ -109,26 +101,24 @@ export class ChecklistService {
     } // Initialize builder
     const builderId = `${interaction.guild.id}_${interaction.user.id}_${Date.now()}`;
     log.debug(`Creating builder with ID: ${builderId}`);
-
     this.builders.set(builderId, {
       guildId: interaction.guild.id,
       name: "",
       description: "",
       forumChannelId: "",
       items: [],
-      callbackFunction: "",
       createdBy: interaction.user.id,
+      footerDescription: "",
     });
 
     log.debug(`Builder created. Total builders: ${this.builders.size}`);
     log.debug(`Available builder IDs: ${Array.from(this.builders.keys())}`);
-
     const embed = this.createBuilderEmbed(builderId);
     const buttons = this.createBuilderButtons(builderId);
 
     await interaction.reply({
       embeds: [embed],
-      components: [buttons],
+      components: buttons,
       ephemeral: true,
     });
   }
@@ -183,6 +173,9 @@ export class ChecklistService {
         break;
       case "set-forum":
         await this.showForumModal(interaction, builderId);
+        break;
+      case "set-footer":
+        await this.showFooterModal(interaction, builderId);
         break;
       case "add-item":
         await this.showItemModal(interaction, builderId);
@@ -265,19 +258,26 @@ export class ChecklistService {
     });
 
     await checklist.save(); // Create forum thread
+
+    if (!guildConfig) {
+      await interaction.reply({
+        content: "Guild configuration not found. Please configure the checklist system first.",
+        ephemeral: true,
+      });
+      return;
+    }
+
     const display = this.createInstanceDisplay(
       checklistConfig,
       targetUser,
       checklist,
-      checklist._id.toString()
+      checklist._id.toString(),
+      guildConfig
     );
 
     const thread = await forumChannel.threads.create({
       name: `${checklistConfig.name} - ${targetUser.displayName}`,
-      message: {
-        embeds: display.embeds,
-        components: display.components,
-      },
+      message: display,
     });
 
     // Get the starter message ID from the thread
@@ -399,55 +399,7 @@ export class ChecklistService {
       });
       return;
     } // Create management embed with verification buttons
-    const embed = new EmbedBuilder()
-      .setTitle("📋 Staff Management")
-      .setDescription(
-        "Click buttons to verify checklist items. Red = Incomplete, Green = Complete (disabled)"
-      )
-      .setColor(0x5865f2);
-
-    // Show all items with their progress
-    instance.checklist.items.forEach((item, index) => {
-      const progress = `${item.completedSteps}/${item.totalSteps}`;
-      const status = item.completedSteps >= item.totalSteps ? "✅ Complete" : "⏳ Incomplete";
-      embed.addFields({
-        name: `${status} ${item.name} (${progress} steps)`,
-        value: item.description,
-        inline: false,
-      });
-    });
-
-    if (instance.checklist.items.every((item) => item.completedSteps >= item.totalSteps)) {
-      embed.setDescription("✅ All items are completed!");
-      await interaction.reply({
-        embeds: [embed],
-        ephemeral: true,
-      });
-      return;
-    }
-
-    const components: ActionRowBuilder<ButtonBuilder>[] = [];
-
-    // Create verification buttons for all items (max 5 per row)
-    for (let i = 0; i < instance.checklist.items.length; i += 5) {
-      const rowItems = instance.checklist.items.slice(i, i + 5);
-      const verificationRow = new ActionRowBuilder<ButtonBuilder>();
-      rowItems.forEach((item, relativeIndex) => {
-        const actualIndex = i + relativeIndex;
-        const isComplete = item.completedSteps >= item.totalSteps;
-        const buttonLabel = `${item.name.substring(0, 15)}${item.name.length > 15 ? "..." : ""}`;
-
-        verificationRow.addComponents(
-          new ButtonBuilder()
-            .setCustomId(`verify-item_${checklistId}_${actualIndex}`)
-            .setLabel(buttonLabel)
-            .setStyle(isComplete ? ButtonStyle.Success : ButtonStyle.Danger)
-            .setDisabled(isComplete) // Disable completed items
-        );
-      });
-
-      components.push(verificationRow);
-    }
+    const { embed, components } = this.createStaffManagementDisplay(config, instance, checklistId);
 
     await interaction.reply({
       embeds: [embed],
@@ -505,6 +457,7 @@ export class ChecklistService {
           staffUserId,
           comment,
           completionsToAdd,
+          originalCompletedSteps,
           item,
           config,
           user
@@ -562,22 +515,6 @@ export class ChecklistService {
       guildId: instance.guildId,
       items: { $size: instance.checklist.items.length },
     });
-
-    if (config?.callbackFunction) {
-      const callback = this.callbacks.get(config.callbackFunction);
-      if (callback) {
-        try {
-          // We need the user object, but we have userId
-          // This would need to be handled by the calling context
-          // For now, we'll skip the actual callback execution
-          console.log(
-            `Checklist completed for user ${instance.userId}, callback: ${config.callbackFunction}`
-          );
-        } catch (error) {
-          console.error("Error executing checklist callback:", error);
-        }
-      }
-    }
   }
   /**
    * Create complete checklist instance display with embed and buttons
@@ -586,8 +523,9 @@ export class ChecklistService {
     config: ChecklistConfigType,
     user: User,
     checklist: ChecklistType,
-    checklistId: string
-  ): { embeds: EmbedBuilder[]; components: ActionRowBuilder<ButtonBuilder>[] } {
+    checklistId: string,
+    guildConfig: ChecklistGuildConfigType
+  ): { embeds: EmbedBuilder[]; components: ActionRowBuilder<ButtonBuilder>[]; content: string } {
     const embed = this.createInstanceEmbed(config, user, checklist);
     const components: ActionRowBuilder<ButtonBuilder>[] = [];
 
@@ -606,14 +544,19 @@ export class ChecklistService {
       components.push(managementRow);
     }
 
-    return { embeds: [embed], components };
+    return {
+      embeds: [embed],
+      components,
+      content: `Checklist for ${userMention(user.id)} | ${guildConfig.staffRoleIds
+        .map(roleMention)
+        .join(", ")}`,
+    };
   }
 
   // Helper methods for creating embeds and buttons
   private static createBuilderEmbed(builderId: string): EmbedBuilder {
     const builder = this.builders.get(builderId);
     if (!builder) throw new Error("Builder not found");
-
     const embed = new EmbedBuilder()
       .setTitle("Checklist Builder")
       .setColor(0x00ae86)
@@ -624,6 +567,11 @@ export class ChecklistService {
           name: "Forum Channel",
           value: builder.forumChannelId ? `<#${builder.forumChannelId}>` : "*Not set*",
           inline: true,
+        },
+        {
+          name: "Footer Description",
+          value: builder.footerDescription || "*Not set*",
+          inline: false,
         },
         {
           name: "Items",
@@ -643,9 +591,8 @@ export class ChecklistService {
 
     return embed;
   }
-
-  private static createBuilderButtons(builderId: string): ActionRowBuilder<ButtonBuilder> {
-    return new ActionRowBuilder<ButtonBuilder>().addComponents(
+  private static createBuilderButtons(builderId: string): ActionRowBuilder<ButtonBuilder>[] {
+    const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId(`set-title_${builderId}`)
         .setLabel("Set Title")
@@ -659,14 +606,27 @@ export class ChecklistService {
         .setLabel("Set Forum")
         .setStyle(ButtonStyle.Primary),
       new ButtonBuilder()
+        .setCustomId(`set-footer_${builderId}`)
+        .setLabel("Set Footer")
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
         .setCustomId(`add-item_${builderId}`)
         .setLabel("Add Item")
-        .setStyle(ButtonStyle.Success),
+        .setStyle(ButtonStyle.Success)
+    );
+
+    const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId(`save-checklist_${builderId}`)
         .setLabel("Save")
-        .setStyle(ButtonStyle.Success)
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(`cancel-builder_${builderId}`)
+        .setLabel("Cancel")
+        .setStyle(ButtonStyle.Danger)
     );
+
+    return [row1, row2];
   }
   private static createInstanceEmbed(
     config: ChecklistConfigType,
@@ -696,6 +656,16 @@ export class ChecklistService {
         "Please provide evidence for each checklist item in this thread. Staff will verify your submissions.",
       inline: false,
     });
+
+    // Add footer description if it exists
+    if (config.footerDescription && config.footerDescription.trim() !== "") {
+      embed.addFields({
+        name: "Additional Information:",
+        value: config.footerDescription,
+        inline: false,
+      });
+    }
+
     return embed;
   }
 
@@ -758,6 +728,28 @@ export class ChecklistService {
       .setMaxLength(20);
 
     const actionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(forumInput);
+    modal.addComponents(actionRow);
+
+    await interaction.showModal(modal);
+  }
+
+  private static async showFooterModal(
+    interaction: ButtonInteraction,
+    builderId: string
+  ): Promise<void> {
+    const modal = new ModalBuilder()
+      .setCustomId(`footer-modal_${builderId}`)
+      .setTitle("Set Footer Description");
+
+    const footerInput = new TextInputBuilder()
+      .setCustomId("footer")
+      .setLabel("Footer Description")
+      .setStyle(TextInputStyle.Paragraph)
+      .setRequired(false)
+      .setPlaceholder("Optional footer text to display at the bottom of checklists...")
+      .setMaxLength(1000);
+
+    const actionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(footerInput);
     modal.addComponents(actionRow);
 
     await interaction.showModal(modal);
@@ -838,6 +830,7 @@ export class ChecklistService {
         .setCustomId("comment")
         .setLabel("Verification Comment")
         .setStyle(TextInputStyle.Paragraph)
+        .setMaxLength(1000)
         .setRequired(true)
         .setPlaceholder("Describe how the user fulfilled this requirement...");
 
@@ -855,12 +848,10 @@ export class ChecklistService {
   ): Promise<void> {
     const remainingSteps = item.totalSteps - item.completedSteps;
     const nextStepNumber = item.completedSteps + 1;
-    const lastStepNumber = item.totalSteps;
-
-    // Create step range examples based on remaining steps
+    const lastStepNumber = item.totalSteps; // Create step range examples based on remaining steps
     let exampleText = "";
     if (remainingSteps === 1) {
-      exampleText = `${nextStepNumber}`;
+      exampleText = `${nextStepNumber} or ALL`;
     } else if (remainingSteps === 2) {
       exampleText = `${nextStepNumber}, ${nextStepNumber}-${lastStepNumber}, or ALL`;
     } else {
@@ -961,6 +952,9 @@ export class ChecklistService {
       case "forum-modal":
         await this.handleForumSubmit(interaction, builderId);
         break;
+      case "footer-modal":
+        await this.handleFooterSubmit(interaction, builderId);
+        break;
       case "item-modal":
         await this.handleItemSubmit(interaction, builderId);
         break;
@@ -980,7 +974,6 @@ export class ChecklistService {
   private static async handleTitleSubmit(interaction: any, builderId: string): Promise<void> {
     const builder = this.builders.get(builderId);
     if (!builder) return;
-
     builder.name = interaction.fields.getTextInputValue("title");
     this.builders.set(builderId, builder);
 
@@ -989,14 +982,13 @@ export class ChecklistService {
 
     await interaction.update({
       embeds: [embed],
-      components: [buttons],
+      components: buttons,
     });
   }
 
   private static async handleDescriptionSubmit(interaction: any, builderId: string): Promise<void> {
     const builder = this.builders.get(builderId);
     if (!builder) return;
-
     builder.description = interaction.fields.getTextInputValue("description");
     this.builders.set(builderId, builder);
 
@@ -1005,7 +997,7 @@ export class ChecklistService {
 
     await interaction.update({
       embeds: [embed],
-      components: [buttons],
+      components: buttons,
     });
   }
   private static async handleForumSubmit(interaction: any, builderId: string): Promise<void> {
@@ -1046,7 +1038,6 @@ export class ChecklistService {
         return;
       }
     }
-
     builder.forumChannelId = forumChannelId;
     this.builders.set(builderId, builder);
 
@@ -1055,7 +1046,23 @@ export class ChecklistService {
 
     await interaction.update({
       embeds: [embed],
-      components: [buttons],
+      components: buttons,
+    });
+  }
+
+  private static async handleFooterSubmit(interaction: any, builderId: string): Promise<void> {
+    const builder = this.builders.get(builderId);
+    if (!builder) return;
+
+    builder.footerDescription = interaction.fields.getTextInputValue("footer");
+    this.builders.set(builderId, builder);
+
+    const embed = this.createBuilderEmbed(builderId);
+    const buttons = this.createBuilderButtons(builderId);
+
+    await interaction.update({
+      embeds: [embed],
+      components: buttons,
     });
   }
 
@@ -1073,7 +1080,6 @@ export class ChecklistService {
       description,
       totalSteps,
     });
-
     this.builders.set(builderId, builder);
 
     const embed = this.createBuilderEmbed(builderId);
@@ -1081,7 +1087,7 @@ export class ChecklistService {
 
     await interaction.update({
       embeds: [embed],
-      components: [buttons],
+      components: buttons,
     });
   }
   private static async handleVerificationSubmit(
@@ -1101,7 +1107,8 @@ export class ChecklistService {
       interaction
     );
 
-    await this.refreshChecklistDisplay(interaction, checklistId, itemIndex, "verified");
+    // Update both forum message and staff management panels
+    await this.handlePostVerificationUpdates(interaction, checklistId, itemIndex, "verified");
   }
 
   private static async handleStepVerificationSubmit(
@@ -1139,12 +1146,59 @@ export class ChecklistService {
       if (remainingSteps === 0) {
         throw new Error("All steps already completed");
       }
-
       if (stepsInput === "all") {
         stepsToComplete = remainingSteps;
+      } else if (stepsInput.includes(",")) {
+        // Multiple steps like "2,3" or mixed formats - handle comma-separated values
+        const parts = stepsInput.split(",").map((part) => part.trim());
+        let totalSteps = 0;
+        const processedSteps = new Set<number>();
+
+        for (const part of parts) {
+          if (part.includes("-")) {
+            // Handle range within comma-separated list like "2-4"
+            const [start, end] = part.split("-").map((n) => parseInt(n.trim()));
+
+            if (isNaN(start) || isNaN(end) || start > end) {
+              throw new Error(`Invalid range format: ${part}`);
+            }
+
+            if (start < nextStepNumber || end > item.totalSteps) {
+              throw new Error(
+                `Range ${part} is outside available steps: ${nextStepNumber}-${item.totalSteps}`
+              );
+            }
+
+            // Add all steps in the range
+            for (let i = start; i <= end; i++) {
+              processedSteps.add(i);
+            }
+          } else {
+            // Handle single step
+            const stepNum = parseInt(part);
+
+            if (isNaN(stepNum)) {
+              throw new Error(`Invalid step number: ${part}`);
+            }
+
+            if (stepNum < nextStepNumber || stepNum > item.totalSteps) {
+              throw new Error(
+                `Step ${stepNum} is outside available steps: ${nextStepNumber}-${item.totalSteps}`
+              );
+            }
+
+            processedSteps.add(stepNum);
+          }
+        }
+
+        stepsToComplete = processedSteps.size;
       } else if (stepsInput.includes("-")) {
         // Range like "2-3" (for remaining steps)
         const [start, end] = stepsInput.split("-").map((n) => parseInt(n.trim()));
+
+        if (isNaN(start) || isNaN(end)) {
+          throw new Error("Invalid range format");
+        }
 
         // Validate that the range is within remaining steps
         if (start < nextStepNumber || end > item.totalSteps || start > end) {
@@ -1152,23 +1206,13 @@ export class ChecklistService {
         }
 
         stepsToComplete = end - start + 1;
-      } else if (stepsInput.includes(",")) {
-        // Multiple steps like "2,3" (for remaining steps)
-        const steps = stepsInput.split(",").map((n) => parseInt(n.trim()));
-
-        // Validate that all specified steps are in the remaining range
-        if (!steps.every((s) => s >= nextStepNumber && s <= item.totalSteps)) {
-          throw new Error(
-            `Invalid step numbers. Available steps: ${nextStepNumber}-${item.totalSteps}`
-          );
-        }
-
-        // Remove duplicates and count unique steps
-        const uniqueSteps = [...new Set(steps)];
-        stepsToComplete = uniqueSteps.length;
       } else {
         // Single step
         const stepNum = parseInt(stepsInput);
+
+        if (isNaN(stepNum)) {
+          throw new Error("Invalid step number format");
+        }
 
         // Validate that the step number is in the remaining range
         if (stepNum < nextStepNumber || stepNum > item.totalSteps) {
@@ -1191,9 +1235,8 @@ export class ChecklistService {
           : `${nextStepNumber}-${item.totalSteps}`;
 
       const errorMessage = error instanceof Error ? error.message : "Invalid input";
-
       await interaction.reply({
-        content: `❌ ${errorMessage}. Available steps: ${availableRange}. Use formats like: ${nextStepNumber}, ${
+        content: `❌ ${errorMessage}\n\n**Available steps:** ${availableRange}\n**Valid formats:** ${nextStepNumber}, ${
           nextStepNumber === item.totalSteps
             ? nextStepNumber
             : `${nextStepNumber}-${item.totalSteps}`
@@ -1201,9 +1244,7 @@ export class ChecklistService {
         ephemeral: true,
       });
       return;
-    }
-
-    // Complete the verification with the specified number of steps
+    } // Complete the verification with the specified number of steps
     await this.completeItemVerification(
       checklistId,
       itemIndex,
@@ -1213,7 +1254,7 @@ export class ChecklistService {
       interaction
     );
 
-    await this.refreshChecklistDisplay(
+    await this.handlePostVerificationUpdates(
       interaction,
       checklistId,
       itemIndex,
@@ -1236,6 +1277,15 @@ export class ChecklistService {
       return;
     }
 
+    const guildConfig = await ChecklistGuildConfig.findOne({ guildId: instance.guildId });
+    if (!guildConfig) {
+      await interaction.reply({
+        content: "Guild configuration not found.",
+        ephemeral: true,
+      });
+      return;
+    }
+
     // Find config by matching items
     const configs = await ChecklistConfig.find({ guildId: instance.guildId });
     const config = configs.find((c) => c.items.length === instance.checklist.items.length);
@@ -1251,8 +1301,18 @@ export class ChecklistService {
     // Get user info
     const user = await interaction.client.users.fetch(instance.userId);
 
-    // Create updated display
-    const display = this.createInstanceDisplay(config, user, instance.checklist, checklistId);
+    // Create updated display for the forum message
+    const display = this.createInstanceDisplay(
+      config,
+      user,
+      instance.checklist,
+      checklistId,
+      guildConfig
+    );
+
+    // Create updated staff management display for the ephemeral message
+    const staffDisplay = this.createStaffManagementDisplay(config, instance, checklistId);
+
     try {
       // Parse the message URL to get channel and message IDs
       // URL format: https://discord.com/channels/guildId/channelId/messageId (preferred)
@@ -1313,8 +1373,146 @@ export class ChecklistService {
       // Don't throw here, just log and continue to reply to the user
     }
 
+    // Update the ephemeral staff management message if the original interaction supports it
+    try {
+      // Check if this interaction came from a staff management panel
+      if (interaction.message && interaction.message.embeds.length > 0) {
+        const embed = interaction.message.embeds[0];
+        if (embed.title === "📋 Staff Management") {
+          // This is a staff management panel - update it
+          await interaction.editReply({
+            embeds: [staffDisplay.embed],
+            components: staffDisplay.components,
+          });
+          log.debug(`Successfully updated staff management panel`);
+          return; // Don't send the success message as a separate reply
+        }
+      }
+    } catch (error) {
+      log.error(`Error updating staff management panel: ${error}`);
+      // Continue to the regular reply if this fails
+    }
     await interaction.reply({
       content: `✅ "${config.items[itemIndex]?.name}" ${action} successfully!`,
+      ephemeral: true,
+    });
+  }
+
+  /**
+   * Handle post-verification updates for both forum messages and staff management panels
+   */
+  private static async handlePostVerificationUpdates(
+    interaction: any,
+    checklistId: string,
+    itemIndex: number,
+    action: string
+  ): Promise<void> {
+    const guildConfig = await ChecklistGuildConfig.findOne({ guildId: interaction.guild?.id });
+    if (!guildConfig) {
+      await interaction.reply({
+        content: "Guild configuration not found.",
+        ephemeral: true,
+      });
+      return;
+    }
+
+    // Find the instance to get updated data
+    const instance = await ChecklistInstance.findOne({ "checklist._id": checklistId });
+    if (!instance) {
+      await interaction.reply({
+        content: "Checklist instance not found.",
+        ephemeral: true,
+      });
+      return;
+    }
+
+    // Find config by matching items
+    const configs = await ChecklistConfig.find({ guildId: instance.guildId });
+    const config = configs.find((c) => c.items.length === instance.checklist.items.length);
+
+    if (!config) {
+      await interaction.reply({
+        content: `Item ${action} successfully, but could not refresh display.`,
+        ephemeral: true,
+      });
+      return;
+    }
+
+    // Get user info
+    const user = await interaction.client.users.fetch(instance.userId);
+
+    // Create updated displays
+    const display = this.createInstanceDisplay(
+      config,
+      user,
+      instance.checklist,
+      checklistId,
+      guildConfig
+    );
+    const staffDisplay = this.createStaffManagementDisplay(config, instance, checklistId);
+
+    // Update the main forum thread message
+    try {
+      // Parse the message URL to get channel and message IDs
+      let channelId: string;
+      let messageId: string | undefined;
+
+      const urlWithMessageMatch = instance.messageUrl.match(/\/channels\/\d+\/(\d+)\/(\d+)/);
+      if (urlWithMessageMatch) {
+        // New format with message ID
+        [, channelId, messageId] = urlWithMessageMatch;
+      } else {
+        // Legacy format without message ID - try to extract channel ID only
+        const urlWithoutMessageMatch = instance.messageUrl.match(/\/channels\/\d+\/(\d+)/);
+        if (urlWithoutMessageMatch) {
+          [, channelId] = urlWithoutMessageMatch;
+        } else {
+          log.debug(`Invalid message URL format: ${instance.messageUrl}`);
+          throw new Error("Invalid message URL format");
+        }
+      }
+
+      // Fetch the forum thread channel
+      const channel = await interaction.client.channels.fetch(channelId);
+      if (!channel || !channel.isThread()) {
+        log.debug(`Channel ${channelId} is not a thread or could not be fetched`);
+        throw new Error("Channel is not a thread");
+      }
+
+      let checklistMessage;
+
+      if (messageId) {
+        // Try to fetch the specific message
+        try {
+          checklistMessage = await channel.messages.fetch(messageId);
+        } catch (error) {
+          log.debug(`Could not find message ${messageId}, trying to find starter message`);
+          checklistMessage = await channel.fetchStarterMessage();
+        }
+      } else {
+        // Legacy format - fetch the starter message
+        checklistMessage = await channel.fetchStarterMessage();
+      }
+
+      if (!checklistMessage) {
+        log.debug(`Could not find checklist message in thread ${channelId}`);
+        throw new Error("Message not found");
+      }
+
+      await checklistMessage.edit({
+        embeds: display.embeds,
+        components: display.components,
+      });
+
+      log.debug(`Successfully updated checklist message in thread ${channelId}`);
+    } catch (error) {
+      log.error(`Error updating checklist message: ${error}`);
+      // Don't throw here, just log and continue to reply to the user
+    }
+
+    // Send success message with instructions to spawn a new panel if needed
+    await interaction.reply({
+      content: `✅ "${config.items[itemIndex]?.name}" ${action} successfully!\n\n💡 To manage more items, use the button to spawn a new staff management panel.`,
       ephemeral: true,
     });
   }
@@ -1472,7 +1670,6 @@ export class ChecklistService {
       log.error(`Error during message URL migration: ${error}`);
     }
   }
-
   /**
    * Post step completion message(s) in the forum thread
    */
@@ -1483,6 +1680,7 @@ export class ChecklistService {
     staffUserId: string,
     comment: string,
     stepsCompleted: number,
+    originalCompletedSteps: number,
     item: any,
     config: ChecklistConfigType,
     user: User
@@ -1516,18 +1714,15 @@ export class ChecklistService {
       // Create embeds for each completed step
       const embeds: EmbedBuilder[] = [];
       const staffMember = await interaction.client.users.fetch(staffUserId);
-
       for (let i = 0; i < stepsCompleted; i++) {
-        const stepNumber = item.completedSteps - stepsCompleted + i + 1;
+        const stepNumber = originalCompletedSteps + i + 1;
         const embed = new EmbedBuilder()
           .setTitle(`✅ ${item.name} (${stepNumber}/${item.totalSteps}) Completed`)
-          .setDescription(comment)
           .setColor(0x00ff00)
           .addFields(
             {
-              name: "Item Description",
-              value: item.description,
-              inline: false,
+              name: "Staff Comment",
+              value: comment || "No comment provided.",
             },
             {
               name: "Verified By",
@@ -1560,5 +1755,65 @@ export class ChecklistService {
     } catch (error) {
       log.error(`Error posting step completion message: ${error}`);
     }
+  }
+
+  /**
+   * Create staff management display with updated buttons
+   */
+  private static createStaffManagementDisplay(
+    config: ChecklistConfigType,
+    instance: any,
+    checklistId: string
+  ): { embed: EmbedBuilder; components: ActionRowBuilder<ButtonBuilder>[] } {
+    // Create management embed with verification buttons
+    const embed = new EmbedBuilder()
+      .setTitle("📋 Staff Management")
+      .setDescription(
+        "Click buttons to verify checklist items. Red = Incomplete, Green = Complete (disabled)"
+      )
+      .setColor(0x5865f2);
+
+    // Show all items with their progress
+    instance.checklist.items.forEach((item: any, index: number) => {
+      const progress = `${item.completedSteps}/${item.totalSteps}`;
+      const status = item.completedSteps >= item.totalSteps ? "✅ Complete" : "⏳ Incomplete";
+      embed.addFields({
+        name: `${status} ${item.name} (${progress} steps)`,
+        value: item.description,
+        inline: false,
+      });
+    });
+
+    const components: ActionRowBuilder<ButtonBuilder>[] = [];
+
+    // Check if all items are completed
+    if (instance.checklist.items.every((item: any) => item.completedSteps >= item.totalSteps)) {
+      embed.setDescription("✅ All items are completed!");
+      return { embed, components: [] };
+    }
+
+    // Create verification buttons for all items (max 5 per row)
+    for (let i = 0; i < instance.checklist.items.length; i += 5) {
+      const rowItems = instance.checklist.items.slice(i, i + 5);
+      const verificationRow = new ActionRowBuilder<ButtonBuilder>();
+
+      rowItems.forEach((item: any, relativeIndex: number) => {
+        const actualIndex = i + relativeIndex;
+        const isComplete = item.completedSteps >= item.totalSteps;
+        const buttonLabel = `${item.name.substring(0, 15)}${item.name.length > 15 ? "..." : ""}`;
+
+        verificationRow.addComponents(
+          new ButtonBuilder()
+            .setCustomId(`verify-item_${checklistId}_${actualIndex}`)
+            .setLabel(buttonLabel)
+            .setStyle(isComplete ? ButtonStyle.Success : ButtonStyle.Danger)
+            .setDisabled(isComplete) // Disable completed items
+        );
+      });
+
+      components.push(verificationRow);
+    }
+
+    return { embed, components };
   }
 }

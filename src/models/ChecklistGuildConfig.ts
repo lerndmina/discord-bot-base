@@ -17,4 +17,4 @@ const CheclistGuildConfig = new Schema({
 
 export default model("CheclistGuildConfig", CheclistGuildConfig);
 
-export type CheclistGuildConfigType = InferSchemaType<typeof CheclistGuildConfig>;
+export type ChecklistGuildConfigType = InferSchemaType<typeof CheclistGuildConfig>;

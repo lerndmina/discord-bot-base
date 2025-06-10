@@ -29,15 +29,14 @@ export default async (
         await ChecklistService.handleItemVerification(interaction);
         return true;
       }
-    }
-
-    // Handle modal submissions for checklist building
+    } // Handle modal submissions for checklist building
     if (interaction.isModalSubmit()) {
       if (
         interaction.customId.includes("_") &&
         (interaction.customId.startsWith("title-modal") ||
           interaction.customId.startsWith("description-modal") ||
           interaction.customId.startsWith("forum-modal") ||
+          interaction.customId.startsWith("footer-modal") ||
           interaction.customId.startsWith("item-modal") ||
           interaction.customId.startsWith("verification-modal") ||
           interaction.customId.startsWith("step-verification-modal"))
