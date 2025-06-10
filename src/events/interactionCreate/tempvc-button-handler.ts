@@ -202,7 +202,7 @@ async function RenameVCModal(
     .then(async (modalInteraction) => {
       try {
         const nameValue = modalInteraction.fields.getTextInputValue("tempvc-name-input");
-        
+
         // Validate the name
         if (!nameValue || nameValue.trim().length === 0) {
           await modalInteraction.reply({
@@ -241,7 +241,7 @@ async function RenameVCModal(
         try {
           log.debug(`Renaming channel from "${channel.name}" to "${trimmedName}"`);
           await Promise.race([
-            channel.setName(trimmedName),
+            channel.setName(`${isChannelLocked(channel) ? "🔒 " : ""}${trimmedName}`),
             new Promise((_, reject) => setTimeout(() => reject(new Error("Rename timeout")), 2500)),
           ]);
           log.debug(`Successfully renamed channel to "${trimmedName}"`);
@@ -380,21 +380,23 @@ async function SendInvite(
           maxAge: tenMinutes, // discord uses seconds
           maxUses: 10,
         }),
-        new Promise<never>((_, reject) => 
+        new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error("Invite creation timeout")), 2500)
         ),
       ]);
       log.debug(`Successfully created invite for channel ${channel.name}: ${invite.url}`);
     } catch (inviteError: any) {
       log.error(`Failed to create invite: ${inviteError.message}`);
-      
+
       let errorMessage = "Failed to create an invite for this channel.";
       if (inviteError.code === 50013) {
-        errorMessage = "Missing Permissions: I don't have the required permissions to create invites for this channel.";
+        errorMessage =
+          "Missing Permissions: I don't have the required permissions to create invites for this channel.";
       } else if (inviteError.code === 50001) {
         errorMessage = "Missing Access: I don't have access to this channel.";
       } else if (inviteError.message.includes("timeout")) {
-        errorMessage = "Discord rate limits prevented creating the invite. Please try again in a moment.";
+        errorMessage =
+          "Discord rate limits prevented creating the invite. Please try again in a moment.";
       }
 
       await interaction.editReply({
@@ -617,29 +619,23 @@ async function BanUserFromChannel(
     if (failedUsers.length > 0) {
       if (description) description += "\n\n";
       description += `⚠️ **Failed to ban:** ${failedUsers.join(", ")}`;
-      if (failedUsers.some(user => user.includes("timeout") || user.includes("rate limit"))) {
-        description += "\n\n💡 **Tip:** You can manually ban users by going to channel permissions and denying them the 'Connect' permission.";
+      if (failedUsers.some((user) => user.includes("timeout") || user.includes("rate limit"))) {
+        description +=
+          "\n\n💡 **Tip:** You can manually ban users by going to channel permissions and denying them the 'Connect' permission.";
       }
     }
 
-    const title = successCount > 0 ? 
-      (failedUsers.length > 0 ? "✅ Partially Completed" : "✅ Users Banned!") :
-      "⚠️ Ban Failed";
-    
-    const color = successCount > 0 ? 
-      (failedUsers.length > 0 ? "Orange" : undefined) :
-      "Red";
+    const title =
+      successCount > 0
+        ? failedUsers.length > 0
+          ? "✅ Partially Completed"
+          : "✅ Users Banned!"
+        : "⚠️ Ban Failed";
+
+    const color = successCount > 0 ? (failedUsers.length > 0 ? "Orange" : undefined) : "Red";
 
     await interaction.editReply({
-      embeds: [
-        BasicEmbed(
-          interaction.client,
-          title,
-          description,
-          undefined,
-          color
-        ),
-      ],
+      embeds: [BasicEmbed(interaction.client, title, description, undefined, color)],
     });
   } catch (error: any) {
     log.error(`Error in BanUserFromChannel: ${error}`);
@@ -817,7 +813,9 @@ function LimitUsers(
           log.debug(`Setting user limit for channel ${channel.name} to ${limitValue}`);
           await Promise.race([
             channel.setUserLimit(limitValue),
-            new Promise((_, reject) => setTimeout(() => reject(new Error("User limit timeout")), 2500)),
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error("User limit timeout")), 2500)
+            ),
           ]);
           log.debug(`Successfully set user limit for channel ${channel.name} to ${limitValue}`);
         } catch (limitError: any) {
@@ -886,7 +884,7 @@ function LimitUsers(
       log.debug(`Modal timeout for user limit in channel ${channel.name}: ${timeoutError.message}`);
       // No need to respond here as the modal will automatically disappear
     });
-  
+
   return true; // Stops the event loop.
 }
 
@@ -952,11 +950,7 @@ async function LockUnlockVC(
     });
     return true;
   }
-  const isLocked = channel.permissionOverwrites.cache.some(
-    (overwrite) =>
-      overwrite.id === channel.guild.roles.everyone.id &&
-      overwrite.deny.has(PermissionFlagsBits.Connect)
-  );
+  const isLocked = isChannelLocked(channel);
 
   log.debug(`Channel ${channel.name} current lock state: ${isLocked ? "LOCKED" : "UNLOCKED"}`);
   log.debug(`Channel permission overwrites count: ${channel.permissionOverwrites.cache.size}`);
@@ -1134,4 +1128,13 @@ async function LockUnlockVC(
     }
   }
   return true; // Stops the event loop.
+}
+
+function isChannelLocked(channel: GuildChannel): boolean {
+  // Check if the channel has a permission overwrite that denies Connect for @everyone
+  return channel.permissionOverwrites.cache.some(
+    (overwrite) =>
+      overwrite.id === channel.guild.roles.everyone.id &&
+      overwrite.deny.has(PermissionFlagsBits.Connect)
+  );
 }
