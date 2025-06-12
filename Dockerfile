@@ -26,6 +26,9 @@ COPY src/ ./src/
 # Copy the rest of the application files
 COPY . .
 
+# Install tsx
+RUN npm install -g tsx
+
 # Expose port for health check
 EXPOSE 3000
 

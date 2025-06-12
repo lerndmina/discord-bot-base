@@ -3,13 +3,14 @@
   "version": "1.0.0",
   "description": "Discord bot base with various utility commands and features",
   "main": "src/Bot.ts",
+  "type": "commonjs",
   "publishConfig": {
     "access": "public"
   },
   "scripts": {
     "dev": "npx nodemon --watch 'src/**/*.ts' --exec 'npx tsx' src/Bot.ts",
-    "start": "bunx tsx src/Bot.ts",
-    "test-build": "bunx tsc"
+    "start": "tsx src/Bot.ts",
+    "build": "bunx tsc"
   },
   "author": "",
   "license": "ISC",
