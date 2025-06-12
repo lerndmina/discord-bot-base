@@ -11,6 +11,22 @@ const OptionSchema = new Schema({
   },
 });
 
+const VoterDetailsSchema = new Schema({
+  userId: {
+    type: String,
+    required: true,
+  },
+  optionIndex: {
+    type: Number,
+    required: true,
+  },
+  lastVoteTime: {
+    type: Date,
+    required: true,
+    default: Date.now,
+  },
+});
+
 const PollsSchema = new Schema({
   pollId: {
     type: String,
@@ -49,6 +65,7 @@ const PollsSchema = new Schema({
     type: [String],
     required: false,
   },
+  voterDetails: [VoterDetailsSchema],
   mentionRole: {
     type: String,
     required: false,

@@ -23,14 +23,14 @@ import { CommandOptions, SlashCommandProps } from "commandkit";
 import ms from "ms";
 import Database from "../../utils/data/database";
 import PollsSchema, { PollsType } from "../../models/PollsSchema";
-import { getPollEmbed } from "../../events/interactionCreate/poll-interaction";
+import { generatePollMessage } from "../../events/interactionCreate/poll-interaction";
 import { waitForPollEnd } from "../../events/ready/checkpolls";
 import { channel } from "diagnostics_channel";
 import log from "../../utils/log";
 
 export const data = new SlashCommandBuilder()
   .setName("poll")
-  .setDescription("Create a poll for people to vote on anonymously.")
+  .setDescription("Create a poll for people to vote on.")
   .setDMPermission(false)
   .addStringOption((option: SlashCommandStringOption) =>
     option
@@ -129,18 +129,33 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
 
   const endTime = Date.now() + POLL_TIME;
   const endTimeSeconds = Math.floor(endTime / 1000);
-
   const dbOptions = options.map((option) => ({ name: option, votes: 0 }));
-
   const embedDescriptionArray = [
     `Poll will end <t:${endTimeSeconds}:R>`,
     `Total Votes - 0`,
     description ? `\n${description}` : "",
-    `\n${options.map((option, index) => `${index + 1}. \`${option}\``).join("\n")}`,
-    "\n **All votes are anonymous**.",
+    `\n${options
+      .map((option, index) => {
+        const progressBar = "░".repeat(10); // Empty progress bar initially
+        return `${index + 1}. \`${option}\` ${progressBar} 0 (0%)`;
+      })
+      .join("\n")}`,
+    "\n **You can change your vote every 60 seconds**.",
   ];
+  // Create a temporary poll object for the initial embed generation
+  const tempPoll = {
+    question,
+    options: dbOptions,
+    voterDetails: [],
+    embedDescriptionArray,
+    pollId: "temp",
+    messageId: "temp",
+    channelId: interaction.channel.id,
+    creatorId: interaction.user.id,
+    endsAt: new Date(endTime),
+  } as unknown as PollsType;
 
-  const embed = getPollEmbed(interaction, embedDescriptionArray, question);
+  const embed = generatePollMessage(tempPoll, client);
 
   const selectMenu = new StringSelectMenuBuilder()
     .setCustomId(pollId)
@@ -167,6 +182,13 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
   let response: Message;
   log.info(`Mention Role: ${mentionRole}`);
   try {
+    if (!interaction.channel || !("send" in interaction.channel)) {
+      interaction.reply({
+        content: "Unable to send poll message in this channel type.",
+        ephemeral: true,
+      });
+      return;
+    }
     response = await interaction.channel.send({
       content: mentionRole ? `${mentionRole}` : "",
       embeds: [embed],
@@ -190,7 +212,6 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
   interaction.reply({ content: "Poll created!", ephemeral: true });
 
   // Add the poll to the DB
-
   const poll = {
     pollId,
     messageId: response.id,
@@ -201,6 +222,7 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
     question,
     embedDescriptionArray,
     mentionRole: mentionRole ? mentionRole.id : undefined,
+    voterDetails: [],
   };
 
   const db = new Database();
