@@ -2,6 +2,10 @@
 import { config as dotenvConfig } from "dotenv";
 dotenvConfig(); // This ensures environment variables are loaded at the very beginning
 
+// Fix CommandKit before importing it
+import { fixCommandKit } from "../FixCommandKit";
+fixCommandKit();
+
 import {
   BaseInteraction,
   Client,
@@ -37,14 +41,28 @@ export const Start = async () => {
     partials: [Partials.Message, Partials.Channel, Partials.Reaction],
   }) as Client<true>;
 
+  const commandsPath = path.join(__dirname, "commands");
+  const eventsPath = path.join(__dirname, "events");
+  const validationsPath = path.join(__dirname, "validations");
+  const devGuildIds = env.TEST_SERVERS;
+  const devUserIds = env.OWNER_IDS;
+
+  log.info(`Loading commandkit with`, {
+    commandsPath,
+    eventsPath,
+    validationsPath,
+    devGuildIds,
+    devUserIds,
+  });
+
   // Using CommandKit (https://commandkit.underctrl.io)
   const commandKit = new CommandKit({
     client, // Discord.js client object | Required by default
-    commandsPath: path.join(__dirname, "commands"), // The commands directory
-    eventsPath: path.join(__dirname, "events"), // The events directory
-    validationsPath: path.join(__dirname, "validations"), // Only works if commandsPath is provided
-    devGuildIds: env.TEST_SERVERS,
-    devUserIds: env.OWNER_IDS,
+    commandsPath, // The commands directory
+    eventsPath, // The events directory
+    validationsPath, // Only works if commandsPath is provided
+    devGuildIds,
+    devUserIds,
   });
 
   log.info(`Logging in to Discord with ${Object.keys(env).length} enviroment variables.`);
