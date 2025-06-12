@@ -218,13 +218,6 @@ async function handleChecklistCreate(props: SlashCommandProps) {
 
   if (!interaction.guild) return;
 
-  if (!interaction.memberPermissions?.has("ManageChannels")) {
-    return interaction.reply({
-      content: "You need the Manage Channels permission to create checklists.",
-      ephemeral: true,
-    });
-  }
-
   try {
     await ChecklistService.startChecklistCreation(interaction);
   } catch (error) {
@@ -243,14 +236,6 @@ async function handleChecklistStart(props: SlashCommandProps) {
 
   const checklistName = interaction.options.getString("checklist", true);
   const targetUser = interaction.options.getUser("user", true);
-
-  // Check for ban/kick permissions
-  if (!interaction.memberPermissions?.has("KickMembers")) {
-    return interaction.reply({
-      content: "You need to be a moderator to start a checklist.",
-      ephemeral: true,
-    });
-  }
 
   try {
     await ChecklistService.createChecklistInstance(interaction, checklistName, targetUser);
