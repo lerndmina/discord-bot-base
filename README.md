@@ -156,10 +156,69 @@ bun start
 The bot includes full Docker support with:
 
 - Multi-stage builds for optimal image size
+- **Multi-platform support**: Images are built for both AMD64 and ARM64 architectures
 - Health checks for container orchestration
 - FFmpeg and Node.js pre-installed
 - Volume support for persistent data
 - Available on GitHub Container Registry
+
+### Multi-Platform Build Support
+
+The Docker images are automatically built for both `linux/amd64` and `linux/arm64` platforms, ensuring compatibility with:
+
+- Intel/AMD processors (x86_64)
+- ARM processors (including Apple Silicon M1/M2, Raspberry Pi, AWS Graviton)
+
+When you pull the image, Docker will automatically select the correct architecture for your system.
+
+### Building Multi-Platform Images Locally
+
+For local multi-platform builds, use the provided scripts:
+
+**PowerShell (Windows):**
+
+```powershell
+# Build for current platform only
+.\build-multiplatform.ps1
+
+# Build and push multi-platform images
+.\build-multiplatform.ps1 -Push
+
+# Use optimized Dockerfile
+.\build-multiplatform.ps1 -UseOptimized -Push
+
+# Custom image name and tag
+.\build-multiplatform.ps1 -ImageName "mybot" -Tag "v1.0" -Push
+```
+
+**Bash (Linux/macOS):**
+
+```bash
+# Build for current platform only
+./build-multiplatform.sh
+
+# Build and push multi-platform images
+./build-multiplatform.sh --push
+
+# Use optimized Dockerfile
+./build-multiplatform.sh --optimized --push
+
+# Custom image name and tag
+./build-multiplatform.sh --name "mybot" --tag "v1.0" --push
+```
+
+**Manual Docker Buildx:**
+
+```bash
+# Create buildx builder
+docker buildx create --name multiplatform --use
+
+# Build for multiple platforms
+docker buildx build --platform linux/amd64,linux/arm64 -t myimage:latest --push .
+
+# Build locally (current platform only)
+docker buildx build --load -t myimage:latest .
+```
 
 ### Docker Compose Example:
 

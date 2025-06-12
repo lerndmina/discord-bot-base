@@ -1,5 +1,7 @@
-ARG TARGETPLATFORM=linux/amd64
-FROM oven/bun:latest
+# Multi-platform build arguments
+ARG TARGETPLATFORM
+ARG BUILDPLATFORM
+FROM --platform=$TARGETPLATFORM oven/bun:latest
 
 # Install FFmpeg, Node.js, and wget for health checks
 RUN apt-get update && \
