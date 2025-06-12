@@ -8,6 +8,6 @@
     "skipLibCheck": true,
     "noImplicitAny": false
   },
-  "include": ["src/**/*.ts", "declarations.d.ts"],
+  "include": ["src/**/*.ts", "declarations.d.ts", "FixCommandKit.ts"],
   "exclude": ["node_modules"]
 }

@@ -1,4 +1,7 @@
-FROM oven/bun:latest
+# Multi-platform build arguments
+ARG TARGETPLATFORM
+ARG BUILDPLATFORM
+FROM --platform=$TARGETPLATFORM oven/bun:latest
 
 # Install FFmpeg, Node.js, and wget for health checks
 RUN apt-get update && \
@@ -25,6 +28,9 @@ COPY src/ ./src/
 
 # Copy the rest of the application files
 COPY . .
+
+# Install tsx
+RUN npm install -g tsx
 
 # Expose port for health check
 EXPOSE 3000
