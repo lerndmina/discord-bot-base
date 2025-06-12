@@ -1,3 +1,4 @@
+ARG TARGETPLATFORM=linux/amd64
 FROM oven/bun:latest
 
 # Install FFmpeg, Node.js, and wget for health checks
