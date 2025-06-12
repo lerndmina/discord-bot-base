@@ -124,12 +124,14 @@ export async function endPoll(
   let finalMessage: Message;
 
   try {
-    finalMessage = await message.channel.send({ embeds: [embed] });
-    await message.edit({
-      components: [],
-      embeds: [],
-      content: `This poll has ended.\nLink to poll: ${finalMessage.url}`,
-    });
+    if (message.channel && "send" in message.channel) {
+      finalMessage = await message.channel.send({ embeds: [embed] });
+      await message.edit({
+        components: [],
+        embeds: [],
+        content: `This poll has ended.\nLink to poll: ${finalMessage.url}`,
+      });
+    }
   } catch (error) {
     debugMsg("Error sending poll results or editing poll message.");
   }
