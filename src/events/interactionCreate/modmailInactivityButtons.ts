@@ -6,6 +6,7 @@ import { ThingGetter } from "../../utils/TinyUtils";
 import { handleTag } from "../messageCreate/gotMail";
 import FetchEnvs from "../../utils/FetchEnvs";
 import log from "../../utils/log";
+import { sendModmailCloseMessage } from "../../utils/ModmailUtils";
 
 const env = FetchEnvs();
 
@@ -61,24 +62,8 @@ export default async (interaction: ButtonInteraction, client: Client<true>) => {
       return interaction.editReply({
         content: "❌ Could not access the modmail thread.",
       });
-    }
-
-    // Send closure message to thread
-    await forumThread.send({
-      content: `🔒 This modmail thread has been closed by ${closedBy.toLowerCase()} ${closedByName}.\n\nReason: ${reason}\n\nYou can open a modmail by sending another message to the bot.`,
-    });
-
-    // Send closure message to user (if not already in DMs)
-    if (!isOwner) {
-      try {
-        const user = await getter.getUser(modmail.userId);
-        await user.send({
-          content: `🔒 Your modmail thread has been closed by ${closedBy.toLowerCase()} ${closedByName}.\n\nReason: ${reason}\n\nYou can open a modmail by sending another message to the bot.`,
-        });
-      } catch (error) {
-        log.warn(`Could not send closure DM to user ${modmail.userId}:`, error);
-      }
-    }
+    } // Send closure message using consistent styling
+    await sendModmailCloseMessage(client, modmail, closedBy, closedByName, reason);
 
     // Update tags to closed
     const config = await db.findOne(ModmailConfig, { guildId: modmail.guildId });

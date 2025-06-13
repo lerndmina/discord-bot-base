@@ -15,6 +15,8 @@ import sendbuttonModmail, {
 } from "../../subcommands/modmail/sendbuttonModmail";
 import setupModmail, { setupModmailOptions } from "../../subcommands/modmail/setupModmail";
 import openModmail, { openModmailOptions } from "../../subcommands/modmail/openModmail";
+import neverautocloseModmail from "../../subcommands/modmail/neverautocloseModmail";
+import markresolvedModmail from "../../subcommands/modmail/markresolvedModmail";
 
 const env = FetchEnvs();
 
@@ -117,6 +119,16 @@ export const data = new SlashCommandBuilder()
           .setRequired(false)
       )
   )
+  .addSubcommand((subcommand) =>
+    subcommand
+      .setName("neverautoclose")
+      .setDescription("Disable auto-closing for this modmail thread (Manage Server required)")
+  )
+  .addSubcommand((subcommand) =>
+    subcommand
+      .setName("markresolved")
+      .setDescription("Mark this modmail thread as resolved with user response options")
+  )
   .setDMPermission(true);
 
 export const options: CommandOptions = {
@@ -162,6 +174,12 @@ export async function run({ interaction, client, handler }: SlashCommandProps) {
       );
       if (openModmailCheck !== false) return openModmailCheck;
       openModmail({ interaction, client, handler });
+      break;
+    case "neverautoclose":
+      neverautocloseModmail({ interaction, client, handler });
+      break;
+    case "markresolved":
+      markresolvedModmail({ interaction, client, handler });
       break;
     default:
       return interaction.reply({

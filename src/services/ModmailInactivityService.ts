@@ -8,6 +8,7 @@ import {
   getInactivityWarningHours,
   getAutoCloseHours,
   formatTimeHours,
+  sendModmailCloseMessage,
 } from "../utils/ModmailUtils";
 import BasicEmbed from "../utils/BasicEmbed";
 import log from "../utils/log";
@@ -158,6 +159,12 @@ export class ModmailInactivityService {
         return;
       }
 
+      // Check if auto-close is disabled for this modmail
+      if (modmail.autoCloseDisabled) {
+        log.debug(`Modmail ${modmail._id} has auto-close disabled, skipping inactivity processing`);
+        return;
+      }
+
       const now = new Date();
       const lastActivity = new Date(modmail.lastUserActivityAt || modmail.createdAt || now);
 
@@ -167,10 +174,19 @@ export class ModmailInactivityService {
       const autoCloseHours = config?.autoCloseHours || getAutoCloseHours();
 
       const hoursSinceLastActivity = (now.getTime() - lastActivity.getTime()) / (1000 * 60 * 60);
-
       log.debug(
         `Modmail ${modmail._id}: ${hoursSinceLastActivity.toFixed(2)} hours since last activity`
       );
+
+      // Check if thread is marked as resolved and should be auto-closed
+      if (modmail.markedResolved && modmail.resolvedAt) {
+        const hoursSinceResolved =
+          (now.getTime() - new Date(modmail.resolvedAt).getTime()) / (1000 * 60 * 60);
+        if (hoursSinceResolved >= 24) {
+          await this.autoCloseResolvedModmail(modmail);
+          return;
+        }
+      }
 
       // Check if we should send inactivity warning
       if (!modmail.inactivityNotificationSent && hoursSinceLastActivity >= warningHours) {
@@ -252,19 +268,12 @@ export class ModmailInactivityService {
   private async autoCloseModmail(modmail: ModmailDoc): Promise<void> {
     try {
       log.info(`Auto-closing inactive modmail ${modmail._id}`);
-      const closeEmbed = BasicEmbed(
-        this.client,
-        "🔒 Modmail Thread Auto-Closed",
-        `This modmail thread has been automatically closed due to ${formatTimeHours(
-          getAutoCloseHours()
-        )} of inactivity after the warning was sent.\n\n` +
-          `If you need further assistance, feel free to start a new modmail thread by sending me a message.`,
-        undefined,
-        "Red"
-      );
 
-      // Send closure message to both channels
-      await sendMessageToBothChannels(this.client, modmail, closeEmbed);
+      // Send closure message using the consistent styling
+      const reason = `Auto-closed due to ${formatTimeHours(
+        getAutoCloseHours()
+      )} of inactivity after the warning was sent.`;
+      await sendModmailCloseMessage(this.client, modmail, "System", "Auto-Close System", reason);
 
       // Close the modmail using existing close logic
       await this.closeModmailThread(modmail, "Auto-closed due to inactivity");
@@ -274,6 +283,27 @@ export class ModmailInactivityService {
       log.error(`Error auto-closing modmail ${modmail._id}:`, error);
     }
   }
+
+  /**
+   * Auto-close a resolved modmail thread after 24 hours
+   */
+  private async autoCloseResolvedModmail(modmail: ModmailDoc): Promise<void> {
+    try {
+      log.info(`Auto-closing resolved modmail ${modmail._id}`);
+
+      // Send closure message using the consistent styling
+      const reason = "Auto-closed after 24 hours with no response to resolution";
+      await sendModmailCloseMessage(this.client, modmail, "System", "Auto-Close System", reason);
+
+      // Close the modmail using existing close logic
+      await this.closeModmailThread(modmail, reason);
+
+      log.info(`Successfully auto-closed resolved modmail ${modmail._id}`);
+    } catch (error) {
+      log.error(`Error auto-closing resolved modmail ${modmail._id}:`, error);
+    }
+  }
+
   /**
    * Close a modmail thread (following the same pattern as closeModmail.ts)
    */

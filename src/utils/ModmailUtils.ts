@@ -10,6 +10,7 @@ import { ModmailType } from "../models/Modmail";
 import { ThingGetter } from "./TinyUtils";
 import log from "./log";
 import FetchEnvs from "./FetchEnvs";
+import BasicEmbed from "./BasicEmbed";
 
 const env = FetchEnvs();
 
@@ -81,6 +82,22 @@ export function createCloseThreadButton(
 }
 
 /**
+ * Create a claim ticket button component
+ */
+export function createClaimButton(): ActionRowBuilder<ButtonBuilder> {
+  const { ButtonStyle } = require("discord.js");
+
+  const button = new ButtonBuilder()
+    .setCustomId("modmail_claim")
+    .setLabel("Claim Ticket")
+    .setStyle(ButtonStyle.Primary)
+    .setEmoji("🎫");
+
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(button);
+  return row;
+}
+
+/**
  * Get the inactivity warning hours from config or environment
  */
 export function getInactivityWarningHours(): number {
@@ -143,4 +160,25 @@ export function formatTimeHours(hours: number): string {
   }
 
   return parts.join(" ");
+}
+
+/**
+ * Send a modmail close message to both user DMs and thread with consistent styling
+ */
+export async function sendModmailCloseMessage(
+  client: Client<true>,
+  modmail: ModmailType,
+  closedBy: "User" | "Staff" | "System",
+  closedByName: string,
+  reason: string
+): Promise<{ dmSuccess: boolean; threadSuccess: boolean }> {
+  const embed = BasicEmbed(
+    client,
+    `Modmail Closed (${closedBy})`,
+    `This modmail thread has been closed by ${closedBy.toLowerCase()} ${closedByName}.\n\nReason: ${reason}\n\nYou can open a modmail by sending another message to the bot.`,
+    undefined,
+    "Red"
+  );
+
+  return await sendMessageToBothChannels(client, modmail, embed);
 }

@@ -10,6 +10,7 @@ import FetchEnvs from "../../utils/FetchEnvs";
 import { initialReply } from "../../utils/initialReply";
 import { handleTag } from "../../events/messageCreate/gotMail";
 import ModmailConfig from "../../models/ModmailConfig";
+import { sendModmailCloseMessage } from "../../utils/ModmailUtils";
 
 const env = FetchEnvs();
 
@@ -40,26 +41,10 @@ export default async function ({ interaction, client, handler }: SlashCommandPro
   const closedByName = isUser
     ? (await getter.getUser(mail.userId)).username
     : interaction.user.username;
-
   const forumThread = (await getter.getChannel(mail.forumThreadId)) as ThreadChannel;
-  const embed = BasicEmbed(
-    client,
-    `Modmail Closed (${closedBy})`,
-    `This modmail thread has been closed by ${closedBy.toLowerCase()} ${closedByName}.\n\nReason: ${reason}\n\nYou can open a modmail by sending another message to the bot.`,
-    undefined,
-    "Red"
-  );
 
-  await forumThread.send({
-    embeds: [embed],
-  });
-
-  const user = await getter.getUser(mail.userId);
-  if (!user) return interaction.editReply("Mail user not found. This should never happen.");
-
-  user.send({
-    embeds: [embed],
-  });
+  // Send closure message using consistent styling
+  await sendModmailCloseMessage(client, mail, closedBy, closedByName, reason);
 
   const db = new Database();
   const config = await db.findOne(ModmailConfig, { guildId: interaction.guildId });

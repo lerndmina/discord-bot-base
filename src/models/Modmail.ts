@@ -39,6 +39,26 @@ const modmailSchema = new Schema({
     type: Date,
     required: false,
   },
+  autoCloseDisabled: {
+    type: Boolean,
+    default: false,
+  },
+  markedResolved: {
+    type: Boolean,
+    default: false,
+  },
+  resolvedAt: {
+    type: Date,
+    required: false,
+  },
+  claimedBy: {
+    type: String,
+    required: false,
+  },
+  claimedAt: {
+    type: Date,
+    required: false,
+  },
 });
 
 export default model(env.MODMAIL_TABLE, modmailSchema);
