@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "description": "Discord bot base with various utility commands and features",
   "main": "src/Bot.ts",
-  "type": "commonjs",
   "publishConfig": {
     "access": "public"
   },
