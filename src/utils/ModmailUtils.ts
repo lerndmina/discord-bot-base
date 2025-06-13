@@ -9,7 +9,7 @@ import {
 import { ModmailType } from "../models/Modmail";
 import { ThingGetter } from "./TinyUtils";
 import log from "./log";
-import FetchEnvs from "./FetchEnvs";
+import FetchEnvs, { envExists } from "./FetchEnvs";
 import BasicEmbed from "./BasicEmbed";
 
 const env = FetchEnvs();
@@ -175,7 +175,9 @@ export function getInactivityWarningHours(): number {
     return 2 / 60; // 2 minutes in testing mode
   }
 
-  return env.MODMAIL_INACTIVITY_WARNING_HOURS;
+  return envExists(env.MODMAIL_INACTIVITY_WARNING_HOURS)
+    ? env.MODMAIL_INACTIVITY_WARNING_HOURS
+    : 24; // Default to 24 hours if not set
 }
 
 /**
@@ -186,7 +188,7 @@ export function getAutoCloseHours(): number {
     return 5 / 60; // 5 minutes in testing mode
   }
 
-  return env.MODMAIL_AUTO_CLOSE_HOURS;
+  return envExists(env.MODMAIL_AUTO_CLOSE_HOURS) ? env.MODMAIL_AUTO_CLOSE_HOURS : 24 * 7; // Default to 7 days if not set
 }
 
 /**
@@ -197,7 +199,7 @@ export function getCheckIntervalMinutes(): number {
     return 0.5; // 30 seconds in testing mode
   }
 
-  return env.MODMAIL_CHECK_INTERVAL_MINUTES;
+  return envExists(env.MODMAIL_CHECK_INTERVAL_MINUTES) ? env.MODMAIL_CHECK_INTERVAL_MINUTES : 30; // Default to 30 minutes if not set
 }
 
 /**
