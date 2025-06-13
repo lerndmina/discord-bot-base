@@ -81,7 +81,7 @@ export default class Database {
 
     if (!data || data.length == 0) {
       debugMsg(model);
-      data = await schema.find(model);
+      const dbResult = await schema.find(model);
       if (!data || data.length == 0) {
         debugMsg(`Database miss no data found`);
         if (!saveNull) return null;
@@ -288,5 +288,31 @@ export default class Database {
 
     if (env.DEBUG_LOG) debugMsg(`DB - pullFromSet - Time taken: ${Date.now() - start!}ms`);
     return result as T;
+  }
+
+  /**
+   * Update multiple documents matching the query
+   * @generic T - The document type
+   * @param schema - Mongoose model
+   * @param query - Query to find documents
+   * @param update - Update data
+   */
+  async updateMany<T>(schema: Model<T>, query: any, update: any): Promise<void> {
+    var start = env.DEBUG_LOG ? Date.now() : undefined;
+    if (!schema || !query) {
+      throw new Error("Missing schema or query");
+    }
+
+    await schema.updateMany(query, update);
+    // Clear related cache entries since we can't know all affected keys
+    const schemaPattern = `${env.MONGODB_DATABASE}:${schema.modelName}:*`;
+    const keys = await redisClient.keys(schemaPattern);
+    if (keys.length > 0) {
+      for (const key of keys) {
+        await redisClient.del(key);
+      }
+    }
+
+    if (env.DEBUG_LOG) debugMsg(`DB - updateMany - Time taken: ${Date.now() - start!}ms`);
   }
 }

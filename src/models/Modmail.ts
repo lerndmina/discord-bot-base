@@ -27,6 +27,18 @@ const modmailSchema = new Schema({
     type: String,
     required: false,
   },
+  lastUserActivityAt: {
+    type: Date,
+    default: Date.now,
+  },
+  inactivityNotificationSent: {
+    type: Date,
+    required: false,
+  },
+  autoCloseScheduledAt: {
+    type: Date,
+    required: false,
+  },
 });
 
 export default model(env.MODMAIL_TABLE, modmailSchema);

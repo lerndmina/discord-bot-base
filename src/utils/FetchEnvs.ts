@@ -38,6 +38,10 @@ function getter() {
     FIVEM_MYSQL_URI: string;
     TAW_API_URL: string;
     TAW_API_KEY: string;
+    MODMAIL_INACTIVITY_WARNING_HOURS: number;
+    MODMAIL_AUTO_CLOSE_HOURS: number;
+    MODMAIL_CHECK_INTERVAL_MINUTES: number;
+    MODMAIL_TESTING_MODE: boolean;
   } = {
     BOT_TOKEN: process.env.BOT_TOKEN || "",
     OWNER_IDS: (process.env.OWNER_IDS || "").trim().split(","),
@@ -66,6 +70,12 @@ function getter() {
     FIVEM_MYSQL_URI: process.env.FIVEM_MYSQL_URI || DEFAULT_OPTIONAL_STRING,
     TAW_API_URL: process.env.TAW_API_URL || DEFAULT_OPTIONAL_STRING,
     TAW_API_KEY: process.env.TAW_API_KEY || DEFAULT_OPTIONAL_STRING,
+    MODMAIL_INACTIVITY_WARNING_HOURS: parseInt(
+      process.env.MODMAIL_INACTIVITY_WARNING_HOURS || "24"
+    ),
+    MODMAIL_AUTO_CLOSE_HOURS: parseInt(process.env.MODMAIL_AUTO_CLOSE_HOURS || "168"),
+    MODMAIL_CHECK_INTERVAL_MINUTES: parseInt(process.env.MODMAIL_CHECK_INTERVAL_MINUTES || "30"),
+    MODMAIL_TESTING_MODE: process.env.MODMAIL_TESTING_MODE === "true",
   };
 
   var missingKeys: string[] = [];

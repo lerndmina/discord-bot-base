@@ -49,6 +49,14 @@ const ModmailConfig = new Schema({
     type: [tagsSchema],
     required: false,
   },
+  inactivityWarningHours: {
+    type: Number,
+    default: 24,
+  },
+  autoCloseHours: {
+    type: Number,
+    default: 168, // 7 days
+  },
 });
 
 export default model("ModmailConfig", ModmailConfig);

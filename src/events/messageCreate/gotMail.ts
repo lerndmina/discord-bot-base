@@ -45,6 +45,7 @@ import log from "../../utils/log";
 import { tryCatch } from "../../utils/trycatch";
 import ModmailBanModel from "../../models/ModmailBans";
 import ms from "ms";
+import { ModmailScheduler } from "../../services/ModmailScheduler";
 const env = FetchEnvs();
 
 const MAX_TITLE_LENGTH = 50;
@@ -443,9 +444,7 @@ async function newModmail(
             "Random"
           ),
         ],
-      });
-
-      // Create new modmail entry with user avatar and display name
+      }); // Create new modmail entry with user avatar and display name
       await db.findOneAndUpdate(
         Modmail,
         { userId: i.user.id },
@@ -456,6 +455,7 @@ async function newModmail(
           userId: i.user.id,
           userAvatar: i.user.displayAvatarURL(),
           userDisplayName: memberName,
+          lastUserActivityAt: new Date(), // Set initial activity time
         },
         {
           upsert: true,
@@ -569,6 +569,21 @@ async function sendMessage( // Send a message from dms to the modmail thread
         { new: true, upsert: true }
       );
     }
+
+    // Update last user activity for inactivity tracking
+    await db.findOneAndUpdate(
+      Modmail,
+      { userId: message.author.id },
+      {
+        lastUserActivityAt: new Date(),
+        // Reset notification tracking when user becomes active again
+        inactivityNotificationSent: null,
+        autoCloseScheduledAt: null,
+      },
+      { new: true, upsert: true }
+    );
+
+    log.debug(`Updated last activity for user ${message.author.id} in modmail`);
   } catch (error) {
     log.error(error as string);
     return message.react("<:error:1182430951897321472>");
