@@ -22,11 +22,20 @@ export async function sendMessageToBothChannels(
   modmail: ModmailType,
   embed: EmbedBuilder,
   content?: string,
-  components?: ActionRowBuilder<ButtonBuilder>[]
+  options?: {
+    dmComponents?: ActionRowBuilder<ButtonBuilder>[];
+    threadComponents?: ActionRowBuilder<ButtonBuilder>[];
+    /** @deprecated Use dmComponents and threadComponents instead */
+    components?: ActionRowBuilder<ButtonBuilder>[];
+  }
 ): Promise<{ dmSuccess: boolean; threadSuccess: boolean }> {
   const getter = new ThingGetter(client);
   let dmSuccess = false;
   let threadSuccess = false;
+
+  // Handle backward compatibility
+  const dmComponents = options?.dmComponents || options?.components || [];
+  const threadComponents = options?.threadComponents || options?.components || [];
 
   // Send to user DMs
   try {
@@ -35,7 +44,7 @@ export async function sendMessageToBothChannels(
       await user.send({
         content,
         embeds: [embed],
-        components: components || [],
+        components: dmComponents,
       });
       dmSuccess = true;
       log.debug(`Successfully sent modmail message to user ${modmail.userId} via DM`);
@@ -51,7 +60,7 @@ export async function sendMessageToBothChannels(
       await thread.send({
         content,
         embeds: [embed],
-        components: components || [],
+        components: threadComponents,
       });
       threadSuccess = true;
       log.debug(`Successfully sent modmail message to thread ${modmail.forumThreadId}`);
@@ -61,6 +70,30 @@ export async function sendMessageToBothChannels(
   }
 
   return { dmSuccess, threadSuccess };
+}
+
+/**
+ * Create disabled resolve buttons
+ */
+export function createDisabledResolveButtons(): ActionRowBuilder<ButtonBuilder> {
+  const { ButtonStyle } = require("discord.js");
+
+  const closeButton = new ButtonBuilder()
+    .setCustomId("modmail_resolve_close_disabled")
+    .setLabel("Close Thread")
+    .setStyle(ButtonStyle.Success)
+    .setEmoji("✅")
+    .setDisabled(true);
+
+  const continueButton = new ButtonBuilder()
+    .setCustomId("modmail_resolve_continue_disabled")
+    .setLabel("I Need More Help")
+    .setStyle(ButtonStyle.Danger)
+    .setEmoji("🆘")
+    .setDisabled(true);
+
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(closeButton, continueButton);
+  return row;
 }
 
 /**
@@ -95,6 +128,43 @@ export function createClaimButton(): ActionRowBuilder<ButtonBuilder> {
 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(button);
   return row;
+}
+
+/**
+ * Create comprehensive modmail action buttons for staff
+ */
+export function createModmailActionButtons(): ActionRowBuilder<ButtonBuilder>[] {
+  const { ButtonStyle } = require("discord.js");
+
+  // Row 1: Claim and Mark Resolved
+  const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId("modmail_claim")
+      .setLabel("Claim Ticket")
+      .setStyle(ButtonStyle.Primary)
+      .setEmoji("🎫"),
+    new ButtonBuilder()
+      .setCustomId("modmail_mark_resolved")
+      .setLabel("Mark Resolved")
+      .setStyle(ButtonStyle.Success)
+      .setEmoji("✅")
+  );
+
+  // Row 2: Close and Ban
+  const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId("modmail_close_with_reason")
+      .setLabel("Close with Reason")
+      .setStyle(ButtonStyle.Danger)
+      .setEmoji("🔒"),
+    new ButtonBuilder()
+      .setCustomId("modmail_ban_user")
+      .setLabel("Ban User")
+      .setStyle(ButtonStyle.Danger)
+      .setEmoji("🔨")
+  );
+
+  return [row1, row2];
 }
 
 /**

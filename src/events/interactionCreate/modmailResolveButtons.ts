@@ -6,7 +6,11 @@ import { ThingGetter } from "../../utils/TinyUtils";
 import { handleTag } from "../messageCreate/gotMail";
 import FetchEnvs from "../../utils/FetchEnvs";
 import log from "../../utils/log";
-import { sendModmailCloseMessage, sendMessageToBothChannels } from "../../utils/ModmailUtils";
+import {
+  sendModmailCloseMessage,
+  sendMessageToBothChannels,
+  createDisabledResolveButtons,
+} from "../../utils/ModmailUtils";
 import BasicEmbed from "../../utils/BasicEmbed";
 
 const env = FetchEnvs();
@@ -104,10 +108,22 @@ export default async (interaction: ButtonInteraction, client: Client<true>) => {
           content: "❌ Only the ticket owner can close this thread.",
         });
       }
-
       const closedBy = "User";
       const closedByName = interaction.user.username;
       const reason = "Resolved - Closed by user";
+
+      // Disable the buttons in the original message
+      try {
+        if (interaction.message && interaction.channel?.type === 1) {
+          // Only edit if in DM channel
+          await interaction.message.edit({
+            embeds: interaction.message.embeds,
+            components: [createDisabledResolveButtons()],
+          });
+        }
+      } catch (error) {
+        log.warn("Failed to disable resolve buttons:", error);
+      }
 
       // Send closure message using consistent styling
       await sendModmailCloseMessage(client, modmail, closedBy, closedByName, reason);
@@ -154,9 +170,7 @@ export default async (interaction: ButtonInteraction, client: Client<true>) => {
         return interaction.editReply({
           content: "❌ Only the ticket owner can use this button.",
         });
-      }
-
-      // Update modmail to unmark as resolved
+      } // Update modmail to unmark as resolved
       await db.findOneAndUpdate(
         Modmail,
         { _id: modmail._id },
@@ -170,6 +184,19 @@ export default async (interaction: ButtonInteraction, client: Client<true>) => {
         },
         { upsert: false, new: true }
       );
+
+      // Disable the buttons in the original message
+      try {
+        if (interaction.message && interaction.channel?.type === 1) {
+          // Only edit if in DM channel
+          await interaction.message.edit({
+            embeds: interaction.message.embeds,
+            components: [createDisabledResolveButtons()],
+          });
+        }
+      } catch (error) {
+        log.warn("Failed to disable resolve buttons:", error);
+      }
 
       // Send continuation message
       const continueEmbed = BasicEmbed(

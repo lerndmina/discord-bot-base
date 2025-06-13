@@ -27,7 +27,7 @@ import Modmail, { ModmailType } from "../../models/Modmail";
 import ModmailConfig, { ModmailConfigType, ModmailStatus } from "../../models/ModmailConfig";
 import ButtonWrapper from "../../utils/ButtonWrapper";
 import { redisClient, removeMentions, waitingEmoji } from "../../Bot";
-import { createClaimButton } from "../../utils/ModmailUtils";
+import { createModmailActionButtons } from "../../utils/ModmailUtils";
 import {
   debugMsg,
   getDiscordDate,
@@ -444,7 +444,7 @@ async function newModmail(
             "Random"
           ),
         ],
-        components: [createClaimButton()],
+        components: createModmailActionButtons(),
       }); // Create new modmail entry with user avatar and display name
       await db.findOneAndUpdate(
         Modmail,

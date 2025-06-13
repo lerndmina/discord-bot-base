@@ -97,7 +97,7 @@ export default async function ({ interaction, client }: SlashCommandProps) {
         "Orange"
       );
 
-      const data = await sendMessageToBothChannels(client, mail, embed, undefined, []);
+      const data = await sendMessageToBothChannels(client, mail, embed, undefined, {});
       if (!data.dmSuccess) {
         log.warn(`Failed to send DM to user ${mail.userId} for modmail ${mail._id}`);
       }

@@ -230,13 +230,12 @@ export class ModmailInactivityService {
       );
 
       const closeButton = createCloseThreadButton();
-
       const { dmSuccess, threadSuccess } = await sendMessageToBothChannels(
         this.client,
         modmail,
         warningEmbed,
         undefined,
-        [closeButton]
+        { dmComponents: [closeButton], threadComponents: [closeButton] }
       );
 
       if (dmSuccess || threadSuccess) {

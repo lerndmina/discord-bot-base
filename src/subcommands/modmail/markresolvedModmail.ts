@@ -92,9 +92,7 @@ export default async function ({ interaction, client }: SlashCommandProps) {
         autoCloseScheduledAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
       },
       { upsert: false, new: true }
-    );
-
-    // Create buttons for user response
+    ); // Create buttons for user response
     const resolveButtons = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId("modmail_resolve_close")
@@ -104,7 +102,7 @@ export default async function ({ interaction, client }: SlashCommandProps) {
       new ButtonBuilder()
         .setCustomId("modmail_resolve_continue")
         .setLabel("I Need More Help")
-        .setStyle(ButtonStyle.Secondary)
+        .setStyle(ButtonStyle.Danger)
         .setEmoji("🆘")
     );
 
@@ -119,10 +117,11 @@ export default async function ({ interaction, client }: SlashCommandProps) {
         `This thread will automatically close in **24 hours** if no action is taken.`,
       undefined,
       "Green"
-    );
-
-    // Send message to both channels
-    await sendMessageToBothChannels(client, mail, resolveEmbed, undefined, [resolveButtons]);
+    ); // Send message to both channels - buttons only in DMs
+    await sendMessageToBothChannels(client, mail, resolveEmbed, undefined, {
+      dmComponents: [resolveButtons],
+      threadComponents: [], // No buttons in thread
+    });
 
     await interaction.editReply({
       embeds: [
