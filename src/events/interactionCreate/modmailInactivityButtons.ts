@@ -39,13 +39,8 @@ export default async (interaction: ButtonInteraction, client: Client<true>) => {
 
     // Check if user is allowed to close (either the thread owner or staff)
     const isOwner = modmail.userId === interaction.user.id;
-    const isStaff =
-      interaction.member?.roles &&
-      typeof interaction.member.roles !== "string" &&
-      "cache" in interaction.member.roles
-        ? interaction.member.roles.cache.has(env.STAFF_ROLE)
-        : false;
-
+    const interactionMember = await getter.getMember(interaction.guild, interaction.user.id);
+    const isStaff = interactionMember?.permissions.has("ManageMessages");
     if (!isOwner && !isStaff) {
       return interaction.editReply({
         content: "❌ You don't have permission to close this modmail thread.",
