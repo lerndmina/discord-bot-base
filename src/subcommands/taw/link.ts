@@ -13,16 +13,99 @@ import {
   TawMemberFetchResponse,
 } from "./commons";
 import Database from "../../utils/data/database";
-import FetchEnvs from "../../utils/FetchEnvs";
+import FetchEnvs, { envExists } from "../../utils/FetchEnvs";
 import { tryCatch, tryCatchSync } from "../../utils/trycatch";
 import TawLinks from "../../models/TawLinks";
 import ButtonWrapper from "../../utils/ButtonWrapper";
-import { sleep } from "../../utils/TinyUtils";
+import { sleep, ThingGetter } from "../../utils/TinyUtils";
 import { initialReply } from "../../utils/initialReply";
 import log from "../../utils/log";
 import { globalCooldownKey, setCommandCooldown } from "../../Bot";
+import { get } from "http";
 const db = new Database();
 const env = FetchEnvs();
+
+// Helper function to parse TAW_MEMBER_ROLE and get the role ID for the current guild
+function getTawRoleIdForGuild(guildId: string): string | null {
+  if (!envExists(env.TAW_MEMBER_ROLE)) {
+    return null;
+  }
+
+  try {
+    let roleConfig = env.TAW_MEMBER_ROLE;
+
+    // Handle the format [{roleId,guildId}] by converting it to proper JSON
+    if (roleConfig.startsWith("[{") && roleConfig.endsWith("}]")) {
+      // Replace the format [{1234,5678}] with [["1234","5678"]]
+      roleConfig = roleConfig.replace(/\[{(\d+),(\d+)}\]/, '["$1","$2"]');
+
+      const [roleId, configGuildId] = JSON.parse(roleConfig);
+      if (configGuildId === guildId) {
+        return roleId;
+      }
+    } else {
+      // Try to parse as regular JSON array
+      const roleConfigs = JSON.parse(roleConfig);
+
+      if (Array.isArray(roleConfigs)) {
+        for (const config of roleConfigs) {
+          if (Array.isArray(config) && config[1] === guildId) {
+            return config[0]; // [roleId, guildId] format
+          } else if (config.guildId === guildId) {
+            return config.roleId; // {roleId, guildId} format
+          }
+        }
+      }
+    }
+
+    return null;
+  } catch (error) {
+    log.error(`Failed to parse TAW_MEMBER_ROLE: ${error}`, error);
+    return null;
+  }
+}
+
+// Helper function to assign TAW role to a user
+async function assignTawRole(
+  interaction: CommandInteraction,
+  discordUser: User,
+  getter: ThingGetter
+): Promise<void> {
+  if (!interaction.guild) {
+    return;
+  }
+
+  const roleId = getTawRoleIdForGuild(interaction.guild.id);
+  if (!roleId) {
+    log.debug(`No TAW role configured for guild ${interaction.guild.id}`);
+    return;
+  }
+
+  try {
+    const tawMemberRole = await getter.getRole(interaction.guild, roleId);
+    const guildMember = await getter.getMember(interaction.guild, discordUser.id);
+
+    if (tawMemberRole && guildMember) {
+      await guildMember.roles.add(tawMemberRole).catch((error) => {
+        log.error(
+          `Failed to add TAW member role to ${discordUser.username} (${discordUser.id}): ${error}`,
+          error
+        );
+      });
+      log.info(`Successfully added TAW role to ${discordUser.username} (${discordUser.id})`);
+    } else {
+      log.warn(
+        `TAW role or guild member not found for ${discordUser.username} (${discordUser.id})`
+      );
+    }
+  } catch (error) {
+    log.error(
+      `Error assigning TAW role to ${discordUser.username} (${discordUser.id}): ${error}`,
+      error
+    );
+  }
+}
+
 /*
  * This function handles the linking of a TAW user to a Discord user.
  * It checks if the member is an admin or if they are trying to link their own account.
@@ -75,13 +158,16 @@ export default async function tawLink(
       await interaction.editReply(
         `You are linking the TAW account for ${discordUser.username} (${discordUser.id})`
       );
-
       await db.findOneAndUpdate(
         TawLinks,
         { discordUserId: discordUser.id },
         { tawUserCallsign: tawUserToLink, fullyLinked: true },
         { upsert: true, new: true }
       );
+
+      // Assign TAW role to the user
+      const getter = new ThingGetter(interaction.client);
+      await assignTawRole(interaction, discordUser, getter);
 
       await interaction.editReply(
         `Successfully linked the TAW account for ${discordUser.username} (${discordUser.id})`
@@ -100,12 +186,13 @@ export default async function tawLink(
     return;
   }
 
-  let tawLinkData = await TawLinks.findOne({ discordUserId: member.user.id });
+  let tawLinkData = await db.findOne(TawLinks, { discordUserId: member.user.id });
   if (tawLinkData && tawLinkData.fullyLinked) {
     // Check if the user has already linked their account
     await interaction.editReply(
       `You have already linked your TAW account to your Discord account. If you want to unlink it, please DM me to contact an admin\n\nTAW Callsign: ${tawLinkData.tawUserCallsign}`
     );
+    log.debug(tawLinkData, tawUserToLink, member.user.id);
     return;
   }
 
@@ -119,22 +206,14 @@ export default async function tawLink(
 
       await sleep(2000);
     } else {
-      tawLinkData = new TawLinks({
+      tawLinkData = {
         discordUserId: member.user.id,
         tawUserCallsign: tawUserToLink,
         linkCode: generateCode().toString(),
         codeExpiresAt: getExpirationDate(),
-      });
-
-      // Create an update object without the _id field
-      const updateData = {
-        discordUserId: member.user.id,
-        tawUserCallsign: tawUserToLink,
-        linkCode: tawLinkData.linkCode,
-        codeExpiresAt: tawLinkData.codeExpiresAt,
       };
 
-      await db.findOneAndUpdate(TawLinks, { discordUserId: member.user.id }, updateData, {
+      await db.findOneAndUpdate(TawLinks, { discordUserId: member.user.id }, tawLinkData, {
         upsert: true,
         new: true,
       });
@@ -293,13 +372,17 @@ export default async function tawLink(
           linkCode: tawLinkData.linkCode,
           codeExpiresAt: tawLinkData.codeExpiresAt,
         };
-
         await db.findOneAndUpdate(
           TawLinks,
           { discordUserId: tawLinkData.discordUserId },
           updateData,
           { upsert: true, new: false }
         );
+
+        // Assign TAW role to the user
+        const getter = new ThingGetter(interaction.client);
+        const userToAssignRole = interaction.user; // Use interaction.user instead of member.user to avoid type issues
+        await assignTawRole(interaction, userToAssignRole, getter);
 
         const embed = BasicEmbed(
           interaction.client,
