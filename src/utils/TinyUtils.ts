@@ -76,6 +76,8 @@ export async function sendDM(userId: Snowflake, content: string, client: Client<
   }
 }
 
+type ThingGetterGuild = Guild | null | undefined;
+
 export class ThingGetter {
   typeMap: { users: string; channels: string; guilds: string };
   client: Client<boolean>;
@@ -100,12 +102,16 @@ export class ThingGetter {
     return this.#get(id, "guilds") as unknown as Guild; // This is technically safe
   }
 
-  async getMember(guild: Guild, id: Snowflake): Promise<GuildMember> {
+  async getMember(guild: ThingGetterGuild, id: Snowflake): Promise<GuildMember | null> {
+    if (!guild) return null; // If guild is null or undefined, return null
     const member = guild.members.cache.get(id);
     return member ? member : await guild.members.fetch(id);
   }
 
-  async getRole(guild: Guild, id: Snowflake): Promise<Role | null> {
+  async getRole(guild: ThingGetterGuild, id: Snowflake): Promise<Role | null> {
+    if (!guild) {
+      return null; // If guild is null or undefined, return null
+    }
     const role = guild.roles.cache.get(id);
     return role ? role : await guild.roles.fetch(id);
   }
@@ -140,7 +146,13 @@ export class ThingGetter {
     return message;
   }
 
-  getMemberName(guildMember: GuildMember) {
+  getMemberName(guildMember: GuildMember | User | null | undefined): string {
+    if (!guildMember) {
+      return "Unknown User";
+    }
+    if (guildMember instanceof User) {
+      return this.getUsername(guildMember);
+    }
     return guildMember.nickname || this.getUsername(guildMember.user);
   }
 

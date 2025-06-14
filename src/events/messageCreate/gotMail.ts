@@ -360,6 +360,21 @@ async function newModmail(
       const getter = new ThingGetter(client);
       const guild = await getter.getGuild(guildId);
       const member = await getter.getMember(guild, i.user.id);
+      if (!member) {
+        return reply.edit({
+          content: "",
+          embeds: [
+            BasicEmbed(
+              client,
+              "Modmail",
+              `You are not a member of **${guild.name}**. Please join the server to open a modmail thread.`,
+              undefined,
+              "Red"
+            ),
+          ],
+          components: [],
+        });
+      }
       const memberName = member.nickname || member.user.displayName;
 
       const forumChannel = (await getter.getChannel(channelId)) as unknown as ForumChannel; // TODO: This is unsafe
