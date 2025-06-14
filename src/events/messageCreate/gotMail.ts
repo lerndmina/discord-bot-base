@@ -27,7 +27,11 @@ import Modmail, { ModmailType } from "../../models/Modmail";
 import ModmailConfig, { ModmailConfigType, ModmailStatus } from "../../models/ModmailConfig";
 import ButtonWrapper from "../../utils/ButtonWrapper";
 import { redisClient, removeMentions, waitingEmoji } from "../../Bot";
-import { createModmailActionButtons } from "../../utils/ModmailUtils";
+import {
+  createCloseThreadButton,
+  createModmailActionButtons,
+  sendModmailCloseMessage,
+} from "../../utils/ModmailUtils";
 import {
   debugMsg,
   getDiscordDate,
@@ -639,22 +643,42 @@ async function handleReply(message: Message, client: Client<true>, staffUser: Us
       staffUser.globalName
   );
 
-  (await getter.getUser(mail.userId)).send({
-    // embeds: [
-    //   BasicEmbed(client, "Modmail Reply", `*`, [
-    //     {
-    //       name: `${getter.getMemberName(await getter.getMember(guild, staffUser.id))} (Staff):`,
-    //       value: `${finalContent}`,
-    //       inline: false,
-    //     },
-    //   ]),
-    // ],
-    content:
-      `### ${getter.getMemberName(await getter.getMember(guild, staffUser.id))} Resonded:` +
-      `\n${finalContent}` +
-      `\n-# This message was sent by a staff member of **${guild.name}** in reply to your modmail thread.` +
-      `\n-# If you want to close this thread, just send \`/modmail close\` here`,
-  });
+  const data = await tryCatch(
+    (
+      await getter.getUser(mail.userId)
+    ).send({
+      // embeds: [
+      //   BasicEmbed(client, "Modmail Reply", `*`, [
+      //     {
+      //       name: `${getter.getMemberName(await getter.getMember(guild, staffUser.id))} (Staff):`,
+      //       value: `${finalContent}`,
+      //       inline: false,
+      //     },
+      //   ]),
+      // ],
+      content:
+        `### ${getter.getMemberName(await getter.getMember(guild, staffUser.id))} Resonded:` +
+        `\n${finalContent}` +
+        `\n-# This message was sent by a staff member of **${guild.name}** in reply to your modmail thread.` +
+        `\n-# If you want to close this thread, just send \`/modmail close\` here`,
+    })
+  );
+
+  if (data.error) {
+    message.react("🚫");
+    return message.reply({
+      embeds: [
+        BasicEmbed(
+          client,
+          "Modmail",
+          `An error occured while trying to send your message to the user. They probably have DMs disabled or are not in the server anymore.\n\nHere's the error: \`\`\`${data.error}\`\`\`\n\nClick the button below to close the thread.`,
+          undefined,
+          "Red"
+        ),
+      ],
+      components: [createCloseThreadButton()],
+    });
+  }
 
   debugMsg("Sent message to user" + mail.userId + " in guild " + mail.guildId);
 
