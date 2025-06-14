@@ -21,7 +21,7 @@ export async function sendMessageToBothChannels(
   client: Client<true>,
   modmail: ModmailType,
   embed: EmbedBuilder,
-  content?: string,
+  content: string = "",
   options?: {
     dmComponents?: ActionRowBuilder<ButtonBuilder>[];
     threadComponents?: ActionRowBuilder<ButtonBuilder>[];
