@@ -60,23 +60,49 @@ export default async (interaction: ButtonInteraction, client: Client<true>) => {
         });
       }
 
-      // Check if already claimed
+      // Initial check if already claimed (prevents unnecessary database operations)
       if (modmail.claimedBy) {
-        return interaction.editReply({
-          content: `❌ This ticket has already been claimed by <@${modmail.claimedBy}>.`,
-        });
+        if (modmail.claimedBy === interaction.user.id) {
+          return interaction.editReply({
+            content: `ℹ️ You have already claimed this ticket.`,
+          });
+        } else {
+          return interaction.editReply({
+            content: `❌ This ticket has already been claimed by <@${modmail.claimedBy}>.`,
+          });
+        }
       }
 
-      // Update modmail to mark as claimed
-      await db.findOneAndUpdate(
+      // Use atomic operation to prevent race conditions
+      // Only update if the ticket is not already claimed
+      const updateResult = await db.findOneAndUpdate(
         Modmail,
-        { _id: modmail._id },
+        {
+          _id: modmail._id,
+          $or: [{ claimedBy: { $exists: false } }, { claimedBy: null }],
+        },
         {
           claimedBy: interaction.user.id,
           claimedAt: new Date(),
         },
         { upsert: false, new: true }
       );
+
+      // If updateResult is null, the ticket was already claimed
+      if (!updateResult) {
+        // Fetch the updated document to see who claimed it
+        const updatedModmail = await db.findOne(Modmail, { _id: modmail._id });
+
+        if (updatedModmail?.claimedBy === interaction.user.id) {
+          return interaction.editReply({
+            content: `ℹ️ You have already claimed this ticket.`,
+          });
+        } else {
+          return interaction.editReply({
+            content: `❌ This ticket has already been claimed by <@${updatedModmail?.claimedBy}>.`,
+          });
+        }
+      }
 
       // Send claim notification
       const claimEmbed = BasicEmbed(

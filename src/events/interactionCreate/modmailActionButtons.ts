@@ -93,6 +93,10 @@ export default async (interaction: ButtonInteraction, client: Client<true>) => {
         content: "❌ An error occurred while processing your request.",
         ephemeral: true,
       });
+    } else if (interaction.deferred && !interaction.replied) {
+      await interaction.editReply({
+        content: "❌ An error occurred while processing your request.",
+      });
     }
 
     return true;
@@ -109,16 +113,15 @@ async function handleMarkResolved(
   db: Database
 ): Promise<boolean> {
   try {
+    await interaction.deferReply({ ephemeral: true });
+
     // Check if already marked as resolved
     if (modmail.markedResolved) {
-      await interaction.reply({
+      await interaction.editReply({
         content: "ℹ️ This modmail thread has already been marked as resolved.",
-        ephemeral: true,
       });
       return true;
     }
-
-    await interaction.deferReply({ ephemeral: true });
 
     // Update the modmail to mark as resolved
     await db.findOneAndUpdate(
