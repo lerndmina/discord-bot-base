@@ -219,7 +219,25 @@ export function formatTimeHours(hours: number): string {
     return `${totalMinutes} minute${totalMinutes !== 1 ? "s" : ""}`;
   }
 
-  // For longer durations, show hours and minutes
+  // For durations 24 hours or longer, show days, hours, and minutes
+  if (hours >= 24) {
+    const wholeDays = Math.floor(hours / 24);
+    const remainingHours = Math.floor(hours % 24);
+    const remainingMinutes = Math.round((hours - Math.floor(hours)) * 60);
+
+    const parts: string[] = [];
+    parts.push(`${wholeDays} day${wholeDays !== 1 ? "s" : ""}`);
+    if (remainingHours > 0) {
+      parts.push(`${remainingHours} hour${remainingHours !== 1 ? "s" : ""}`);
+    }
+    if (remainingMinutes > 0) {
+      parts.push(`${remainingMinutes} minute${remainingMinutes !== 1 ? "s" : ""}`);
+    }
+
+    return parts.join(" ");
+  }
+
+  // For longer durations (less than 24 hours), show hours and minutes
   const wholeHours = Math.floor(hours);
   const remainingMinutes = Math.round((hours - wholeHours) * 60);
 
