@@ -265,7 +265,7 @@ export async function sendModmailCloseMessage(
   const embed = BasicEmbed(
     client,
     `Modmail Closed (${closedBy})`,
-    `This modmail thread has been closed by ${closedBy.toLowerCase()} ${closedByName}.\n\nReason: ${reason}\n\nYou can open a modmail by sending another message to the bot.`,
+    `This modmail thread has been closed by ${closedBy.toLowerCase()} \`${closedByName}\`.\n\nReason: ${reason}\n\nYou can open a modmail by sending another message to the bot.`,
     undefined,
     "Red"
   );
