@@ -157,11 +157,12 @@ export class ModmailInactivityService {
       if (!existingModmail) {
         log.debug(`Modmail ${modmail._id} no longer exists in database, skipping processing`);
         return;
-      }
-
-      // Check if auto-close is disabled for this modmail
+      } // PERMANENT INACTIVITY BLOCKING: Check if auto-close is permanently disabled for this modmail
+      // This is set by the /modmail neverautoclose command and completely disables ALL inactivity processing
       if (modmail.autoCloseDisabled) {
-        log.debug(`Modmail ${modmail._id} has auto-close disabled, skipping inactivity processing`);
+        log.debug(
+          `Modmail ${modmail._id} has auto-close permanently disabled, skipping all inactivity processing`
+        );
         return;
       }
 
@@ -178,16 +179,24 @@ export class ModmailInactivityService {
         `Modmail ${modmail._id}: ${hoursSinceLastActivity.toFixed(2)} hours since last activity`
       );
 
-      // Check if thread is marked as resolved and should be auto-closed
+      // TEMPORARY INACTIVITY BLOCKING: Check if thread is marked as resolved
+      // This is a temporary state that blocks warnings but allows auto-close after 24 hours
       if (modmail.markedResolved && modmail.resolvedAt) {
+        log.debug(
+          `Modmail ${modmail._id} is marked as resolved, checking for 24-hour auto-close only`
+        );
+        // If marked as resolved, only handle auto-closing after 24 hours
+        // Skip all other inactivity processing (warnings, regular auto-close)
         const hoursSinceResolved =
           (now.getTime() - new Date(modmail.resolvedAt).getTime()) / (1000 * 60 * 60);
         if (hoursSinceResolved >= 24) {
           await this.autoCloseResolvedModmail(modmail);
-          return;
         }
+        // Exit early - don't process any other inactivity logic for resolved threads
+        return;
       }
 
+      // Only process regular inactivity logic if NOT marked as resolved
       // Check if we should send inactivity warning
       if (!modmail.inactivityNotificationSent && hoursSinceLastActivity >= warningHours) {
         await this.sendInactivityWarning(modmail);

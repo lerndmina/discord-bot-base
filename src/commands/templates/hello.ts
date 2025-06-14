@@ -6,12 +6,13 @@ import { initialReply } from "../../utils/initialReply";
 
 export const data = new SlashCommandBuilder()
   .setName("hello")
-  .setDescription("This is a template command.")
-  .setDMPermission(false);
+  .setDescription("This is a template command.");
 
 export const options: CommandOptions = {
   devOnly: true,
   deleted: false,
+  userPermissions: [],
+  botPermissions: ["ManageMessages", "EmbedLinks"],
 };
 
 export async function run({ interaction, client, handler }: SlashCommandProps) {

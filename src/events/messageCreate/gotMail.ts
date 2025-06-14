@@ -588,9 +588,7 @@ async function sendMessage( // Send a message from dms to the modmail thread
         },
         { new: true, upsert: true }
       );
-    }
-
-    // Update last user activity for inactivity tracking
+    } // Update last user activity for inactivity tracking
     await db.findOneAndUpdate(
       Modmail,
       { userId: message.author.id },
@@ -599,6 +597,9 @@ async function sendMessage( // Send a message from dms to the modmail thread
         // Reset notification tracking when user becomes active again
         inactivityNotificationSent: null,
         autoCloseScheduledAt: null,
+        // Reset resolved status if user sends a new message to a resolved thread
+        markedResolved: false,
+        resolvedAt: null,
       },
       { new: true, upsert: true }
     );

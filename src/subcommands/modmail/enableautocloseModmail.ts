@@ -10,7 +10,7 @@ import { sendMessageToBothChannels } from "../../utils/ModmailUtils";
 
 export default async function ({ interaction, client }: SlashCommandProps) {
   if (!interaction.channel)
-    return log.error("Request made to slash command without required values - neverautoclose.ts");
+    return log.error("Request made to slash command without required values - enableautoclose.ts");
 
   // Check if user has Manage Server permission
   if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
@@ -49,14 +49,14 @@ export default async function ({ interaction, client }: SlashCommandProps) {
     });
   }
 
-  // Check if auto-close is already disabled
-  if (mail.autoCloseDisabled) {
+  // Check if auto-close is already enabled
+  if (!mail.autoCloseDisabled) {
     return interaction.reply({
       embeds: [
         BasicEmbed(
           client,
-          "ℹ️ Already Disabled",
-          "Auto-closing is already disabled for this modmail thread.",
+          "ℹ️ Already Enabled",
+          "Auto-closing is already enabled for this modmail thread.",
           undefined,
           "Blue"
         ),
@@ -68,14 +68,17 @@ export default async function ({ interaction, client }: SlashCommandProps) {
   await initialReply(interaction, true);
 
   try {
-    const db = new Database(); // PERMANENT AUTO-CLOSE DISABLE: This permanently disables ALL inactivity processing
-    // This is different from markedResolved which is temporary and only blocks warnings
+    const db = new Database();
+
+    // PERMANENT AUTO-CLOSE RE-ENABLE: This re-enables inactivity processing
+    // This will restore normal inactivity warnings and auto-close behavior
     await db.findOneAndUpdate(
       Modmail,
       { _id: mail._id },
       {
-        autoCloseDisabled: true,
-        // Also clear any existing scheduling since we're permanently disabling auto-close
+        autoCloseDisabled: false,
+        // Reset activity tracking to start fresh
+        lastUserActivityAt: new Date(),
         inactivityNotificationSent: null,
         autoCloseScheduledAt: null,
       },
@@ -89,12 +92,11 @@ export default async function ({ interaction, client }: SlashCommandProps) {
     if (forumThread && "send" in forumThread) {
       const embed = BasicEmbed(
         client,
-        "🔒 Auto-Close Permanently Disabled",
-        `Auto-closing has been **permanently disabled** for this modmail thread by ${interaction.user.username}.\n\n` +
-          `This thread will no longer receive inactivity warnings or be automatically closed due to inactivity.\n\n` +
-          `Use \`/modmail enableautoclose\` to re-enable auto-closing if needed.`,
+        "🔓 Auto-Close Re-Enabled",
+        `Auto-closing has been **re-enabled** for this modmail thread by ${interaction.user.username}.\n\n` +
+          `This thread will now receive inactivity warnings and may be automatically closed due to inactivity.`,
         undefined,
-        "Orange"
+        "Green"
       );
 
       const data = await sendMessageToBothChannels(client, mail, embed, undefined, {});
@@ -111,25 +113,24 @@ export default async function ({ interaction, client }: SlashCommandProps) {
         BasicEmbed(
           client,
           "✅ Success",
-          `Auto-closing has been permanently disabled for this modmail thread.\n\n` +
-            `This thread will no longer receive inactivity warnings or be automatically closed.\n\n` +
-            `Use \`/modmail enableautoclose\` to re-enable auto-closing if needed.`,
+          `Auto-closing has been re-enabled for this modmail thread.\n\n` +
+            `This thread will now receive inactivity warnings and may be automatically closed.`,
           undefined,
           "Green"
         ),
       ],
     });
 
-    log.info(`Auto-close disabled for modmail ${mail._id} by user ${interaction.user.id}`);
+    log.info(`Auto-close re-enabled for modmail ${mail._id} by user ${interaction.user.id}`);
   } catch (error) {
-    log.error("Error disabling auto-close for modmail:", error);
+    log.error("Error re-enabling auto-close for modmail:", error);
 
     await interaction.editReply({
       embeds: [
         BasicEmbed(
           client,
           "❌ Error",
-          "An error occurred while disabling auto-close for this thread.",
+          "An error occurred while re-enabling auto-close for this thread.",
           undefined,
           "Red"
         ),
