@@ -15,9 +15,12 @@ import { ThingGetter } from "../../utils/TinyUtils";
 import { handleTag } from "../messageCreate/gotMail";
 import FetchEnvs from "../../utils/FetchEnvs";
 import log from "../../utils/log";
-import { sendModmailCloseMessage, sendMessageToBothChannels } from "../../utils/ModmailUtils";
+import {
+  sendModmailCloseMessage,
+  sendMessageToBothChannels,
+  markModmailAsResolved,
+} from "../../utils/ModmailUtils";
 import BasicEmbed from "../../utils/BasicEmbed";
-import { ButtonBuilder, ButtonStyle } from "discord.js";
 
 const env = FetchEnvs();
 
@@ -27,25 +30,31 @@ type ModmailDoc = ModmailType & { _id: string; createdAt?: Date; updatedAt?: Dat
 export default async (interaction: ButtonInteraction, client: Client<true>) => {
   if (interaction.type !== InteractionType.MessageComponent) return false;
   if (!interaction.isButton()) return false;
-
   const customId = interaction.customId;
-  if (!customId.startsWith("modmail_")) return false;
 
-  // Handle existing modmail resolve and claim buttons
-  if (customId.startsWith("modmail_resolve_") || customId === "modmail_claim") {
-    return false; // Let the existing handler handle these
+  // Only handle specific staff action buttons
+  const staffButtons = ["modmail_mark_resolved", "modmail_close_with_reason", "modmail_ban_user"];
+  if (!staffButtons.includes(customId)) {
+    return false; // Let other handlers handle non-staff buttons
   }
 
   const db = new Database();
   const getter = new ThingGetter(client);
-
   try {
-    // Find modmail by thread ID (these buttons are only in threads)
+    // Find modmail by user ID (if in DMs) or by thread ID (if in thread)
     let modmail: ModmailDoc | null = null;
-    if (interaction.channel?.isThread()) {
-      modmail = (await db.findOne(Modmail, {
-        forumThreadId: interaction.channel.id,
-      })) as ModmailDoc;
+
+    if (interaction.channel?.type === 1) {
+      // DM channel
+      modmail = (await db.findOne(Modmail, { userId: interaction.user.id }, true)) as ModmailDoc;
+    } else if (interaction.channel?.isThread()) {
+      modmail = (await db.findOne(
+        Modmail,
+        {
+          forumThreadId: interaction.channel.id,
+        },
+        true
+      )) as ModmailDoc;
     }
 
     if (!modmail) {
@@ -115,66 +124,33 @@ async function handleMarkResolved(
   try {
     await interaction.deferReply({ ephemeral: true });
 
-    // Check if already marked as resolved
-    if (modmail.markedResolved) {
+    // Use the centralized function to mark as resolved
+    const result = await markModmailAsResolved(
+      client,
+      modmail,
+      interaction.user.username,
+      interaction.user.id
+    );
+
+    if (!result.success) {
+      if (result.alreadyResolved) {
+        await interaction.editReply({
+          content: "ℹ️ This modmail thread has already been marked as resolved.",
+        });
+        return true;
+      }
+
       await interaction.editReply({
-        content: "ℹ️ This modmail thread has already been marked as resolved.",
+        content: "❌ An error occurred while marking this thread as resolved.",
       });
       return true;
     }
-
-    // Update the modmail to mark as resolved
-    await db.findOneAndUpdate(
-      Modmail,
-      { _id: modmail._id },
-      {
-        markedResolved: true,
-        resolvedAt: new Date(),
-        // Schedule auto-close in 24 hours
-        autoCloseScheduledAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      },
-      { upsert: false, new: true }
-    );
-
-    // Create buttons for user response
-    const resolveButtons = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId("modmail_resolve_close")
-        .setLabel("Close Thread")
-        .setStyle(ButtonStyle.Success)
-        .setEmoji("✅"),
-      new ButtonBuilder()
-        .setCustomId("modmail_resolve_continue")
-        .setLabel("I Need More Help")
-        .setStyle(ButtonStyle.Danger)
-        .setEmoji("🆘")
-    );
-
-    // Create embed for resolution message
-    const resolveEmbed = BasicEmbed(
-      client,
-      "✅ Issue Marked as Resolved",
-      `Your support request has been marked as **resolved** by ${interaction.user.username}.\n\n` +
-        `• **Click "Close Thread"** if your issue is fully resolved\n` +
-        `• **Click "I Need More Help"** if you need further assistance\n` +
-        `• **Send a message** if you have additional questions\n\n` +
-        `This thread will automatically close in **24 hours** if no action is taken.`,
-      undefined,
-      "Green"
-    );
-
-    // Send message to both channels - buttons only in DMs
-    await sendMessageToBothChannels(client, modmail, resolveEmbed, undefined, {
-      dmComponents: [resolveButtons],
-      threadComponents: [], // No buttons in thread
-    });
 
     await interaction.editReply({
       content:
         "✅ Thread marked as resolved. The user has been notified and can choose to close the thread or request more help.",
     });
 
-    log.info(`Modmail ${modmail._id} marked as resolved by staff member ${interaction.user.id}`);
     return true;
   } catch (error) {
     log.error("Error marking modmail as resolved:", error);

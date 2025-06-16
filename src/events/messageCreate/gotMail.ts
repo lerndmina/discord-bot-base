@@ -31,6 +31,7 @@ import {
   createCloseThreadButton,
   createModmailActionButtons,
   sendModmailCloseMessage,
+  createModmailThread,
 } from "../../utils/ModmailUtils";
 import {
   debugMsg,
@@ -138,6 +139,7 @@ async function newModmail(
 ) {
   // Check if the message is longer than 50 characters
   const minCharacters = 50;
+  let forced = false;
   if (messageContent.length < minCharacters && !messageContent.includes("--force")) {
     const deleteTime = 30 * 1000;
     const discordDeleteTime = new Date(Date.now() + deleteTime);
@@ -165,6 +167,7 @@ async function newModmail(
     });
     return;
   } else if (messageContent.includes("--force")) {
+    forced = true;
     // If the message contains --force, remove it from the message
     messageContent = messageContent
       .replace(
@@ -297,7 +300,7 @@ async function newModmail(
       components: [row as any],
     });
 
-    await serverSelectedOpenModmailThread(orignalMsg, stringSelectMenuID, message);
+    await serverSelectedOpenModmailThread(orignalMsg, stringSelectMenuID, message, messageContent);
     return;
   });
 
@@ -327,7 +330,8 @@ async function newModmail(
   async function serverSelectedOpenModmailThread(
     reply: InteractionResponse,
     stringSelectMenuID: string,
-    message: Message
+    message: Message,
+    messageContnent: string = messageContent
   ) {
     const selectMenuFilter = (i: MessageComponentInteraction) => i.customId === stringSelectMenuID;
     const collector = reply.createMessageComponentCollector({
@@ -354,7 +358,6 @@ async function newModmail(
         });
         return;
       }
-
       const value = JSON.parse(i.values[0]);
       const guildId = value.guild as Snowflake;
       const channelId = value.channel as Snowflake;
@@ -379,48 +382,30 @@ async function newModmail(
           components: [],
         });
       }
-      const memberName = member.nickname || member.user.displayName;
 
-      const forumChannel = (await getter.getChannel(channelId)) as unknown as ForumChannel; // TODO: This is unsafe
-      const threads = forumChannel.threads;
-      const noMentionsMessage = removeMentions(message.content);
+      const forumChannel = (await getter.getChannel(channelId)) as unknown as ForumChannel;
+      const noMentionsMessage = removeMentions(messageContent);
 
-      let messageContent = `Modmail thread for ${memberName} | ${i.user.id} | <@${
-        i.user.id
-      }>\n\n Original message: ${noMentionsMessage}${
-        member.pending ? "\n\nUser has not fully joined the guild." : ""
-      }`;
-
+      // Prepare the initial message including attachments
+      let initialMessage = noMentionsMessage;
       if (message.attachments.size > 0) {
-        messageContent += `\n\nAttachments:`;
+        initialMessage += `\n\nAttachments:`;
         for (const attachment of message.attachments.values()) {
-          messageContent += `\n- [${attachment.name}](${attachment.url})`;
+          initialMessage += `\n- [${attachment.name}](${attachment.url})`;
         }
       }
 
-      const { data: thread, error: threadCreateError } = await tryCatch(
-        threads.create({
-          name: `${
-            noMentionsMessage.length >= MAX_TITLE_LENGTH
-              ? `${noMentionsMessage.slice(0, MAX_TITLE_LENGTH)}...`
-              : noMentionsMessage
-          } - ${memberName}`,
-          autoArchiveDuration: ThreadAutoArchiveDuration.OneWeek,
-          message: {
-            content: messageContent,
-          },
-        })
-      );
-
-      if (threadCreateError) {
-        log.error(threadCreateError);
+      // Get the modmail config
+      const db = new Database();
+      const config = await db.findOne(ModmailConfig, { guildId: guildId });
+      if (!config) {
         return reply.edit({
           content: "",
           embeds: [
             BasicEmbed(
               client,
               "Modmail",
-              `An error occured while trying to create a modmail thread. Please contact the bot developer. I've logged the error for them.\n\nHere's the error: \`\`\`${threadCreateError}\`\`\``,
+              "Modmail configuration not found for this server.",
               undefined,
               "Red"
             ),
@@ -429,82 +414,70 @@ async function newModmail(
         });
       }
 
-      const db = new Database();
-
-      // Get the ModmailConfig for the server to use its webhook
-      const config = await db.findOne(ModmailConfig, { guildId: guildId });
-      if (!config || !config.webhookId || !config.webhookToken) {
-        // If there's no webhook configured yet, create one and update the config (this allows for seamless migration)
-        log.info("Creating new webhook for modmail config");
-        const webhook = await forumChannel.createWebhook({
-          name: "Modmail System",
-          avatar: client.user.displayAvatarURL(),
-          reason: "Modmail system webhook for relaying user messages.",
-        });
-
-        await db.findOneAndUpdate(
-          ModmailConfig,
-          { guildId: guildId },
-          {
-            webhookId: webhook.id,
-            webhookToken: webhook.token,
-          },
-          { new: true, upsert: true }
-        );
-      }
-      thread.send({
-        content: `<@&${staffRoleId}>`,
-        embeds: [
-          BasicEmbed(
-            client,
-            "Modmail",
-            `Hey! ${memberName} has opened a modmail thread!`,
-            undefined,
-            "Random"
-          ),
-        ],
-        components: createModmailActionButtons(),
-      }); // Create new modmail entry with user avatar and display name
-      await db.findOneAndUpdate(
-        Modmail,
-        { userId: i.user.id },
-        {
-          guildId: guildId,
-          forumThreadId: thread.id,
-          forumChannelId: channelId,
+      // Use the centralized function to create the modmail thread
+      const result = await createModmailThread(client, {
+        guild,
+        targetUser: i.user,
+        targetMember: member,
+        forumChannel,
+        modmailConfig: config,
+        reason:
+          noMentionsMessage.length >= 50
+            ? noMentionsMessage.substring(0, 50) + "..."
+            : noMentionsMessage,
+        openedBy: {
+          type: "User",
+          username: i.user.username,
           userId: i.user.id,
-          userAvatar: i.user.displayAvatarURL(),
-          userDisplayName: memberName,
-          lastUserActivityAt: new Date(), // Set initial activity time
         },
-        {
-          upsert: true,
-          new: true,
-        }
-      );
-
-      // Handle updating the tag for the thread
-      if (config) {
-        await handleTag(
-          await db.findOne(Modmail, { userId: i.user.id }),
-          config,
-          db,
-          thread,
-          forumChannel
-        );
-      } else {
-        console.error(`Could not update tags: ModmailConfig is null for guild: ${guildId}`);
+        initialMessage,
+      });
+      if (!result?.success) {
+        log.error(`Failed to create modmail thread: ${result?.error}`);
+        return reply.edit({
+          content: "",
+          embeds: [
+            BasicEmbed(
+              client,
+              "Modmail",
+              `An error occurred while trying to create a modmail thread. Please contact the bot developer. I've logged the error for them.\n\nHere's the error: \`\`\`${
+                result?.error || "Unknown error"
+              }\`\`\``,
+              undefined,
+              "Red"
+            ),
+          ],
+          components: [],
+        });
       }
 
+      // Check if DM was successful, if not notify user
+      if (!result.dmSuccess) {
+        return reply.edit({
+          content: "",
+          embeds: [
+            BasicEmbed(
+              client,
+              "Modmail",
+              `Successfully created a modmail thread in **${guild.name}**!\n\nHowever, I was unable to send you a DM. Please check your privacy settings and ensure you can receive DMs from server members.\n\nYou can communicate with staff by going to the thread in the server.`,
+              undefined,
+              "Orange"
+            ),
+          ],
+          components: [],
+        });
+      }
+
+      // Success - DM was sent, so just update the reply to indicate success
       reply.edit({
-        content: ``,
+        content: "",
         embeds: [
           BasicEmbed(
             client,
             "Modmail",
-            `Successfully created a modmail thread in **${guild.name}**!\n\nWe will get back to you as soon as possible. While you wait, why not grab a hot beverage!\n\nOnce we have solved your issue, you can use \`/modmail close\` to close the thread. If you need to send us more information, just send it here!\n\nIf you want to add more information to your original message, just send it here!`,
+            `Successfully created a modmail thread in **${guild.name}**!\n\nI've sent you a DM with the details. Check your direct messages to continue the conversation with staff.`,
             undefined,
-            "Random"
+            "Green"
           ),
         ],
         components: [],

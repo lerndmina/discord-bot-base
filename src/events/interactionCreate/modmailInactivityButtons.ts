@@ -1,4 +1,12 @@
-import { ButtonInteraction, ChannelType, Client, InteractionType } from "discord.js";
+import {
+  ButtonInteraction,
+  ChannelType,
+  Client,
+  InteractionType,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+} from "discord.js";
 import Database from "../../utils/data/database";
 import Modmail from "../../models/Modmail";
 import ModmailConfig from "../../models/ModmailConfig";
@@ -7,99 +15,232 @@ import { handleTag } from "../messageCreate/gotMail";
 import FetchEnvs from "../../utils/FetchEnvs";
 import log from "../../utils/log";
 import { sendModmailCloseMessage } from "../../utils/ModmailUtils";
+import BasicEmbed from "../../utils/BasicEmbed";
 
 const env = FetchEnvs();
 
 export default async (interaction: ButtonInteraction, client: Client<true>) => {
   if (interaction.type !== InteractionType.MessageComponent) return false;
   if (!interaction.isButton()) return false;
-  if (!interaction.customId.startsWith("modmail_close_thread")) return false;
+
+  // Handle both close thread buttons and confirmation buttons
+  if (
+    !interaction.customId.startsWith("modmail_close_thread") &&
+    !interaction.customId.startsWith("modmail_confirm_close") &&
+    !interaction.customId.startsWith("modmail_cancel_close")
+  ) {
+    return false;
+  }
 
   const db = new Database();
   const getter = new ThingGetter(client);
 
   try {
-    await interaction.deferReply({ ephemeral: true });
-
-    // Find modmail by user ID (if in DMs) or by thread ID (if in thread)
-    let modmail;
-
-    if (interaction.channel?.type === 1) {
-      // DM channel
-      modmail = await db.findOne(Modmail, { userId: interaction.user.id });
-    } else if (interaction.channel?.isThread()) {
-      modmail = await db.findOne(Modmail, { forumThreadId: interaction.channel.id });
-    }
-
-    if (!modmail) {
-      return interaction.editReply({
-        content: "❌ Could not find an associated modmail thread.",
+    // Handle cancel close confirmation
+    if (interaction.customId === "modmail_cancel_close") {
+      await interaction.update({
+        content: "❌ Close cancelled.",
+        embeds: [],
+        components: [],
       });
+      return true;
     }
 
-    // Check if user is allowed to close (either the thread owner or staff)
-    const isOwner = modmail.userId === interaction.user.id;
-    const interactionMember = await getter.getMember(interaction.guild, interaction.user.id);
-    const isStaff = interactionMember?.permissions.has("ManageMessages");
-    if (!isOwner && !isStaff) {
-      return interaction.editReply({
-        content: "❌ You don't have permission to close this modmail thread.",
-      });
+    // Handle confirmed close
+    if (interaction.customId === "modmail_confirm_close_yes") {
+      return await handleConfirmedClose(interaction, client, db, getter);
     }
 
-    const closedBy = isOwner ? "User" : "Staff";
-    const closedByName = interaction.user.username;
-    const reason = "Closed via inactivity button";
-
-    // Get the forum thread
-    const forumThread = await getter.getChannel(modmail.forumThreadId);
-    if (!forumThread || !("setLocked" in forumThread)) {
-      return interaction.editReply({
-        content: "❌ Could not access the modmail thread.",
-      });
-    } // Send closure message using consistent styling
-    await sendModmailCloseMessage(client, modmail, closedBy, closedByName, reason);
-
-    // Update tags to closed
-    const config = await db.findOne(ModmailConfig, { guildId: modmail.guildId });
-    if (config) {
-      const forumChannel = await getter.getChannel(config.forumChannelId);
-      if (forumChannel.type === ChannelType.GuildForum) {
-        await handleTag(null, config, db, forumThread, forumChannel);
-      }
+    // Handle initial close button click
+    if (interaction.customId.startsWith("modmail_close_thread")) {
+      return await handleInitialClose(interaction, client, db, getter);
     }
 
-    // Lock and archive thread
-    try {
-      await forumThread.setLocked(true, `${closedBy} closed via button: ${reason}`);
-      await forumThread.setArchived(true, `${closedBy} closed via button: ${reason}`);
-    } catch (error) {
-      log.warn(`Failed to lock/archive thread ${modmail.forumThreadId}:`, error);
-    }
-
-    // Remove from database
-    await db.deleteOne(Modmail, { _id: modmail._id });
-    await db.cleanCache(`${env.MONGODB_DATABASE}:${env.MODMAIL_TABLE}:userId:*`);
-
-    await interaction.editReply({
-      content: `✅ Modmail thread closed successfully! (Closed by ${closedBy.toLowerCase()})`,
-    });
-
-    return true;
+    return false;
   } catch (error) {
     log.error("Error in modmail close button handler:", error);
 
     if (!interaction.replied && !interaction.deferred) {
       await interaction.reply({
-        content: "❌ An error occurred while closing the modmail thread.",
+        content: "❌ An error occurred while processing the button interaction.",
         ephemeral: true,
       });
     } else {
       await interaction.editReply({
-        content: "❌ An error occurred while closing the modmail thread.",
+        content: "❌ An error occurred while processing the button interaction.",
       });
     }
 
     return true;
   }
 };
+
+async function handleInitialClose(
+  interaction: ButtonInteraction,
+  client: Client<true>,
+  db: Database,
+  getter: ThingGetter
+) {
+  await interaction.deferReply({ ephemeral: true });
+
+  // Find modmail by user ID (if in DMs) or by thread ID (if in thread)
+  let modmail;
+
+  if (interaction.channel?.type === 1) {
+    // DM channel
+    modmail = await db.findOne(Modmail, { userId: interaction.user.id }, true);
+  } else if (interaction.channel?.isThread()) {
+    modmail = await db.findOne(Modmail, { forumThreadId: interaction.channel.id }, true);
+  }
+
+  if (!modmail) {
+    return interaction.editReply({
+      content: "❌ Could not find an associated modmail thread.",
+    });
+  }
+
+  // Check if user is allowed to close based on context
+  const isOwner = modmail.userId === interaction.user.id;
+  const isDMChannel = interaction.channel?.type === 1;
+  const isThreadChannel = interaction.channel?.isThread();
+
+  if (isDMChannel) {
+    // In DMs: Only the thread owner can close, show confirmation
+    if (!isOwner) {
+      return interaction.editReply({
+        content: "❌ You can only close your own modmail thread.",
+      });
+    }
+
+    // Show confirmation for DM close
+    const confirmButtons = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId("modmail_confirm_close_yes")
+        .setLabel("Yes, Close Thread")
+        .setStyle(ButtonStyle.Danger)
+        .setEmoji("✅"),
+      new ButtonBuilder()
+        .setCustomId("modmail_cancel_close")
+        .setLabel("No, Keep Open")
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji("❌")
+    );
+
+    const confirmEmbed = BasicEmbed(
+      client,
+      "🔒 Confirm Close Thread",
+      "Are you sure you want to close this modmail thread?",
+      undefined,
+      "Yellow"
+    );
+
+    await interaction.editReply({
+      embeds: [confirmEmbed],
+      components: [confirmButtons],
+    });
+
+    return true;
+  } else if (isThreadChannel) {
+    // In threads: Only staff can close, no confirmation needed
+    const interactionMember = await getter.getMember(interaction.guild, interaction.user.id);
+    const isStaff = interactionMember?.permissions.has("ManageMessages");
+    if (!isStaff) {
+      return interaction.editReply({
+        content: "❌ You need to be a staff member to close modmail threads in the server.",
+      });
+    }
+
+    // Proceed directly with close for staff
+    return await handleConfirmedClose(interaction, client, db, getter, true);
+  } else {
+    // Unknown channel type
+    return interaction.editReply({
+      content: "❌ This button can only be used in DMs or modmail threads.",
+    });
+  }
+}
+
+async function handleConfirmedClose(
+  interaction: ButtonInteraction,
+  client: Client<true>,
+  db: Database,
+  getter: ThingGetter,
+  isStaffDirectClose = false
+) {
+  if (!isStaffDirectClose) {
+    await interaction.deferUpdate();
+  }
+
+  // Find modmail again
+  let modmail;
+  if (interaction.channel?.type === 1) {
+    modmail = await db.findOne(Modmail, { userId: interaction.user.id }, true);
+  } else if (interaction.channel?.isThread()) {
+    modmail = await db.findOne(Modmail, { forumThreadId: interaction.channel.id }, true);
+  }
+
+  if (!modmail) {
+    const content = "❌ Could not find an associated modmail thread.";
+    if (isStaffDirectClose) {
+      return interaction.editReply({ content });
+    } else {
+      return interaction.editReply({ content, embeds: [], components: [] });
+    }
+  }
+
+  const isDMChannel = interaction.channel?.type === 1;
+  const closedBy = isDMChannel ? "User" : "Staff";
+  const closedByName = interaction.user.username;
+  const reason = isDMChannel ? "Closed by user via button" : "Closed via inactivity button";
+
+  // Get the forum thread
+  const forumThread = await getter.getChannel(modmail.forumThreadId);
+  if (!forumThread || !("setLocked" in forumThread)) {
+    const content = "❌ Could not access the modmail thread.";
+    if (isStaffDirectClose) {
+      return interaction.editReply({ content });
+    } else {
+      return interaction.editReply({ content, embeds: [], components: [] });
+    }
+  }
+
+  // Send closure message using consistent styling
+  await sendModmailCloseMessage(client, modmail, closedBy, closedByName, reason);
+
+  // Update tags to closed
+  const config = await db.findOne(ModmailConfig, { guildId: modmail.guildId });
+  if (config) {
+    const forumChannel = await getter.getChannel(config.forumChannelId);
+    if (forumChannel.type === ChannelType.GuildForum) {
+      await handleTag(null, config, db, forumThread, forumChannel);
+    }
+  }
+
+  // Lock and archive thread
+  try {
+    await forumThread.setLocked(true, `${closedBy} closed via button: ${reason}`);
+    await forumThread.setArchived(true, `${closedBy} closed via button: ${reason}`);
+  } catch (error) {
+    log.warn(`Failed to lock/archive thread ${modmail.forumThreadId}:`, error);
+  }
+
+  // Remove from database
+  await db.deleteOne(Modmail, { _id: modmail._id });
+  const env = FetchEnvs();
+  await db.cleanCache(`${env.MONGODB_DATABASE}:${env.MODMAIL_TABLE}:userId:*`); // Disable buttons in the original message if it was a DM close with confirmation
+  if (isDMChannel && !isStaffDirectClose) {
+    await interaction.editReply({
+      content: `✅ Modmail thread closed successfully! (Closed by ${closedBy.toLowerCase()})`,
+      embeds: [],
+      components: [],
+    });
+  } else {
+    if (isStaffDirectClose) {
+      await interaction.editReply({
+        content: `✅ Modmail thread closed successfully! (Closed by ${closedBy.toLowerCase()})`,
+      });
+    }
+  }
+
+  return true;
+}

@@ -21,6 +21,7 @@ import Database from "../../utils/data/database";
 import ModmailConfig from "../../models/ModmailConfig";
 import Modmail from "../../models/Modmail";
 import FetchEnvs from "../../utils/FetchEnvs";
+import { createModmailThread } from "../../utils/ModmailUtils";
 
 export const openModmailOptions: CommandOptions = {
   devOnly: false,
@@ -35,10 +36,12 @@ export default async function ({ interaction, client, handler }: SlashCommandPro
   const user = interaction.options.getUser("user");
   if (!user) return interaction.reply("Please provide a user to open a modmail thread for");
   if (user.bot) return interaction.reply("You cannot open a modmail thread for a bot");
-  const reason = interaction.options.getString("reason");
+  const reason = interaction.options.getString("reason") || "(no reason specified)";
+
   const getter = new ThingGetter(client);
   const targetMember = await getter.getMember(guild, user.id);
   if (!targetMember) return interaction.reply("The user is not in the server");
+
   const db = new Database();
   const modmailConfig = await db.findOne(ModmailConfig, { guildId: guild.id });
   if (!modmailConfig)
@@ -50,59 +53,47 @@ export default async function ({ interaction, client, handler }: SlashCommandPro
   if (!channel || !channel.threads)
     return interaction.reply("The modmail channel is not set up properly");
 
-  const modmailData = await db.findOne(Modmail, { userId: targetMember.id });
-  if (modmailData) return interaction.reply("A modmail thread is already open for this user");
-
   // All checks passed
   await interaction.reply({ content: waitingEmoji, ephemeral: true });
 
-  // Get the user's thread
-  const thread = await channel.threads.create({
-    name: reason ? `${reason.substring(0, 50)}...` : `Modmail - ${user.tag}`,
-    autoArchiveDuration: 60,
-    message: {
-      content: `Modmail thread opened for ${user.tag} (<@${user.id}>) by staff member ${interaction.user.tag} (${interaction.user.id})\n\nReason: ${reason}`,
+  // Use the centralized function to create the modmail thread
+  const result = await createModmailThread(client, {
+    guild,
+    targetUser: user,
+    targetMember,
+    forumChannel: channel,
+    modmailConfig,
+    reason,
+    openedBy: {
+      type: "Staff",
+      username: interaction.user.username,
+      userId: interaction.user.id,
     },
   });
 
-  const newModmailData = await db.findOneAndUpdate(
-    Modmail,
-    { userId: targetMember.id },
-    {
-      guildId: guild.id,
-      forumThreadId: thread.id,
-      forumChannelId: channel.id,
-      userId: targetMember.id,
-      userAvatar: targetMember.user.displayAvatarURL(),
-      userDisplayName: targetMember.displayName,
-    },
-    { upsert: true, new: true }
-  );
+  if (!result?.success) {
+    await interaction.editReply(`❌ ${result?.error || "Failed to create modmail thread"}`);
+    return;
+  }
 
-  const dmChannel = await targetMember.createDM();
-  try {
-    await dmChannel.send({
-      embeds: [
-        BasicEmbed(
-          client,
-          "Modmail Thread Opened",
-          `Staff have opened a modmail thread for you. Please respond here to communicate with staff.`,
-          reason ? [{ name: "Reason", value: reason, inline: false }] : [],
-          "Aqua"
-        ),
-      ],
-    });
-    setCommandCooldown(globalCooldownKey(interaction.commandName), 60);
-  } catch (error) {
-    const env = FetchEnvs();
+  if (!result.dmSuccess) {
     await interaction.editReply(
       `I was unable to send a DM to the user, this modmail thread will be closed. Please contact the user manually.`
     );
 
-    await db.deleteOne(Modmail, { userId: targetMember.id });
-    await thread.delete();
+    // Clean up the created thread and database entry
+    if (result.thread) {
+      await result.thread.delete();
+    }
+    if (result.modmail) {
+      await db.deleteOne(Modmail, { _id: result.modmail._id });
+    }
     setCommandCooldown(globalCooldownKey(interaction.commandName), 15);
+    return;
   }
+
+  setCommandCooldown(globalCooldownKey(interaction.commandName), 60);
+
   await interaction.editReply({
     content: `Modmail thread opened for ${user.tag} (${user.id})\n\nThe DM has been sent to the user successfully`,
     components: ButtonWrapper([
@@ -110,7 +101,7 @@ export default async function ({ interaction, client, handler }: SlashCommandPro
         .setLabel("Goto Thread")
         .setStyle(ButtonStyle.Link)
         .setEmoji("🔗")
-        .setURL(thread.url),
+        .setURL(result.thread!.url),
     ]),
   });
 }
