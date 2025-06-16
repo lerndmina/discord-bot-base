@@ -93,22 +93,22 @@ export default async function (message: Message, client: Client<true>) {
     await message.reply({
       content: "https://tenor.com/view/bye-bourne-gif-22698046",
     });
-    log.info("Rebooting...");
-
-    // Set offline
+    log.info("Rebooting..."); // Set offline
     client.user.setActivity("my own death.", { type: ActivityType.Watching });
     client.user.setStatus("dnd");
 
     // Cleanly log out of Discord
-    client.destroy();
+    await client.destroy();
 
     // Log out of MongoDB
     const mongoose = require("mongoose");
-    await mongoose.disconnect();
-
-    // Log out of Redis
+    await mongoose.disconnect(); // Log out of Redis
     const { redisClient } = require("../../Bot");
     await redisClient.disconnect();
+
+    // Kill the webserver
+    const { stopHealthServer } = require("../../Health");
+    await stopHealthServer();
 
     // Log back in
     const { Start } = require("../../Bot");

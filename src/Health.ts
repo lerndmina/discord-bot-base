@@ -9,6 +9,9 @@ import FetchEnvs from "./utils/FetchEnvs";
 
 const env = FetchEnvs();
 
+// Store the server instance for graceful shutdown
+let healthServer: http.Server | null = null;
+
 // Simple HTML tag function that just returns the string (for syntax highlighting only)
 function html(strings: TemplateStringsArray, ...values: any[]): string {
   let result = "";
@@ -433,10 +436,9 @@ export default async function healthCheck(data: { client: Client<true>; handler:
         // Send the HTML response directly
         res.end(htmlTemplate);
       }
-    });
-
-    // Start server on port 3000 or from environment variable
+    }); // Start server on port 3000 or from environment variable
     const PORT = process.env.HEALTH_PORT || 3000;
+    healthServer = server;
     server.listen(PORT, () => {
       log.info(`Health check server running on port ${PORT}`);
     });
@@ -446,6 +448,25 @@ export default async function healthCheck(data: { client: Client<true>; handler:
     log.error("Health check setup failed:", error);
     return false;
   }
+}
+
+/**
+ * Stop the health check server gracefully
+ */
+export function stopHealthServer(): Promise<void> {
+  return new Promise((resolve) => {
+    if (healthServer) {
+      log.info("Stopping health check server...");
+      healthServer.close(() => {
+        log.info("Health check server stopped");
+        healthServer = null;
+        resolve();
+      });
+    } else {
+      log.info("Health check server not running");
+      resolve();
+    }
+  });
 }
 
 /**

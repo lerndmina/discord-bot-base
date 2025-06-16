@@ -77,20 +77,18 @@ export default class Database {
     debugMsg(`Keys: ${queryKeys.join(", ")} -> ${redisKey}`);
 
     debugMsg(`Fetching from cache: ${redisKey}`);
-    var data = await redisClient.get(redisKey);
-
-    if (!data || data.length == 0) {
+    var data = await redisClient.get(redisKey);    if (!data || data.length == 0) {
       debugMsg(model);
       const dbResult = await schema.find(model);
-      if (!data || data.length == 0) {
+      if (!dbResult || dbResult.length == 0) {
         debugMsg(`Database miss no data found`);
         if (!saveNull) return null;
       }
-      await redisClient.set(redisKey, JSON.stringify(data));
+      await redisClient.set(redisKey, JSON.stringify(dbResult));
       await redisClient.expire(redisKey, cacheTime);
       if (env.DEBUG_LOG) debugMsg(`DB - find - Time taken: ${Date.now() - start!}ms`);
       // Ensure we always return an array
-      return Array.isArray(data) ? (data as T[]) : [data as T];
+      return Array.isArray(dbResult) ? (dbResult as T[]) : [dbResult as T];
     }
     debugMsg(`Cache hit: ${redisKey} -> ${data}`);
     if (env.DEBUG_LOG) debugMsg(`DB - find - Time taken: ${Date.now() - start!}ms`);
