@@ -211,19 +211,25 @@ if (
         if (subcommand === "tags") {
           changeTags(tags, interaction);
         } else if (subcommand === "lookup") {
-          setCommandCooldown(userCooldownKey(interaction.user.id, "taw"), publicResponse ? 60 : 15);
+          setCommandCooldown(
+            userCooldownKey(interaction.user.id, interaction.commandName),
+            publicResponse ? 60 : 15
+          );
           lookup(interaction, lookupUser);
         } else if (subcommand === "name") {
           setCommandCooldown(
-            userCooldownKey(interaction.user.id, "taw"),
+            userCooldownKey(interaction.user.id, interaction.commandName),
             publicResponse ? 120 : 60
           );
           setCharacterName(interaction, lookupUser, name);
         } else if (subcommand === "playtime") {
-          setCommandCooldown(globalCooldownKey("taw"), publicResponse ? 120 : 60);
+          setCommandCooldown(globalCooldownKey(interaction.commandName), publicResponse ? 120 : 60);
           playtimeLeaderboard(interaction, limit);
         } else if (subcommand === "activity") {
-          setCommandCooldown(globalCooldownKey("taw"), publicResponse ? 300 : 120);
+          setCommandCooldown(
+            globalCooldownKey(interaction.commandName),
+            publicResponse ? 300 : 120
+          );
           activityHistory(interaction, lookupUser, limit);
         } else if (subcommand === "link") {
           if (!envExists(env.TAW_API_KEY) || !envExists(env.TAW_API_URL)) {
