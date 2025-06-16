@@ -29,15 +29,22 @@ if (
 ) {
   module.exports = {
     data: new SlashCommandBuilder()
-      .setName("taw")
+      .setName("fivem")
       .setDescription("This is a template command.")
       .setContexts(InteractionContextType.Guild)
       .addSubcommand((subcommand) =>
         subcommand
           .setName("tags")
-          .setDescription("Set your TAW tags.")
+          .setDescription("Set your tags.")
           .addStringOption((option) =>
-            option.setName("tags").setDescription("Your TAW tags.").setRequired(true)
+            option.setName("tags").setDescription("Your tags.").setRequired(true)
+          )
+          .addStringOption((option) =>
+            option
+              .setName("location")
+              .setDescription("The location of the tags (default: suffix)")
+              .setRequired(false)
+              .setChoices({ name: "Prefix", value: "prefix" }, { name: "Suffix", value: "suffix" })
           )
       )
       .addSubcommand((subcommand) =>
@@ -106,20 +113,20 @@ if (
               .setMaxValue(20)
           )
       )
-      .addSubcommand((subcommand) =>
-        subcommand
-          .setName("link")
-          .setDescription("Link your TAW account to your Discord account")
-          .addStringOption((option) =>
-            option.setName("callsign").setDescription("Your TAW callsign").setRequired(true)
-          )
-          .addUserOption((option) =>
-            option
-              .setName("discorduser")
-              .setDescription("User to link (defaults to yourself)")
-              .setRequired(false)
-          )
-      )
+      // .addSubcommand((subcommand) =>
+      //   subcommand
+      //     .setName("link")
+      //     .setDescription("Link your TAW account to your Discord account")
+      //     .addStringOption((option) =>
+      //       option.setName("callsign").setDescription("Your TAW callsign").setRequired(true)
+      //     )
+      //     .addUserOption((option) =>
+      //       option
+      //         .setName("discorduser")
+      //         .setDescription("User to link (defaults to yourself)")
+      //         .setRequired(false)
+      //     )
+      // )
       // Add event subcommand group
       .addSubcommandGroup((group) =>
         group
