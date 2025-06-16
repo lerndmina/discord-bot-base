@@ -5,18 +5,18 @@ import { initialReply } from "../../utils/initialReply";
 import FetchEnvs, { DEFAULT_OPTIONAL_STRING, envExists } from "../../utils/FetchEnvs";
 
 // Import subcommands
-import changeTags from "../../subcommands/taw/tags";
-import lookup from "../../subcommands/taw/lookup";
-import setCharacterName from "../../subcommands/taw/name";
-import playtimeLeaderboard from "../../subcommands/taw/playtimeleaderboard";
-import activityHistory from "../../subcommands/taw/activity";
+import changeTags from "../../subcommands/fivem/tags";
+import lookup from "../../subcommands/fivem/lookup";
+import setCharacterName from "../../subcommands/fivem/name";
+import playtimeLeaderboard from "../../subcommands/fivem/playtimeleaderboard";
+import activityHistory from "../../subcommands/fivem/activity";
 // Import event subcommands
-import eventInfo from "../../subcommands/taw/event/info";
-import eventHistory from "../../subcommands/taw/event/history";
-import eventCreate from "../../subcommands/taw/event/create";
-import eventDelete from "../../subcommands/taw/event/delete";
-import eventUpload from "../../subcommands/taw/event/upload";
-import tawLink from "../../subcommands/taw/link";
+import eventInfo from "../../subcommands/fivem/event/info";
+import eventHistory from "../../subcommands/fivem/event/history";
+import eventCreate from "../../subcommands/fivem/event/create";
+import eventDelete from "../../subcommands/fivem/event/delete";
+import eventUpload from "../../subcommands/fivem/event/upload";
+import tawLink from "../../subcommands/fivem/link";
 import { tryCatch } from "../../utils/trycatch";
 
 const env = FetchEnvs();

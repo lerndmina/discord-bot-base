@@ -1,14 +1,11 @@
 import { ChannelType } from "discord.js";
 import BasicEmbed from "../../utils/BasicEmbed";
 import Modmail from "../../models/Modmail";
-import { ThingGetter } from "../../utils/TinyUtils";
-import Database from "../../utils/data/database";
 import { SlashCommandProps } from "commandkit";
 import log from "../../utils/log";
 import FetchEnvs from "../../utils/FetchEnvs";
 import { initialReply } from "../../utils/initialReply";
-import { sendMessageToBothChannels, createCloseThreadButton } from "../../utils/ModmailUtils";
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
+import { markModmailAsResolved } from "../../utils/ModmailUtils";
 
 const env = FetchEnvs();
 
@@ -75,73 +72,32 @@ export default async function ({ interaction, client }: SlashCommandProps) {
       ephemeral: true,
     });
   }
-
   await initialReply(interaction, true);
 
-  try {
-    const db = new Database();
+  // Use the centralized function to mark as resolved
+  const result = await markModmailAsResolved(
+    client,
+    mail,
+    interaction.user.username,
+    interaction.user.id
+  );
 
-    // Update the modmail to mark as resolved
-    await db.findOneAndUpdate(
-      Modmail,
-      { _id: mail._id },
-      {
-        markedResolved: true,
-        resolvedAt: new Date(),
-        // Schedule auto-close in 24 hours
-        autoCloseScheduledAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      },
-      { upsert: false, new: true }
-    ); // Create buttons for user response
-    const resolveButtons = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId("modmail_resolve_close")
-        .setLabel("Close Thread")
-        .setStyle(ButtonStyle.Success)
-        .setEmoji("✅"),
-      new ButtonBuilder()
-        .setCustomId("modmail_resolve_continue")
-        .setLabel("I Need More Help")
-        .setStyle(ButtonStyle.Danger)
-        .setEmoji("🆘")
-    );
+  if (!result.success) {
+    if (result.alreadyResolved) {
+      return interaction.editReply({
+        embeds: [
+          BasicEmbed(
+            client,
+            "ℹ️ Already Resolved",
+            "This modmail thread has already been marked as resolved.",
+            undefined,
+            "Blue"
+          ),
+        ],
+      });
+    }
 
-    // Create embed for resolution message
-    const resolveEmbed = BasicEmbed(
-      client,
-      "✅ Issue Marked as Resolved",
-      `Your support request has been marked as **resolved** by ${interaction.user.username}.\n\n` +
-        `• **Click "Close Thread"** if your issue is fully resolved\n` +
-        `• **Click "I Need More Help"** if you need further assistance\n` +
-        `• **Send a message** if you have additional questions\n\n` +
-        `This thread will automatically close in **24 hours** if no action is taken.`,
-      undefined,
-      "Green"
-    ); // Send message to both channels - buttons only in DMs
-    await sendMessageToBothChannels(client, mail, resolveEmbed, undefined, {
-      dmComponents: [resolveButtons],
-      threadComponents: [], // No buttons in thread
-    });
-
-    await interaction.editReply({
-      embeds: [
-        BasicEmbed(
-          client,
-          "✅ Thread Marked as Resolved",
-          `This modmail thread has been marked as resolved.\n\n` +
-            `The user has been notified and can choose to close the thread or request more help.\n` +
-            `The thread will auto-close in 24 hours if no response is received.`,
-          undefined,
-          "Green"
-        ),
-      ],
-    });
-
-    log.info(`Modmail ${mail._id} marked as resolved by staff member ${interaction.user.id}`);
-  } catch (error) {
-    log.error("Error marking modmail as resolved:", error);
-
-    await interaction.editReply({
+    return interaction.editReply({
       embeds: [
         BasicEmbed(
           client,
@@ -153,4 +109,18 @@ export default async function ({ interaction, client }: SlashCommandProps) {
       ],
     });
   }
+
+  await interaction.editReply({
+    embeds: [
+      BasicEmbed(
+        client,
+        "✅ Thread Marked as Resolved",
+        `This modmail thread has been marked as resolved.\n\n` +
+          `The user has been notified and can choose to close the thread or request more help.\n` +
+          `The thread will auto-close in 24 hours if no response is received.`,
+        undefined,
+        "Green"
+      ),
+    ],
+  });
 }
