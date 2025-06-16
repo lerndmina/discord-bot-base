@@ -1,6 +1,6 @@
 import { CommandInteraction, Interaction, User } from "discord.js";
 import { FivemJobsType } from "../models/FivemJob";
-import { FivemJob, getCharacterInfo } from "../subcommands/taw/commons";
+import { FivemJob, getCharacterInfo } from "../subcommands/fivem/commons";
 import FetchEnvs from "../utils/FetchEnvs";
 import { fivemPool } from "../Bot";
 import { tryCatch } from "../utils/trycatch";
