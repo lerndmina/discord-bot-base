@@ -260,14 +260,11 @@ export async function prepModmailMessage(
   characterLimit: number
 ) {
   var content = message.content;
-  var attachments = message.attachments.map((attachment) => {
-    return attachment.url;
-  });
-  var allContent = [content, attachments.length > 0 ? "\nAttachments:" : "", ...attachments].join(
-    "\n"
-  );
 
-  if (!allContent && message.stickers.size !== 0) {
+  // Remove attachment URL handling since we'll send actual attachment files
+  var allContent = content;
+  // Allow messages with only attachments, but not empty messages with only stickers
+  if (!allContent && message.attachments.size === 0 && message.stickers.size > 0) {
     await message.react("❌");
     const botmessage = await message.reply({
       content: "",
@@ -280,6 +277,11 @@ export async function prepModmailMessage(
       ],
     });
     deleteMessage(botmessage, 15000);
+  }
+
+  // Return content even if empty, as long as there are attachments
+  if (!allContent && message.attachments.size === 0) {
+    return null; // Truly empty message with no attachments
   }
 
   if (allContent.length > characterLimit) {

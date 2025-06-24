@@ -49,6 +49,7 @@ import FetchEnvs from "../../utils/FetchEnvs";
 import { debug } from "console";
 import log from "../../utils/log";
 import { tryCatch } from "../../utils/trycatch";
+import { createAttachmentBuildersFromUrls } from "../../utils/AttachmentProcessor";
 import ModmailBanModel from "../../models/ModmailBans";
 import ms from "ms";
 import { ModmailScheduler } from "../../services/ModmailScheduler";
@@ -382,18 +383,11 @@ async function newModmail(
           components: [],
         });
       }
-
       const forumChannel = (await getter.getChannel(channelId)) as unknown as ForumChannel;
       const noMentionsMessage = removeMentions(messageContent);
 
-      // Prepare the initial message including attachments
+      // Prepare the initial message without attachment URLs since we'll forward actual files
       let initialMessage = noMentionsMessage;
-      if (message.attachments.size > 0) {
-        initialMessage += `\n\nAttachments:`;
-        for (const attachment of message.attachments.values()) {
-          initialMessage += `\n- [${attachment.name}](${attachment.url})`;
-        }
-      }
 
       // Get the modmail config
       const db = new Database();
@@ -449,6 +443,24 @@ async function newModmail(
           ],
           components: [],
         });
+      }
+
+      // Send the initial message with attachments via webhook if there's content or attachments
+      if ((noMentionsMessage && noMentionsMessage.trim()) || message.attachments.size > 0) {
+        try {
+          const webhook = await client.fetchWebhook(config.webhookId!, config.webhookToken!);
+          const attachmentBuilders = createAttachmentBuildersFromUrls(message.attachments);
+
+          await webhook.send({
+            content: noMentionsMessage || "",
+            files: attachmentBuilders,
+            threadId: result.thread!.id,
+            username: i.user.displayName,
+            avatarURL: i.user.displayAvatarURL(),
+          });
+        } catch (error) {
+          log.error("Failed to send initial message with attachments via webhook:", error);
+        }
       }
 
       // Check if DM was successful, if not notify user
@@ -526,15 +538,19 @@ async function sendMessage( // Send a message from dms to the modmail thread
     const guild = await getter.getGuild(mail.guildId);
     const thread = (await getter.getChannel(mail.forumThreadId)) as ThreadChannel;
 
+    // Create attachment builders from URLs
+    const attachmentBuilders = createAttachmentBuildersFromUrls(message.attachments);
+
     // Get the webhook from the ModmailConfig instead of the individual modmail
     const db = new Database();
     const config = await db.findOne(ModmailConfig, { guildId: mail.guildId });
 
     if (!config || !config.webhookId || !config.webhookToken) {
       // If there's no webhook in config, fall back to normal message
-      return thread.send(
-        `${message.author.username} says: ${cleanMessageContent}\n\n\`\`\`No webhook found in ModmailConfig, please recreate the modmail setup.\`\`\``
-      );
+      return thread.send({
+        content: `${message.author.username} says: ${cleanMessageContent}\n\n\`\`\`No webhook found in ModmailConfig, please recreate the modmail setup.\`\`\``,
+        files: attachmentBuilders,
+      });
     }
 
     const webhook = await client.fetchWebhook(config.webhookId, config.webhookToken);
@@ -542,6 +558,7 @@ async function sendMessage( // Send a message from dms to the modmail thread
     // Send message with the user's avatar and username from the stored data or current values
     await webhook.send({
       content: cleanMessageContent,
+      files: attachmentBuilders,
       threadId: thread.id,
       username: mail.userDisplayName || message.author.displayName,
       avatarURL: mail.userAvatar || message.author.displayAvatarURL(),
@@ -608,6 +625,9 @@ async function handleReply(message: Message, client: Client<true>, staffUser: Us
   const finalContent = removeMentions((await prepModmailMessage(client, message, 1024)) || "");
   if (!finalContent) return;
 
+  // Create attachment builders from URLs
+  const attachmentBuilders = createAttachmentBuildersFromUrls(message.attachments);
+
   debugMsg(
     "Sending message to user " +
       mail.userId +
@@ -635,6 +655,7 @@ async function handleReply(message: Message, client: Client<true>, staffUser: Us
         `\n${finalContent}` +
         `\n-# This message was sent by a staff member of **${guild.name}** in reply to your modmail thread.` +
         `\n-# If you want to close this thread, just send \`/modmail close\` here`,
+      files: attachmentBuilders,
     })
   );
 
