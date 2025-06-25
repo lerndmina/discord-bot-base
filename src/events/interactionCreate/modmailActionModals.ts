@@ -25,7 +25,13 @@ type ModmailDoc = ModmailType & { _id: string; createdAt?: Date; updatedAt?: Dat
 export default async (interaction: ModalSubmitInteraction, client: Client<true>) => {
   if (!interaction.isModalSubmit()) return false;
 
-  // Handle modmail modals
+  // Handle user close with message modal (doesn't require staff role)
+  if (interaction.customId.startsWith("modmail_close_with_message_modal")) {
+    const [action, modmailId] = interaction.customId.split(":");
+    return await handleCloseWithMessageModal(interaction, client, modmailId);
+  }
+
+  // Handle modmail modals (require staff role)
   if (interaction.customId.startsWith("modmail_")) {
     // Require staff role permission
     const hasStaffRole =
@@ -298,6 +304,113 @@ async function handleBanModal(
     } else {
       await interaction.editReply({
         content: "❌ An error occurred while processing the ban.",
+      });
+    }
+    return true;
+  }
+}
+
+/**
+ * Handle close with message modal submission from user
+ */
+async function handleCloseWithMessageModal(
+  interaction: ModalSubmitInteraction,
+  client: Client<true>,
+  modmailId: string
+): Promise<boolean> {
+  try {
+    await interaction.deferReply({ ephemeral: true });
+
+    const finalMessage = interaction.fields.getTextInputValue("final_message");
+    const db = new Database();
+    const getter = new ThingGetter(client);
+
+    // Find the modmail
+    const modmail = (await db.findOne(Modmail, { _id: modmailId })) as ModmailDoc;
+    if (!modmail) {
+      await interaction.editReply({
+        content: "❌ Modmail thread not found.",
+      });
+      return true;
+    }
+
+    // Verify this is the thread owner
+    if (modmail.userId !== interaction.user.id) {
+      await interaction.editReply({
+        content: "❌ You can only close your own modmail thread.",
+      });
+      return true;
+    }
+
+    // Send the final message to the thread first using webhook
+    const config = await db.findOne(ModmailConfig, { guildId: modmail.guildId });
+    if (config && config.webhookId && config.webhookToken) {
+      try {
+        const webhook = await client.fetchWebhook(config.webhookId, config.webhookToken);
+        await webhook.send({
+          content: finalMessage,
+          threadId: modmail.forumThreadId,
+          username: modmail.userDisplayName || interaction.user.displayName,
+          avatarURL: modmail.userAvatar || interaction.user.displayAvatarURL(),
+        });
+      } catch (error) {
+        log.error("Failed to send final message via webhook:", error);
+        // Fallback to normal message
+        const forumThread = (await getter.getChannel(modmail.forumThreadId)) as ThreadChannel;
+        if (forumThread) {
+          await forumThread.send(`${interaction.user.username} says: ${finalMessage}`);
+        }
+      }
+    }
+
+    // Now close the thread using the same logic as regular close
+    const closedBy = "User";
+    const closedByName = interaction.user.username;
+    const reason = "Closed by user with final message"; // Send closure message
+    await sendModmailCloseMessage(client, modmail, closedBy, closedByName, reason);
+
+    // Get the forum thread
+    const forumThread = (await getter.getChannel(modmail.forumThreadId)) as ThreadChannel;
+
+    // Update tags to closed
+    if (config && forumThread) {
+      const forumChannel = (await getter.getChannel(config.forumChannelId)) as ForumChannel;
+      if (forumChannel && forumChannel.type === ChannelType.GuildForum) {
+        const { handleTag } = await import("../messageCreate/gotMail");
+        await handleTag(null, config, db, forumThread, forumChannel);
+      }
+    }
+
+    // Lock and archive thread
+    if (forumThread && "setLocked" in forumThread) {
+      try {
+        await forumThread.setLocked(true, `${closedBy} closed: ${reason}`);
+        await forumThread.setArchived(true, `${closedBy} closed: ${reason}`);
+      } catch (error) {
+        log.warn(`Failed to lock/archive thread ${modmail.forumThreadId}:`, error);
+      }
+    }
+
+    // Remove from database
+    await db.deleteOne(Modmail, { _id: modmail._id });
+    await db.cleanCache(`${env.MONGODB_DATABASE}:${env.MODMAIL_TABLE}:userId:*`);
+
+    await interaction.editReply({
+      content: "✅ Your final message has been sent and the modmail thread has been closed.",
+    });
+
+    return true;
+  } catch (error) {
+    log.error("Error handling close with message modal:", error);
+
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({
+        content: "❌ An error occurred while closing the thread.",
+        ephemeral: true,
+      });
+    } else {
+      await interaction.editReply({
+        content: "❌ An error occurred while closing the thread.",
       });
     }
     return true;

@@ -103,6 +103,61 @@ async function handleDM(message: Message, client: Client<true>, user: User) {
   const db = new Database();
   const requestId = message.id;
   const mail = await db.findOne(Modmail, { userId: user.id }, true);
+
+  // Check if user is trying to close with a message
+  const closeWithMessageKey = `${env.MODMAIL_TABLE}:close_with_message:${user.id}`;
+  const isClosingWithMessage = await redisClient.get(closeWithMessageKey);
+  if (isClosingWithMessage && mail) {
+    // Clear the flag
+    await redisClient.del(closeWithMessageKey);
+
+    // Send the final message first
+    await sendMessage(mail, message, finalContent, client);
+
+    // Then close the thread using the same logic as the closeModmail command
+    const getter = new ThingGetter(client);
+    const closedBy = "User";
+    const closedByName = user.username;
+    const reason = "Closed by user with final message";
+    const forumThread = (await getter.getChannel(mail.forumThreadId)) as ThreadChannel;
+
+    // Send closure message
+    await sendModmailCloseMessage(client, mail, closedBy, closedByName, reason);
+
+    // Update tags and close thread
+    const config = await db.findOne(ModmailConfig, { guildId: mail.guildId });
+    if (config) {
+      const forumChannel = (await getter.getChannel(config.forumChannelId)) as ForumChannel;
+      await handleTag(null, config, db, forumThread, forumChannel);
+    }
+
+    try {
+      await forumThread.setLocked(true, `${closedBy} closed: ${reason}`);
+      await forumThread.setArchived(true, `${closedBy} closed: ${reason}`);
+    } catch (error) {
+      log.error("Failed to close thread:", error);
+    }
+
+    // Remove from database and clean cache
+    await db.deleteOne(Modmail, { forumThreadId: forumThread.id });
+    await db.cleanCache(`${env.MONGODB_DATABASE}:${env.MODMAIL_TABLE}:userId:*`);
+
+    // Notify user
+    await message.reply({
+      embeds: [
+        BasicEmbed(
+          client,
+          "🔒 Thread Closed",
+          "Your final message has been sent and the modmail thread has been closed.",
+          undefined,
+          "Green"
+        ),
+      ],
+    });
+
+    return;
+  }
+
   const customIds = [`create-${requestId}`, `cancel-${requestId}`];
   if (!mail) {
     const banned = await db.findOne(ModmailBanModel, { userId: user.id });
@@ -443,23 +498,21 @@ async function newModmail(
           ],
           components: [],
         });
-      }
-
-      // Send the initial message with attachments via webhook if there's content or attachments
-      if ((noMentionsMessage && noMentionsMessage.trim()) || message.attachments.size > 0) {
+      } // Send only attachments via webhook if there are any (don't repeat the text content)
+      if (message.attachments.size > 0) {
         try {
           const webhook = await client.fetchWebhook(config.webhookId!, config.webhookToken!);
           const attachmentBuilders = createAttachmentBuildersFromUrls(message.attachments);
 
           await webhook.send({
-            content: noMentionsMessage || "",
+            content: "The original message had attachments, see below:",
             files: attachmentBuilders,
             threadId: result.thread!.id,
             username: i.user.displayName,
             avatarURL: i.user.displayAvatarURL(),
           });
         } catch (error) {
-          log.error("Failed to send initial message with attachments via webhook:", error);
+          log.error("Failed to send initial message attachments via webhook:", error);
         }
       }
 
@@ -471,7 +524,7 @@ async function newModmail(
             BasicEmbed(
               client,
               "Modmail",
-              `Successfully created a modmail thread in **${guild.name}**!\n\nHowever, I was unable to send you a DM. Please check your privacy settings and ensure you can receive DMs from server members.\n\nYou can communicate with staff by going to the thread in the server.`,
+              `Successfully opened a modmail in **${guild.name}**!\n\nHowever, I was unable to send you a DM. Please check your privacy settings and ensure you can receive DMs from server members.\n\nYou can communicate with staff by going to the thread in the server.`,
               undefined,
               "Orange"
             ),
@@ -482,16 +535,8 @@ async function newModmail(
 
       // Success - DM was sent, so just update the reply to indicate success
       reply.edit({
-        content: "",
-        embeds: [
-          BasicEmbed(
-            client,
-            "Modmail",
-            `Successfully created a modmail thread in **${guild.name}**!\n\nI've sent you a DM with the details. Check your direct messages to continue the conversation with staff.`,
-            undefined,
-            "Green"
-          ),
-        ],
+        content: "✅ Done! Modmail thread created successfully.",
+        embeds: [],
         components: [],
       });
     });

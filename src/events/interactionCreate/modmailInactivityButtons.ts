@@ -6,6 +6,9 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
 } from "discord.js";
 import Database from "../../utils/data/database";
 import Modmail from "../../models/Modmail";
@@ -38,17 +41,24 @@ export default async (interaction: ButtonInteraction, client: Client<true>) => {
   try {
     // Handle cancel close confirmation
     if (interaction.customId === "modmail_cancel_close") {
+      // Clear any potential close-with-message flag
+      const closeWithMessageKey = `${env.MODMAIL_TABLE}:close_with_message:${interaction.user.id}`;
+      await (await import("../../Bot")).redisClient.del(closeWithMessageKey);
+
       await interaction.update({
         content: "❌ Close cancelled.",
         embeds: [],
         components: [],
       });
       return true;
-    }
-
-    // Handle confirmed close
+    } // Handle confirmed close
     if (interaction.customId === "modmail_confirm_close_yes") {
       return await handleConfirmedClose(interaction, client, db, getter);
+    }
+
+    // Handle close with message
+    if (interaction.customId === "modmail_confirm_close_with_message") {
+      return await handleCloseWithMessage(interaction, client, db, getter);
     }
 
     // Handle initial close button click
@@ -110,15 +120,18 @@ async function handleInitialClose(
       return interaction.editReply({
         content: "❌ You can only close your own modmail thread.",
       });
-    }
-
-    // Show confirmation for DM close
+    } // Show confirmation for DM close
     const confirmButtons = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId("modmail_confirm_close_yes")
         .setLabel("Yes, Close Thread")
         .setStyle(ButtonStyle.Danger)
         .setEmoji("✅"),
+      new ButtonBuilder()
+        .setCustomId("modmail_confirm_close_with_message")
+        .setLabel("Yes, Close with Message")
+        .setStyle(ButtonStyle.Primary)
+        .setEmoji("💬"),
       new ButtonBuilder()
         .setCustomId("modmail_cancel_close")
         .setLabel("No, Keep Open")
@@ -242,5 +255,46 @@ async function handleConfirmedClose(
     }
   }
 
+  return true;
+}
+
+async function handleCloseWithMessage(
+  interaction: ButtonInteraction,
+  client: Client<true>,
+  db: Database,
+  getter: ThingGetter
+) {
+  // Find modmail by user ID (if in DMs) or by thread ID (if in thread)
+  let modmail;
+
+  if (interaction.channel?.type === 1) {
+    // DM channel
+    modmail = await db.findOne(Modmail, { userId: interaction.user.id }, true);
+  } else if (interaction.channel?.isThread()) {
+    modmail = await db.findOne(Modmail, { forumThreadId: interaction.channel.id }, true);
+  }
+
+  if (!modmail) {
+    return interaction.editReply({
+      content: "❌ Could not find an associated modmail thread.",
+    });
+  }
+  // Create and show modal for final message
+  const modal = new ModalBuilder()
+    .setCustomId(`modmail_close_with_message_modal:${modmail._id}`)
+    .setTitle("Close Thread with Final Message");
+
+  const messageInput = new TextInputBuilder()
+    .setCustomId("final_message")
+    .setLabel("Your final message")
+    .setStyle(TextInputStyle.Paragraph)
+    .setPlaceholder("Type your final message here...")
+    .setMaxLength(2000)
+    .setRequired(true);
+
+  const actionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(messageInput);
+  modal.addComponents(actionRow);
+
+  await interaction.showModal(modal);
   return true;
 }
