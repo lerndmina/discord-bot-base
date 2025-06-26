@@ -33,7 +33,7 @@ export default async (c: Client<true>, client: Client<true>, handler: CommandKit
   try {
     modmailScheduler = new ModmailScheduler(client);
     await modmailScheduler.start();
-    log.info("Modmail inactivity scheduler initialized successfully");
+    log.debug("Modmail inactivity scheduler initialized successfully");
   } catch (error) {
     log.error("Failed to initialize modmail scheduler:", error);
   }
