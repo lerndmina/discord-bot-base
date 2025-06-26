@@ -76,7 +76,6 @@ import { tryCatch } from "../../utils/trycatch";
 import { createAttachmentBuildersFromUrls } from "../../utils/AttachmentProcessor";
 import ModmailBanModel from "../../models/ModmailBans";
 import ms from "ms";
-import { ModmailScheduler } from "../../services/ModmailScheduler";
 import ModmailMessageService, {
   ModmailMessageFormatter,
 } from "../../services/ModmailMessageService";
