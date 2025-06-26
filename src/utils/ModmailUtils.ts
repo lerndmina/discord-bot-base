@@ -19,6 +19,7 @@ import BasicEmbed from "./BasicEmbed";
 import Database from "./data/database";
 import Modmail from "../models/Modmail";
 import ModmailConfig from "../models/ModmailConfig";
+import ModmailCache from "./ModmailCache";
 
 const env = FetchEnvs();
 
@@ -458,6 +459,9 @@ export async function createModmailThread(
         },
         { new: true, upsert: true }
       );
+
+      // Invalidate cache after config update
+      await ModmailCache.invalidateModmailConfig(guild.id);
 
       // Update the config object
       modmailConfig.webhookId = webhook.id;

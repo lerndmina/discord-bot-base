@@ -48,6 +48,30 @@ import { Url } from "url";
 import FetchEnvs from "../../utils/FetchEnvs";
 import { debug } from "console";
 import log from "../../utils/log";
+import ModmailCache from "../../utils/ModmailCache";
+
+/**
+ * Get guild with caching to reduce API calls
+ */
+async function getCachedGuild(guildId: string, client: Client<true>): Promise<Guild | null> {
+  try {
+    // Check if we have cached guild info
+    const cachedInfo = await ModmailCache.getGuildInfo(guildId);
+
+    // Fetch from Discord API (we still need the full Guild object)
+    const guild = await client.guilds.fetch(guildId);
+
+    if (guild && (!cachedInfo || guild.name !== cachedInfo.name)) {
+      // Update cache with current guild info
+      await ModmailCache.setGuildInfo(guildId, guild.name);
+    }
+
+    return guild;
+  } catch (error) {
+    log.error(`Failed to fetch guild ${guildId}: ${error}`);
+    return null;
+  }
+}
 import { tryCatch } from "../../utils/trycatch";
 import { createAttachmentBuildersFromUrls } from "../../utils/AttachmentProcessor";
 import ModmailBanModel from "../../models/ModmailBans";
@@ -103,6 +127,7 @@ async function handleDM(message: Message, client: Client<true>, user: User) {
   const finalContent = await prepModmailMessage(client, message, 2000);
   if (!finalContent) return;
 
+  // Use singleton database instance for better performance
   const db = new Database();
   const requestId = message.id;
   const mail = await db.findOne(Modmail, { userId: user.id }, true);
@@ -591,11 +616,11 @@ async function sendMessage( // Send a message from dms to the modmail thread
     // Create attachment builders from URLs
     const attachmentBuilders = createAttachmentBuildersFromUrls(message.attachments);
 
-    // Get the webhook from the ModmailConfig instead of the individual modmail
+    // Get the webhook from the ModmailConfig with caching
     const db = new Database();
-    const config = await db.findOne(ModmailConfig, { guildId: mail.guildId });
+    const config = await ModmailCache.getModmailConfig(mail.guildId, db);
 
-    if (!config || !config.webhookId || !config.webhookToken) {
+    if (!config?.webhookId || !config?.webhookToken) {
       // If there's no webhook in config, fall back to normal message
       const fallbackMsg = await thread.send({
         content: `${message.author.username} says: ${cleanMessageContent}\n\n\`\`\`No webhook found in ModmailConfig, please recreate the modmail setup.\`\`\``,
@@ -880,6 +905,9 @@ export async function handleTag(
       },
       { new: true, upsert: true }
     );
+
+    // Invalidate cache after config update
+    await ModmailCache.invalidateModmailConfig(modmailConfig.guildId);
 
     // Retrieve the updated config
     const updatedConfig = await db.findOne(ModmailConfig, { guildId: modmailConfig.guildId });

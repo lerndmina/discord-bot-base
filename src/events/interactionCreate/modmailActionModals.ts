@@ -16,6 +16,7 @@ import { sendModmailCloseMessage } from "../../utils/ModmailUtils";
 import BasicEmbed from "../../utils/BasicEmbed";
 import FetchEnvs from "../../utils/FetchEnvs";
 import ms from "ms";
+import ModmailCache from "../../utils/ModmailCache";
 
 const env = FetchEnvs();
 
@@ -97,7 +98,7 @@ async function handleCloseModal(
     // Get the forum thread
     const forumThread = (await getter.getChannel(modmail.forumThreadId)) as ThreadChannel;
     // Update tags to closed
-    const config = await db.findOne(ModmailConfig, { guildId: modmail.guildId });
+    const config = await ModmailCache.getModmailConfig(modmail.guildId, db);
     if (config && forumThread) {
       const forumChannel = (await getter.getChannel(config.forumChannelId)) as ForumChannel;
       if (forumChannel && forumChannel.type === ChannelType.GuildForum) {
@@ -262,7 +263,7 @@ async function handleBanModal(
 
     // Handle thread archiving
     const forumThread = await getter.getChannel(modmail.forumThreadId);
-    const config = await db.findOne(ModmailConfig, { guildId: modmail.guildId });
+    const config = await ModmailCache.getModmailConfig(modmail.guildId, db);
     if (config && forumThread && "setLocked" in forumThread) {
       const forumChannel = await getter.getChannel(config.forumChannelId);
       if (forumChannel && forumChannel.type === ChannelType.GuildForum) {
@@ -343,7 +344,7 @@ async function handleCloseWithMessageModal(
     }
 
     // Send the final message to the thread first using webhook
-    const config = await db.findOne(ModmailConfig, { guildId: modmail.guildId });
+    const config = await ModmailCache.getModmailConfig(modmail.guildId, db);
     if (config && config.webhookId && config.webhookToken) {
       try {
         const webhook = await client.fetchWebhook(config.webhookId, config.webhookToken);

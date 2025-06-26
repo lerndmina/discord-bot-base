@@ -73,6 +73,12 @@ function convertToModmailMessageData(doc: any): ModmailMessageData {
  * Shared formatting functions for modmail messages
  */
 export class ModmailMessageFormatter {
+  // Compiled regex patterns for better performance
+  private static readonly STAFF_REPLY_REGEX =
+    /^### .+? Responded:\n([\s\S]+?)\n-# This message was sent by/;
+  private static readonly STAFF_REPLY_CHECK_REGEX =
+    /### .+? Responded:\n.*-# This message was sent by a staff member/;
+
   /**
    * Format a staff reply message for DM
    */
@@ -98,34 +104,33 @@ export class ModmailMessageFormatter {
   }
 
   /**
-   * Extract the original content from a formatted staff reply
+   * Extract the original content from a formatted staff reply (optimized with compiled regex)
    */
   static extractContentFromStaffReply(formattedMessage: string): string {
     // Match the staff reply format and extract just the content part
-    const match = formattedMessage.match(
-      /^### .+? Responded:\n([\s\S]+?)\n-# This message was sent by/
-    );
+    const match = formattedMessage.match(this.STAFF_REPLY_REGEX);
     return match ? match[1] : formattedMessage;
   }
 
   /**
-   * Check if a message is a formatted staff reply
+   * Check if a message is a formatted staff reply (optimized with compiled regex)
    */
   static isFormattedStaffReply(content: string): boolean {
-    return (
-      content.includes("### ") &&
-      content.includes(" Responded:\n") &&
-      content.includes("-# This message was sent by a staff member")
-    );
+    return this.STAFF_REPLY_CHECK_REGEX.test(content);
   }
 }
 
 export class ModmailMessageService {
   private static indexesEnsured = false;
+  private static dbInstance: Database | null = null;
   private db: Database;
 
   constructor() {
-    this.db = new Database();
+    // Use singleton pattern for database instance to improve performance
+    if (!ModmailMessageService.dbInstance) {
+      ModmailMessageService.dbInstance = new Database();
+    }
+    this.db = ModmailMessageService.dbInstance;
   }
 
   /**
@@ -251,16 +256,27 @@ export class ModmailMessageService {
   }
 
   /**
-   * Get recent messages from a modmail thread
+   * Get recent messages from a modmail thread (optimized with early returns)
    */
   async getRecentMessages(
     userId: string,
     limit: number = 50
   ): Promise<ModmailMessageData[] | null> {
     try {
-      const result = await this.db.findLastArrayElements(Modmail, { userId }, "messages", limit);
+      // Early return for invalid limit
+      if (limit <= 0) return [];
 
-      if (!result?.messages) return null;
+      // Cap limit to prevent excessive memory usage
+      const effectiveLimit = Math.min(limit, 1000);
+
+      const result = await this.db.findLastArrayElements(
+        Modmail,
+        { userId },
+        "messages",
+        effectiveLimit
+      );
+
+      if (!result?.messages?.length) return null;
       return result.messages.map(convertToModmailMessageData);
     } catch (error) {
       log.error(`Failed to get recent messages: ${error}`);
@@ -270,15 +286,19 @@ export class ModmailMessageService {
 
   /**
    * Find a message by its Discord message ID (for editing operations)
+   * Optimized with early returns and single query
    */
   async findMessageByDiscordId(
     userId: string,
     discordMessageId: string
   ): Promise<ModmailMessageData | null> {
     try {
+      // Fetch the full document since the database utility doesn't support projections
       const modmail = await this.db.findOne(Modmail, { userId });
-      if (!modmail?.messages) return null;
 
+      if (!modmail?.messages?.length) return null;
+
+      // Use Array.find for efficiency instead of filter + [0]
       const message = modmail.messages.find(
         (msg: any) =>
           msg.discordMessageId === discordMessageId ||
@@ -376,7 +396,7 @@ export class ModmailMessageService {
   }
 
   /**
-   * Search messages by content
+   * Search messages by content (optimized with case-insensitive regex)
    */
   async searchMessages(
     userId: string,
@@ -384,17 +404,25 @@ export class ModmailMessageService {
     limit: number = 20
   ): Promise<ModmailMessageData[] | null> {
     try {
+      // Early return for empty search term
+      if (!searchTerm.trim()) return [];
+
       const modmail = await this.db.findOne(Modmail, { userId });
-      if (!modmail?.messages) return null;
+      if (!modmail?.messages?.length) return null;
+
+      // Optimize search with early compilation of regex and case-insensitive matching
+      const searchRegex = new RegExp(searchTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
 
       const searchResults = modmail.messages
-        .filter(
-          (msg: any) =>
-            !msg.isDeleted &&
-            (msg.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
-              (msg.editedContent &&
-                msg.editedContent.toLowerCase().includes(searchTerm.toLowerCase())))
-        )
+        .filter((msg: any) => {
+          if (msg.isDeleted) return false;
+
+          // Test content first (most common case)
+          if (searchRegex.test(msg.content)) return true;
+
+          // Test edited content if exists
+          return msg.editedContent && searchRegex.test(msg.editedContent);
+        })
         .slice(-limit)
         .map(convertToModmailMessageData);
 
@@ -413,7 +441,7 @@ export class ModmailMessageService {
   }
 
   /**
-   * Batch update message statuses (useful for bulk operations)
+   * Batch update message statuses with improved error handling
    */
   async batchUpdateMessages(
     userId: string,
@@ -423,17 +451,30 @@ export class ModmailMessageService {
     }>
   ): Promise<ModmailType | null> {
     try {
-      // For now, do sequential updates - could be optimized with aggregation later
-      let result: ModmailType | null = null;
+      // Early return for empty updates
+      if (!messageUpdates.length) return null;
 
+      let result: ModmailType | null = null;
+      const errors: string[] = [];
+
+      // Process updates but collect errors instead of failing immediately
       for (const { messageId, updates } of messageUpdates) {
-        result = await this.db.updateArrayElement(
-          Modmail,
-          { userId },
-          "messages",
-          { messageId },
-          updates
-        );
+        try {
+          result = await this.db.updateArrayElement(
+            Modmail,
+            { userId },
+            "messages",
+            { messageId },
+            updates
+          );
+        } catch (error) {
+          errors.push(`Failed to update message ${messageId}: ${error}`);
+        }
+      }
+
+      // Log errors but don't fail the entire batch
+      if (errors.length > 0) {
+        log.warn(`Batch update had ${errors.length} errors: ${errors.join("; ")}`);
       }
 
       return result;
@@ -523,13 +564,15 @@ export class ModmailMessageService {
   }
 
   /**
-   * Parse a Discord message URL to extract components
+   * Parse a Discord message URL to extract components (optimized with compiled regex)
    */
+  private static readonly MESSAGE_URL_REGEX =
+    /https:\/\/discord\.com\/channels\/(@me|\d+)\/(\d+)\/(\d+)/;
+
   static parseMessageUrl(
     url: string
   ): { guildId: string | null; channelId: string; messageId: string } | null {
-    const regex = /https:\/\/discord\.com\/channels\/(@me|\d+)\/(\d+)\/(\d+)/;
-    const match = url.match(regex);
+    const match = url.match(this.MESSAGE_URL_REGEX);
 
     if (!match) return null;
 

@@ -118,10 +118,12 @@ const modmailSchema = new Schema({
   guildId: {
     type: String,
     required: true,
+    index: true, // Index for faster guild-based queries
   },
   forumThreadId: {
     type: String,
     required: true,
+    index: true, // Index for thread lookups
   },
   forumChannelId: {
     type: String,
@@ -130,6 +132,7 @@ const modmailSchema = new Schema({
   userId: {
     type: String,
     required: true,
+    index: true, // Index for user-based queries
   },
   userAvatar: {
     type: String,
@@ -142,6 +145,7 @@ const modmailSchema = new Schema({
   lastUserActivityAt: {
     type: Date,
     default: Date.now,
+    index: true, // Index for activity-based queries
   },
   inactivityNotificationSent: {
     type: Date,
@@ -150,6 +154,7 @@ const modmailSchema = new Schema({
   autoCloseScheduledAt: {
     type: Date,
     required: false,
+    index: true, // Index for scheduled operations
   },
   autoCloseDisabled: {
     type: Boolean,
@@ -158,6 +163,7 @@ const modmailSchema = new Schema({
   markedResolved: {
     type: Boolean,
     default: false,
+    index: true, // Index for resolution status queries
   },
   resolvedAt: {
     type: Date,
@@ -177,6 +183,12 @@ const modmailSchema = new Schema({
     default: [],
   },
 });
+
+// Compound indexes for better query performance
+modmailSchema.index({ guildId: 1, userId: 1 }); // Guild-user combination
+modmailSchema.index({ userId: 1, lastUserActivityAt: -1 }); // User activity
+modmailSchema.index({ guildId: 1, markedResolved: 1 }); // Guild resolution status
+modmailSchema.index({ autoCloseScheduledAt: 1, autoCloseDisabled: 1 }); // Auto-close scheduling
 
 export default model(env.MODMAIL_TABLE, modmailSchema);
 

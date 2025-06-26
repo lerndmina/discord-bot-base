@@ -11,6 +11,7 @@ import { initialReply } from "../../utils/initialReply";
 import { handleTag } from "../../events/messageCreate/gotMail";
 import ModmailConfig from "../../models/ModmailConfig";
 import { sendModmailCloseMessage } from "../../utils/ModmailUtils";
+import ModmailCache from "../../utils/ModmailCache";
 
 const env = FetchEnvs();
 
@@ -47,7 +48,9 @@ export default async function ({ interaction, client, handler }: SlashCommandPro
   await sendModmailCloseMessage(client, mail, closedBy, closedByName, reason);
 
   const db = new Database();
-  const config = await db.findOne(ModmailConfig, { guildId: interaction.guildId });
+  const config = interaction.guildId
+    ? await ModmailCache.getModmailConfig(interaction.guildId, db)
+    : null;
   // Now add the closed tag to the modmail thread
   if (config) {
     const forumChannel = (await getter.getChannel(config.forumChannelId)) as ForumChannel;

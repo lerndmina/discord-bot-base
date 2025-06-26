@@ -49,7 +49,7 @@ export class ModmailScheduler {
       }
     }, 60 * 1000);
 
-    log.info("Modmail scheduler started successfully");
+    log.debug("Modmail scheduler started successfully");
   }
 
   /**
@@ -60,7 +60,7 @@ export class ModmailScheduler {
       return;
     }
 
-    log.info("Stopping modmail scheduler...");
+    log.debug("Stopping modmail scheduler...");
 
     if (this.intervalId) {
       clearInterval(this.intervalId);
@@ -70,7 +70,7 @@ export class ModmailScheduler {
     this.isRunning = false;
     await redisClient.del("modmail_scheduler_running");
 
-    log.info("Modmail scheduler stopped");
+    log.debug("Modmail scheduler stopped");
   }
 
   /**

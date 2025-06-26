@@ -2,9 +2,9 @@ import { Message, Client, PartialMessage } from "discord.js";
 import ModmailMessageService from "../../services/ModmailMessageService";
 import Database from "../../utils/data/database";
 import Modmail from "../../models/Modmail";
-import ModmailConfig from "../../models/ModmailConfig";
 import log from "../../utils/log";
 import { debugMsg } from "../../utils/TinyUtils";
+import ModmailCache from "../../utils/ModmailCache";
 
 /**
  * Handle message deletions in modmail threads and DMs
@@ -12,7 +12,7 @@ import { debugMsg } from "../../utils/TinyUtils";
  * @param client - Discord client
  */
 export default async function (message: Message | PartialMessage, client: Client<true>) {
-  // Skip bot messages
+  // Early returns for optimization
   if (message.author?.bot) return;
 
   const messageService = new ModmailMessageService();
@@ -126,6 +126,7 @@ async function handleThreadMessageDeletion(
 
 /**
  * Apply strikethrough to webhook message in forum thread when user deletes DM
+ * Optimized with cached config
  */
 async function deleteWebhookMessage(modmail: any, trackedMessage: any, client: Client<true>) {
   try {
@@ -134,10 +135,10 @@ async function deleteWebhookMessage(modmail: any, trackedMessage: any, client: C
       return;
     }
 
-    // Get webhook credentials from config
+    // Get webhook credentials from cached config
     const db = new Database();
-    const config = await db.findOne(ModmailConfig, { guildId: modmail.guildId });
-    if (!config || !config.webhookId || !config.webhookToken) {
+    const config = await ModmailCache.getModmailConfig(modmail.guildId, db);
+    if (!config?.webhookId || !config?.webhookToken) {
       log.error("No webhook credentials found in config for deletion");
       return;
     }
@@ -147,7 +148,7 @@ async function deleteWebhookMessage(modmail: any, trackedMessage: any, client: C
       client,
       trackedMessage.webhookMessageUrl
     );
-    if (!currentMessage || !currentMessage.content) {
+    if (!currentMessage?.content) {
       log.error("Could not fetch current message content for strikethrough");
       return;
     }

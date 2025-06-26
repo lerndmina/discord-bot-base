@@ -13,6 +13,7 @@ import {
 import BasicEmbed from "../utils/BasicEmbed";
 import log from "../utils/log";
 import { redisClient } from "../Bot";
+import ModmailCache from "../utils/ModmailCache";
 
 // Extended types that include MongoDB document fields
 type ModmailDoc = ModmailType & { _id: string; createdAt?: Date; updatedAt?: Date };
@@ -59,6 +60,15 @@ export class ModmailInactivityService {
       }
 
       // Update modmail configs that don't have the new fields
+      const configsToUpdate = await ModmailConfig.find({
+        $or: [
+          { inactivityWarningHours: { $exists: false } },
+          { autoCloseHours: { $exists: false } },
+        ],
+      })
+        .select("guildId")
+        .lean();
+
       const configUpdateResult = await ModmailConfig.updateMany(
         {
           $or: [
@@ -76,6 +86,13 @@ export class ModmailInactivityService {
 
       if (configUpdateResult.modifiedCount > 0) {
         log.info(`Successfully migrated ${configUpdateResult.modifiedCount} modmail configs`);
+
+        // Invalidate cache for all updated configs
+        const cacheInvalidationPromises = configsToUpdate.map((config) =>
+          ModmailCache.invalidateModmailConfig(config.guildId)
+        );
+        await Promise.allSettled(cacheInvalidationPromises);
+        log.debug(`Invalidated modmail config cache for ${configsToUpdate.length} guilds`);
       } else {
         log.debug("No old modmail configs found to migrate");
       }
@@ -170,7 +187,7 @@ export class ModmailInactivityService {
       const lastActivity = new Date(modmail.lastUserActivityAt || modmail.createdAt || now);
 
       // Get config for this guild
-      const config = await this.db.findOne(ModmailConfig, { guildId: modmail.guildId });
+      const config = await ModmailCache.getModmailConfig(modmail.guildId, this.db);
       const warningHours = config?.inactivityWarningHours || getInactivityWarningHours();
       const autoCloseHours = config?.autoCloseHours || getAutoCloseHours();
 
@@ -334,7 +351,7 @@ export class ModmailInactivityService {
         } else {
           // Update tags BEFORE archiving (following closeModmail.ts pattern)
           try {
-            const config = await this.db.findOne(ModmailConfig, { guildId: modmail.guildId });
+            const config = await ModmailCache.getModmailConfig(modmail.guildId, this.db);
             if (config) {
               const forumChannel = await getter.getChannel(config.forumChannelId);
               if (forumChannel) {

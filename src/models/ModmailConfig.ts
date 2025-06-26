@@ -24,6 +24,8 @@ const ModmailConfig = new Schema({
   guildId: {
     type: String,
     required: true,
+    unique: true, // Ensure one config per guild
+    index: true, // Index for faster guild lookups
   },
   guildDescription: {
     type: String,
@@ -32,6 +34,7 @@ const ModmailConfig = new Schema({
   forumChannelId: {
     type: String,
     required: true,
+    index: true, // Index for channel-based queries
   },
   staffRoleId: {
     type: String,

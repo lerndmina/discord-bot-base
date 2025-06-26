@@ -7,6 +7,7 @@ import { initialReply } from "../../utils/initialReply";
 import Database from "../../utils/data/database";
 import FetchEnvs from "../../utils/FetchEnvs";
 import log from "../../utils/log";
+import ModmailCache from "../../utils/ModmailCache";
 
 export const setupModmailOptions: CommandOptions = {
   devOnly: false,
@@ -80,6 +81,11 @@ export default async function setupModmail({ interaction, client, handler }: Sla
       },
       { upsert: true, new: true }
     );
+
+    // Invalidate cache after config update
+    if (interaction.guild?.id) {
+      await ModmailCache.invalidateModmailConfig(interaction.guild.id);
+    }
 
     interaction.editReply({
       content: "",

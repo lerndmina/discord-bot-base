@@ -14,6 +14,7 @@ import { ThingGetter } from "../../utils/TinyUtils";
 import { handleTag } from "../messageCreate/gotMail";
 import FetchEnvs from "../../utils/FetchEnvs";
 import log from "../../utils/log";
+import ModmailCache from "../../utils/ModmailCache";
 import {
   sendModmailCloseMessage,
   sendMessageToBothChannels,
@@ -312,7 +313,7 @@ async function handleConfirmedResolveClose(
   await sendModmailCloseMessage(client, modmail, closedBy, closedByName, reason);
 
   // Update tags to closed
-  const config = await db.findOne(ModmailConfig, { guildId: modmail.guildId });
+  const config = await ModmailCache.getModmailConfig(modmail.guildId, db);
   if (config) {
     const forumThread = await getter.getChannel(modmail.forumThreadId);
     if (forumThread && "setLocked" in forumThread) {

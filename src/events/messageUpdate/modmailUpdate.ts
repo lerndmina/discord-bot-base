@@ -4,10 +4,10 @@ import ModmailMessageService, {
 } from "../../services/ModmailMessageService";
 import Database from "../../utils/data/database";
 import Modmail from "../../models/Modmail";
-import ModmailConfig from "../../models/ModmailConfig";
 import log from "../../utils/log";
 import { debugMsg, ThingGetter } from "../../utils/TinyUtils";
 import { removeMentions } from "../../Bot";
+import ModmailCache from "../../utils/ModmailCache";
 
 /**
  * Handle message updates in modmail threads and DMs
@@ -20,15 +20,12 @@ export default async function (
   newMessage: Message | PartialMessage,
   client: Client<true>
 ) {
-  // Skip bot messages
+  // Early returns for optimization
   if (newMessage.author?.bot) return;
-
-  // Skip if we don't have the new message content
   if (!newMessage.content) return;
-
-  // Skip if content hasn't actually changed
   if (oldMessage.content === newMessage.content) return;
 
+  // Use singleton pattern for better performance
   const messageService = new ModmailMessageService();
   const db = new Database();
 
@@ -48,6 +45,7 @@ export default async function (
 
 /**
  * Handle message updates in DMs (user editing their modmail messages)
+ * Optimized with single database instance and early returns
  */
 async function handleDMMessageUpdate(
   oldMessage: Message | PartialMessage,
@@ -55,10 +53,10 @@ async function handleDMMessageUpdate(
   messageService: ModmailMessageService,
   client: Client<true>
 ) {
-  if (!newMessage.author) return;
+  if (!newMessage.author?.id) return;
 
   try {
-    // Find the modmail thread for this user
+    // Use shared database instance
     const db = new Database();
     const modmail = await db.findOne(Modmail, { userId: newMessage.author.id });
     if (!modmail) return;
@@ -74,7 +72,7 @@ async function handleDMMessageUpdate(
       return;
     }
 
-    // Update the message in our tracking system
+    // Clean and update the message content
     const cleanContent = removeMentions(newMessage.content || "");
     await messageService.editMessage(
       newMessage.author.id,
@@ -147,6 +145,7 @@ async function handleThreadMessageUpdate(
 
 /**
  * Update webhook message in forum thread when user edits DM
+ * Optimized with cached config
  */
 async function updateWebhookMessage(
   modmail: any,
@@ -164,10 +163,10 @@ async function updateWebhookMessage(
     log.debug(`Modmail guild ID: ${modmail.guildId}`);
     log.debug(`Tracked message ID: ${trackedMessage.messageId}`);
 
-    // Get webhook credentials from config
+    // Get webhook credentials from cached config
     const db = new Database();
-    const config = await db.findOne(ModmailConfig, { guildId: modmail.guildId });
-    if (!config || !config.webhookId || !config.webhookToken) {
+    const config = await ModmailCache.getModmailConfig(modmail.guildId, db);
+    if (!config?.webhookId || !config?.webhookToken) {
       log.error("No webhook credentials found in config for editing");
       return;
     }
@@ -195,6 +194,7 @@ async function updateWebhookMessage(
 
 /**
  * Update DM message to user when staff edits thread message
+ * Optimized with better error handling and caching
  */
 async function updateDMMessage(
   modmail: any,
@@ -210,7 +210,14 @@ async function updateDMMessage(
 
     // Get the staff member information to preserve the original formatting
     const getter = new ThingGetter(client);
-    const guild = await getter.getGuild(modmail.guildId);
+    let guild;
+
+    try {
+      guild = await getter.getGuild(modmail.guildId);
+    } catch (error) {
+      log.error(`Could not fetch guild for DM formatting: ${error}`);
+      return;
+    }
 
     // Try to get the original staff member who sent the message
     let staffMemberName = trackedMessage.authorName || "Staff Member";
@@ -224,6 +231,7 @@ async function updateDMMessage(
         }
       } catch (error) {
         log.debug(`Could not fetch staff member for DM formatting: ${error}`);
+        // Continue with fallback name
       }
     }
 

@@ -18,6 +18,7 @@ import ButtonWrapper from "../../utils/ButtonWrapper";
 import BasicEmbed from "../../utils/BasicEmbed";
 import { ThingGetter } from "../../utils/TinyUtils";
 import Database from "../../utils/data/database";
+import ModmailCache from "../../utils/ModmailCache";
 import ModmailConfig from "../../models/ModmailConfig";
 import Modmail from "../../models/Modmail";
 import FetchEnvs from "../../utils/FetchEnvs";
@@ -43,7 +44,7 @@ export default async function ({ interaction, client, handler }: SlashCommandPro
   if (!targetMember) return interaction.reply("The user is not in the server");
 
   const db = new Database();
-  const modmailConfig = await db.findOne(ModmailConfig, { guildId: guild.id });
+  const modmailConfig = await ModmailCache.getModmailConfig(guild.id, db);
   if (!modmailConfig)
     return interaction.reply(
       "Modmail is not set up in this server, please run the setup command first"
