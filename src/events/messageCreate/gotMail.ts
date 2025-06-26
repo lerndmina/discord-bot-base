@@ -53,7 +53,9 @@ import { createAttachmentBuildersFromUrls } from "../../utils/AttachmentProcesso
 import ModmailBanModel from "../../models/ModmailBans";
 import ms from "ms";
 import { ModmailScheduler } from "../../services/ModmailScheduler";
-import ModmailMessageService from "../../services/ModmailMessageService";
+import ModmailMessageService, {
+  ModmailMessageFormatter,
+} from "../../services/ModmailMessageService";
 const env = FetchEnvs();
 
 const MAX_TITLE_LENGTH = 50;
@@ -764,11 +766,11 @@ async function handleReply(message: Message, client: Client<true>, staffUser: Us
   );
 
   const staffMemberName = getter.getMemberName(await getter.getMember(guild, staffUser.id));
-  const dmContent =
-    `### ${staffMemberName} Responded:` +
-    `\n${finalContent}` +
-    `\n-# This message was sent by a staff member of **${guild.name}** in reply to your modmail thread.` +
-    `\n-# If you want to close this thread, just send \`/modmail close\` here`;
+  const dmContent = ModmailMessageFormatter.formatStaffReplyForDM(
+    finalContent,
+    staffMemberName,
+    guild.name
+  );
 
   const data = await tryCatch(
     (

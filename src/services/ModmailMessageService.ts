@@ -69,6 +69,57 @@ function convertToModmailMessageData(doc: any): ModmailMessageData {
   };
 }
 
+/**
+ * Shared formatting functions for modmail messages
+ */
+export class ModmailMessageFormatter {
+  /**
+   * Format a staff reply message for DM
+   */
+  static formatStaffReplyForDM(
+    content: string,
+    staffMemberName: string,
+    guildName: string
+  ): string {
+    return (
+      `### ${staffMemberName} Responded:` +
+      `\n${content}` +
+      `\n-# This message was sent by a staff member of **${guildName}** in reply to your modmail thread.` +
+      `\n-# If you want to close this thread, just send \`/modmail close\` here`
+    );
+  }
+
+  /**
+   * Format a user message for webhook (maintains original format)
+   */
+  static formatUserMessageForWebhook(content: string): string {
+    // User messages in webhooks are sent as-is with user's avatar and name
+    return content;
+  }
+
+  /**
+   * Extract the original content from a formatted staff reply
+   */
+  static extractContentFromStaffReply(formattedMessage: string): string {
+    // Match the staff reply format and extract just the content part
+    const match = formattedMessage.match(
+      /^### .+? Responded:\n([\s\S]+?)\n-# This message was sent by/
+    );
+    return match ? match[1] : formattedMessage;
+  }
+
+  /**
+   * Check if a message is a formatted staff reply
+   */
+  static isFormattedStaffReply(content: string): boolean {
+    return (
+      content.includes("### ") &&
+      content.includes(" Responded:\n") &&
+      content.includes("-# This message was sent by a staff member")
+    );
+  }
+}
+
 export class ModmailMessageService {
   private static indexesEnsured = false;
   private db: Database;

@@ -1,10 +1,12 @@
 import { Message, Client, PartialMessage } from "discord.js";
-import ModmailMessageService from "../../services/ModmailMessageService";
+import ModmailMessageService, {
+  ModmailMessageFormatter,
+} from "../../services/ModmailMessageService";
 import Database from "../../utils/data/database";
 import Modmail from "../../models/Modmail";
 import ModmailConfig from "../../models/ModmailConfig";
 import log from "../../utils/log";
-import { debugMsg } from "../../utils/TinyUtils";
+import { debugMsg, ThingGetter } from "../../utils/TinyUtils";
 import { removeMentions } from "../../Bot";
 
 /**
@@ -170,13 +172,13 @@ async function updateWebhookMessage(
       return;
     }
 
-    // Remove any existing strikethrough or edit indicators, then add edit indicator
-    const cleanContent = newContent.replace(/~~/g, "").replace(/ _\((edited|deleted)\)_$/g, "");
+    // User messages in webhooks maintain their original format (just the content)
+    const formattedContent = ModmailMessageFormatter.formatUserMessageForWebhook(newContent);
 
     const success = await ModmailMessageService.editMessageFromUrl(
       client,
       trackedMessage.webhookMessageUrl,
-      cleanContent + " _(edited)_",
+      formattedContent,
       config.webhookId,
       config.webhookToken
     );
@@ -206,13 +208,36 @@ async function updateDMMessage(
       return;
     }
 
-    // Remove any existing strikethrough or edit indicators, then add edit indicator
-    const cleanContent = newContent.replace(/~~/g, "").replace(/ _\((edited|deleted)\)_$/g, "");
+    // Get the staff member information to preserve the original formatting
+    const getter = new ThingGetter(client);
+    const guild = await getter.getGuild(modmail.guildId);
+
+    // Try to get the original staff member who sent the message
+    let staffMemberName = trackedMessage.authorName || "Staff Member";
+
+    // If we have the author ID, get their actual name
+    if (trackedMessage.authorId) {
+      try {
+        const staffMember = await getter.getMember(guild, trackedMessage.authorId);
+        if (staffMember) {
+          staffMemberName = getter.getMemberName(staffMember);
+        }
+      } catch (error) {
+        log.debug(`Could not fetch staff member for DM formatting: ${error}`);
+      }
+    }
+
+    // Preserve the original staff reply formatting
+    const formattedContent = ModmailMessageFormatter.formatStaffReplyForDM(
+      newContent,
+      staffMemberName,
+      guild.name
+    );
 
     const success = await ModmailMessageService.editMessageFromUrl(
       client,
       trackedMessage.dmMessageUrl,
-      cleanContent + " _(edited)_"
+      formattedContent
     );
 
     if (success) {
