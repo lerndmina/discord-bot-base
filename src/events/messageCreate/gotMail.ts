@@ -664,7 +664,7 @@ async function sendMessage( // Send a message from dms to the modmail thread
 
     // Send message with the user's avatar and username from the stored data or current values
     const webhookMessage = await webhook.send({
-      content: cleanMessageContent,
+      content: ModmailMessageService.truncateMessage(cleanMessageContent),
       files: attachmentBuilders,
       threadId: thread.id,
       username: mail.userDisplayName || message.author.displayName,

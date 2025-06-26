@@ -125,6 +125,22 @@ export class ModmailMessageService {
   private static dbInstance: Database | null = null;
   private db: Database;
 
+  // Discord message length limit
+  private static readonly MAX_MESSAGE_LENGTH = 2000;
+
+  /**
+   * Truncate message content to Discord's character limit with proper handling
+   */
+  static truncateMessage(content: string): string {
+    if (content.length <= this.MAX_MESSAGE_LENGTH) {
+      return content;
+    }
+
+    // Truncate and add indicator
+    const truncated = content.substring(0, this.MAX_MESSAGE_LENGTH - 100);
+    return `${truncated}...\n*[Message truncated]*`;
+  }
+
   constructor() {
     // Use singleton pattern for database instance to improve performance
     if (!ModmailMessageService.dbInstance) {
@@ -614,6 +630,9 @@ export class ModmailMessageService {
     webhookToken?: string
   ): Promise<boolean> {
     try {
+      // Truncate content to Discord's character limit
+      const truncatedContent = this.truncateMessage(content);
+
       // Debug logging
       log.debug(
         `editMessageFromUrl called with webhookId: ${
@@ -624,7 +643,13 @@ export class ModmailMessageService {
       // If we have webhook credentials, use webhook API
       if (webhookId && webhookToken) {
         log.debug(`Using webhook API for message edit: ${url}`);
-        return await this.editWebhookMessage(client, url, content, webhookId, webhookToken);
+        return await this.editWebhookMessage(
+          client,
+          url,
+          truncatedContent,
+          webhookId,
+          webhookToken
+        );
       }
 
       // Otherwise use regular message API
@@ -632,7 +657,7 @@ export class ModmailMessageService {
       const message = await this.fetchMessageFromUrl(client, url);
       if (!message) return false;
 
-      await message.edit(content);
+      await message.edit(truncatedContent);
       return true;
     } catch (error) {
       log.error(`Failed to edit message from URL ${url}: ${error}`);
@@ -651,6 +676,9 @@ export class ModmailMessageService {
     webhookToken: string
   ): Promise<boolean> {
     try {
+      // Truncate content to Discord's character limit
+      const truncatedContent = this.truncateMessage(content);
+
       log.debug(`editWebhookMessage called for URL: ${url}, webhookId: ${webhookId}`);
 
       const parsed = this.parseMessageUrl(url);
@@ -674,7 +702,7 @@ export class ModmailMessageService {
       log.debug(`Successfully fetched webhook, attempting to edit message ${parsed.messageId}`);
 
       // For webhook messages in forum threads, we need to provide the threadId
-      const editOptions: any = { content };
+      const editOptions: any = { content: truncatedContent };
       if (parsed.guildId) {
         // If this is a guild message (not a DM), it's likely in a forum thread
         editOptions.threadId = parsed.channelId;

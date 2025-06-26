@@ -17,6 +17,7 @@ import BasicEmbed from "../../utils/BasicEmbed";
 import FetchEnvs from "../../utils/FetchEnvs";
 import ms from "ms";
 import ModmailCache from "../../utils/ModmailCache";
+import ModmailMessageService from "../../services/ModmailMessageService";
 
 const env = FetchEnvs();
 
@@ -349,7 +350,7 @@ async function handleCloseWithMessageModal(
       try {
         const webhook = await client.fetchWebhook(config.webhookId, config.webhookToken);
         await webhook.send({
-          content: finalMessage,
+          content: ModmailMessageService.truncateMessage(finalMessage),
           threadId: modmail.forumThreadId,
           username: modmail.userDisplayName || interaction.user.displayName,
           avatarURL: modmail.userAvatar || interaction.user.displayAvatarURL(),
