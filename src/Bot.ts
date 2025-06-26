@@ -71,6 +71,15 @@ export const Start = async () => {
     .connect(env.MONGODB_URI, { dbName: env.MONGODB_DATABASE, retryWrites: true })
     .then(async () => {
       log.info("Connected to MongoDB");
+
+      // Initialize database indexes for modmail message tracking
+      try {
+        const { default: ModmailMessageService } = await import("./services/ModmailMessageService");
+        await ModmailMessageService.initialize();
+      } catch (error) {
+        log.error("Failed to initialize ModmailMessageService:", error);
+      }
+
       await redisClient.connect();
       await createFivemPool();
       updateAprilFoolsStatus();

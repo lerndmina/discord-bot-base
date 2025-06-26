@@ -53,7 +53,7 @@ function getter() {
     WAITING_EMOJI: process.env.WAITING_EMOJI || "",
     REDIS_URL: process.env.REDIS_URL || "",
     DEBUG_LOG: process.env.DEBUG_LOG === "true",
-    MODMAIL_TABLE: process.env.MODMAIL_TABLE || "",
+    MODMAIL_TABLE: process.env.MODMAIL_TABLE || "Modmail",
     DEFAULT_TIMEZONE: process.env.DEFAULT_TIMEZONE || "Europe/London",
     STAFF_ROLE: process.env.STAFF_ROLE || DEFAULT_OPTIONAL_STRING,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY || "",

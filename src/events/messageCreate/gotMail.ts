@@ -53,6 +53,7 @@ import { createAttachmentBuildersFromUrls } from "../../utils/AttachmentProcesso
 import ModmailBanModel from "../../models/ModmailBans";
 import ms from "ms";
 import { ModmailScheduler } from "../../services/ModmailScheduler";
+import ModmailMessageService from "../../services/ModmailMessageService";
 const env = FetchEnvs();
 
 const MAX_TITLE_LENGTH = 50;
@@ -579,6 +580,8 @@ async function sendMessage( // Send a message from dms to the modmail thread
 ) {
   const cleanMessageContent = removeMentions(messageContent);
   const getter = new ThingGetter(client);
+  const messageService = new ModmailMessageService();
+
   try {
     const guild = await getter.getGuild(mail.guildId);
     const thread = (await getter.getChannel(mail.forumThreadId)) as ThreadChannel;
@@ -592,22 +595,97 @@ async function sendMessage( // Send a message from dms to the modmail thread
 
     if (!config || !config.webhookId || !config.webhookToken) {
       // If there's no webhook in config, fall back to normal message
-      return thread.send({
+      const fallbackMsg = await thread.send({
         content: `${message.author.username} says: ${cleanMessageContent}\n\n\`\`\`No webhook found in ModmailConfig, please recreate the modmail setup.\`\`\``,
         files: attachmentBuilders,
       });
+
+      // Track the message even for fallback
+      await messageService.addMessage(message.author.id, {
+        messageId: messageService.generateMessageId(),
+        type: "user",
+        content: cleanMessageContent,
+        authorId: message.author.id,
+        authorName: message.author.displayName,
+        authorAvatar: message.author.displayAvatarURL(),
+        discordMessageId: message.id,
+        discordMessageUrl: ModmailMessageService.createMessageUrl(
+          null,
+          message.channelId,
+          message.id
+        ),
+        webhookMessageId: fallbackMsg.id,
+        webhookMessageUrl: ModmailMessageService.createMessageUrl(
+          mail.guildId,
+          thread.id,
+          fallbackMsg.id
+        ),
+        attachments:
+          message.attachments.size > 0
+            ? Array.from(message.attachments.values()).map((att) => ({
+                filename: att.name,
+                url: att.url,
+                size: att.size,
+                contentType: att.contentType || undefined,
+              }))
+            : undefined,
+      });
+
+      return fallbackMsg;
     }
 
     const webhook = await client.fetchWebhook(config.webhookId, config.webhookToken);
 
     // Send message with the user's avatar and username from the stored data or current values
-    await webhook.send({
+    const webhookMessage = await webhook.send({
       content: cleanMessageContent,
       files: attachmentBuilders,
       threadId: thread.id,
       username: mail.userDisplayName || message.author.displayName,
       avatarURL: mail.userAvatar || message.author.displayAvatarURL(),
     });
+
+    log.debug(
+      `Webhook message sent successfully - ID: ${webhookMessage.id}, Thread ID: ${thread.id}, Guild ID: ${mail.guildId}`
+    );
+
+    // Create webhook message URL
+    const webhookMessageUrl = ModmailMessageService.createMessageUrl(
+      mail.guildId,
+      thread.id,
+      webhookMessage.id
+    );
+    log.debug(`Created webhook message URL: ${webhookMessageUrl}`);
+
+    // Track the message in our system
+    const trackingMessageId = messageService.generateMessageId();
+    await messageService.addMessage(message.author.id, {
+      messageId: trackingMessageId,
+      type: "user",
+      content: cleanMessageContent,
+      authorId: message.author.id,
+      authorName: message.author.displayName,
+      authorAvatar: message.author.displayAvatarURL(),
+      discordMessageId: message.id,
+      discordMessageUrl: ModmailMessageService.createMessageUrl(
+        null,
+        message.channelId,
+        message.id
+      ),
+      webhookMessageId: webhookMessage.id,
+      webhookMessageUrl: webhookMessageUrl,
+      attachments:
+        message.attachments.size > 0
+          ? Array.from(message.attachments.values()).map((att) => ({
+              filename: att.name,
+              url: att.url,
+              size: att.size,
+              contentType: att.contentType || undefined,
+            }))
+          : undefined,
+    });
+
+    log.debug(`Tracked user message ${trackingMessageId} for user ${message.author.id}`);
 
     // React to the message to indicate it was sent
     await message.react("📨");
@@ -623,7 +701,9 @@ async function sendMessage( // Send a message from dms to the modmail thread
         },
         { new: true, upsert: true }
       );
-    } // Update last user activity for inactivity tracking
+    }
+
+    // Update last user activity for inactivity tracking
     await db.findOneAndUpdate(
       Modmail,
       { userId: message.author.id },
@@ -651,6 +731,7 @@ async function handleReply(message: Message, client: Client<true>, staffUser: Us
   const db = new Database();
   const thread = message.channel;
   const messages = await thread.messages.fetch();
+  const messageService = new ModmailMessageService();
 
   // const lastMessage = messages.last()!; // Check that the bot is the one who opened the thread.
   // if (lastMessage.author.id !== client.user.id) return;
@@ -682,24 +763,18 @@ async function handleReply(message: Message, client: Client<true>, staffUser: Us
       staffUser.globalName
   );
 
+  const staffMemberName = getter.getMemberName(await getter.getMember(guild, staffUser.id));
+  const dmContent =
+    `### ${staffMemberName} Responded:` +
+    `\n${finalContent}` +
+    `\n-# This message was sent by a staff member of **${guild.name}** in reply to your modmail thread.` +
+    `\n-# If you want to close this thread, just send \`/modmail close\` here`;
+
   const data = await tryCatch(
     (
       await getter.getUser(mail.userId)
     ).send({
-      // embeds: [
-      //   BasicEmbed(client, "Modmail Reply", `*`, [
-      //     {
-      //       name: `${getter.getMemberName(await getter.getMember(guild, staffUser.id))} (Staff):`,
-      //       value: `${finalContent}`,
-      //       inline: false,
-      //     },
-      //   ]),
-      // ],
-      content:
-        `### ${getter.getMemberName(await getter.getMember(guild, staffUser.id))} Resonded:` +
-        `\n${finalContent}` +
-        `\n-# This message was sent by a staff member of **${guild.name}** in reply to your modmail thread.` +
-        `\n-# If you want to close this thread, just send \`/modmail close\` here`,
+      content: dmContent,
       files: attachmentBuilders,
     })
   );
@@ -719,6 +794,45 @@ async function handleReply(message: Message, client: Client<true>, staffUser: Us
       components: [createCloseThreadButton()],
     });
   }
+
+  // Track the staff message in our system
+  const trackingMessageId = messageService.generateMessageId();
+
+  // Get DM channel for URL creation if the message was sent successfully
+  let dmMessageUrl: string | undefined = undefined;
+  if (data.data?.id && data.data?.channel?.id) {
+    dmMessageUrl = ModmailMessageService.createMessageUrl(null, data.data.channel.id, data.data.id);
+  }
+
+  await messageService.addMessage(mail.userId, {
+    messageId: trackingMessageId,
+    type: "staff",
+    content: finalContent,
+    authorId: staffUser.id,
+    authorName: staffMemberName,
+    authorAvatar: staffUser.displayAvatarURL(),
+    discordMessageId: message.id,
+    discordMessageUrl: ModmailMessageService.createMessageUrl(
+      message.guildId,
+      message.channelId,
+      message.id
+    ),
+    dmMessageId: data.data?.id, // The DM message ID if successful
+    dmMessageUrl: dmMessageUrl,
+    attachments:
+      message.attachments.size > 0
+        ? Array.from(message.attachments.values()).map((att) => ({
+            filename: att.name,
+            url: att.url,
+            size: att.size,
+            contentType: att.contentType || undefined,
+          }))
+        : undefined,
+  });
+
+  log.debug(
+    `Tracked staff message ${trackingMessageId} for user ${mail.userId} from staff ${staffUser.id}`
+  );
 
   debugMsg("Sent message to user" + mail.userId + " in guild " + mail.guildId);
 

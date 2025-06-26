@@ -77,7 +77,8 @@ export default class Database {
     debugMsg(`Keys: ${queryKeys.join(", ")} -> ${redisKey}`);
 
     debugMsg(`Fetching from cache: ${redisKey}`);
-    var data = await redisClient.get(redisKey);    if (!data || data.length == 0) {
+    var data = await redisClient.get(redisKey);
+    if (!data || data.length == 0) {
       debugMsg(model);
       const dbResult = await schema.find(model);
       if (!dbResult || dbResult.length == 0) {
@@ -312,5 +313,321 @@ export default class Database {
     }
 
     if (env.DEBUG_LOG) debugMsg(`DB - updateMany - Time taken: ${Date.now() - start!}ms`);
+  }
+
+  /**
+   * Push a new item to an array field with automatic cache invalidation
+   * @generic T - The document type
+   * @param schema - Mongoose model
+   * @param query - Query to find the document
+   * @param field - Array field to update
+   * @param value - Value to push
+   * @param options - Additional options (e.g., slice for max array size)
+   * @param cacheTime - Cache time in seconds
+   */
+  async pushToArray<T>(
+    schema: Model<T>,
+    query: any,
+    field: string,
+    value: any,
+    options: { slice?: number } = {},
+    cacheTime = ONE_HOUR
+  ): Promise<T | null> {
+    var start = env.DEBUG_LOG ? Date.now() : undefined;
+    if (!schema || !query) {
+      throw new Error("Missing schema or query");
+    }
+
+    const queryKeys = Object.keys(query).sort();
+    const keyParts = queryKeys.map((key) => `${key}:${query[key]}`).join("|");
+    const redisKey = `${env.MONGODB_DATABASE}:${schema.modelName}:${keyParts}`;
+
+    const pushUpdate: any = {
+      $push: {
+        [field]: options.slice ? { $each: [value], $slice: options.slice } : value,
+      },
+    };
+
+    const result = await schema.findOneAndUpdate(query, pushUpdate, {
+      upsert: true,
+      new: true,
+    });
+
+    if (result) {
+      await redisClient.set(redisKey, JSON.stringify(result));
+      await redisClient.expire(redisKey, cacheTime);
+    }
+
+    if (env.DEBUG_LOG) debugMsg(`DB - pushToArray - Time taken: ${Date.now() - start!}ms`);
+    return result as T;
+  }
+
+  /**
+   * Update a specific array element by matching a sub-field
+   * @generic T - The document type
+   * @param schema - Mongoose model
+   * @param query - Query to find the document
+   * @param arrayField - Name of the array field
+   * @param arrayElementQuery - Query to match the array element
+   * @param updateData - Data to update in the matched array element
+   * @param cacheTime - Cache time in seconds
+   */
+  async updateArrayElement<T>(
+    schema: Model<T>,
+    query: any,
+    arrayField: string,
+    arrayElementQuery: any,
+    updateData: any,
+    cacheTime = ONE_HOUR
+  ): Promise<T | null> {
+    var start = env.DEBUG_LOG ? Date.now() : undefined;
+    if (!schema || !query) {
+      throw new Error("Missing schema or query");
+    }
+
+    const queryKeys = Object.keys(query).sort();
+    const keyParts = queryKeys.map((key) => `${key}:${query[key]}`).join("|");
+    const redisKey = `${env.MONGODB_DATABASE}:${schema.modelName}:${keyParts}`;
+
+    // Build the positional update query
+    const matchQuery = { ...query };
+    Object.keys(arrayElementQuery).forEach((key) => {
+      matchQuery[`${arrayField}.${key}`] = arrayElementQuery[key];
+    });
+
+    // Build the update with positional operator
+    const update: any = {};
+    Object.keys(updateData).forEach((key) => {
+      update[`${arrayField}.$.${key}`] = updateData[key];
+    });
+
+    const result = await schema.findOneAndUpdate(matchQuery, { $set: update }, { new: true });
+
+    if (result) {
+      await redisClient.set(redisKey, JSON.stringify(result));
+      await redisClient.expire(redisKey, cacheTime);
+    }
+
+    if (env.DEBUG_LOG) debugMsg(`DB - updateArrayElement - Time taken: ${Date.now() - start!}ms`);
+    return result as T;
+  }
+
+  /**
+   * Find a document and project only specific array elements
+   * @generic T - The document type
+   * @param schema - Mongoose model
+   * @param query - Query to find the document
+   * @param arrayField - Name of the array field
+   * @param arrayFilter - Filter for array elements
+   * @param projection - Additional projection fields
+   * @param cacheTime - Cache time in seconds
+   */
+  async findWithArrayFilter<T>(
+    schema: Model<T>,
+    query: any,
+    arrayField: string,
+    arrayFilter: any,
+    projection: any = {},
+    cacheTime = ONE_HOUR
+  ): Promise<T | null> {
+    var start = env.DEBUG_LOG ? Date.now() : undefined;
+    if (!schema || !query) {
+      throw new Error("Missing schema or query");
+    }
+
+    // Create a specialized cache key for filtered queries
+    const queryKeys = Object.keys(query).sort();
+    const filterKeys = Object.keys(arrayFilter).sort();
+    const keyParts = [
+      ...queryKeys.map((key) => `${key}:${query[key]}`),
+      `filter:${filterKeys.map((key) => `${key}:${arrayFilter[key]}`).join(",")}`,
+    ].join("|");
+    const redisKey = `${env.MONGODB_DATABASE}:${schema.modelName}:filtered:${keyParts}`;
+
+    debugMsg(`Fetching filtered from cache: ${redisKey}`);
+    var data = await redisClient.get(redisKey);
+
+    if (!data) {
+      debugMsg(`Cache miss, fetching from db with array filter`);
+
+      const aggregatePipeline: any[] = [
+        { $match: query },
+        {
+          $addFields: {
+            [arrayField]: {
+              $filter: {
+                input: `$${arrayField}`,
+                cond: arrayFilter,
+              },
+            },
+          },
+        },
+      ];
+
+      if (Object.keys(projection).length > 0) {
+        aggregatePipeline.push({ $project: projection });
+      }
+
+      const results = await schema.aggregate(aggregatePipeline);
+      data = results.length > 0 ? results[0] : null;
+
+      if (data) {
+        await redisClient.set(redisKey, JSON.stringify(data));
+        await redisClient.expire(redisKey, cacheTime);
+      }
+
+      if (env.DEBUG_LOG)
+        debugMsg(`DB - findWithArrayFilter - Time taken: ${Date.now() - start!}ms`);
+      return data as T;
+    }
+
+    debugMsg(`Cache hit for filtered query: ${redisKey}`);
+    if (env.DEBUG_LOG) debugMsg(`DB - findWithArrayFilter - Time taken: ${Date.now() - start!}ms`);
+    return JSON.parse(data) as T;
+  }
+
+  /**
+   * Update multiple documents matching the query - simplified version
+   * @generic T - The document type
+   * @param schema - Mongoose model
+   * @param query - Query to find the document
+   * @param updateData - Update data to apply
+   * @param cacheTime - Cache time in seconds
+   */
+  async bulkUpdateArrayElements<T>(
+    schema: Model<T>,
+    query: any,
+    updateData: any,
+    cacheTime = ONE_HOUR
+  ): Promise<T | null> {
+    var start = env.DEBUG_LOG ? Date.now() : undefined;
+    if (!schema || !query) {
+      throw new Error("Missing schema or query");
+    }
+
+    const queryKeys = Object.keys(query).sort();
+    const keyParts = queryKeys.map((key) => `${key}:${query[key]}`).join("|");
+    const redisKey = `${env.MONGODB_DATABASE}:${schema.modelName}:${keyParts}`;
+
+    const result = await schema.findOneAndUpdate(query, updateData, {
+      new: true,
+      upsert: false,
+    });
+
+    if (result) {
+      await redisClient.set(redisKey, JSON.stringify(result));
+      await redisClient.expire(redisKey, cacheTime);
+    }
+
+    if (env.DEBUG_LOG)
+      debugMsg(`DB - bulkUpdateArrayElements - Time taken: ${Date.now() - start!}ms`);
+    return result as T;
+  }
+
+  /**
+   * Find the last N elements from an array field in a document
+   * @generic T - The document type
+   * @param schema - Mongoose model
+   * @param query - Query to find the document
+   * @param arrayField - Name of the array field
+   * @param limit - Number of elements to return from the end
+   * @param cacheTime - Cache time in seconds
+   */
+  async findLastArrayElements<T>(
+    schema: Model<T>,
+    query: any,
+    arrayField: string,
+    limit: number = 50,
+    cacheTime = ONE_HOUR
+  ): Promise<T | null> {
+    var start = env.DEBUG_LOG ? Date.now() : undefined;
+    if (!schema || !query) {
+      throw new Error("Missing schema or query");
+    }
+
+    const queryKeys = Object.keys(query).sort();
+    const keyParts = queryKeys.map((key) => `${key}:${query[key]}`).join("|");
+    const redisKey = `${env.MONGODB_DATABASE}:${schema.modelName}:last${limit}:${keyParts}`;
+
+    debugMsg(`Fetching last ${limit} elements from cache: ${redisKey}`);
+    var data = await redisClient.get(redisKey);
+
+    if (!data) {
+      debugMsg(`Cache miss, fetching last ${limit} elements from db`);
+
+      const projection = {
+        [arrayField]: { $slice: -limit },
+      };
+
+      const result = await schema.findOne(query, projection);
+
+      if (result) {
+        await redisClient.set(redisKey, JSON.stringify(result));
+        await redisClient.expire(redisKey, cacheTime);
+      }
+
+      if (env.DEBUG_LOG)
+        debugMsg(`DB - findLastArrayElements - Time taken: ${Date.now() - start!}ms`);
+      return result as T;
+    }
+
+    debugMsg(`Cache hit for last elements query: ${redisKey}`);
+    if (env.DEBUG_LOG)
+      debugMsg(`DB - findLastArrayElements - Time taken: ${Date.now() - start!}ms`);
+    return JSON.parse(data) as T;
+  }
+
+  /**
+   * Get the count of elements in an array field
+   * @generic T - The document type
+   * @param schema - Mongoose model
+   * @param query - Query to find the document
+   * @param arrayField - Name of the array field
+   * @param cacheTime - Cache time in seconds
+   */
+  async getArrayElementCount<T>(
+    schema: Model<T>,
+    query: any,
+    arrayField: string,
+    cacheTime = ONE_HOUR
+  ): Promise<number> {
+    var start = env.DEBUG_LOG ? Date.now() : undefined;
+    if (!schema || !query) {
+      throw new Error("Missing schema or query");
+    }
+
+    const queryKeys = Object.keys(query).sort();
+    const keyParts = queryKeys.map((key) => `${key}:${query[key]}`).join("|");
+    const redisKey = `${env.MONGODB_DATABASE}:${schema.modelName}:count:${arrayField}:${keyParts}`;
+
+    debugMsg(`Fetching array count from cache: ${redisKey}`);
+    var data = await redisClient.get(redisKey);
+
+    if (!data) {
+      debugMsg(`Cache miss, fetching array count from db`);
+
+      const aggregation = [
+        { $match: query },
+        {
+          $project: {
+            count: { $size: { $ifNull: [`$${arrayField}`, []] } },
+          },
+        },
+      ];
+
+      const results = await schema.aggregate(aggregation);
+      const count = results.length > 0 ? results[0].count : 0;
+
+      await redisClient.set(redisKey, count.toString());
+      await redisClient.expire(redisKey, cacheTime);
+
+      if (env.DEBUG_LOG)
+        debugMsg(`DB - getArrayElementCount - Time taken: ${Date.now() - start!}ms`);
+      return count;
+    }
+
+    debugMsg(`Cache hit for count query: ${redisKey}`);
+    if (env.DEBUG_LOG) debugMsg(`DB - getArrayElementCount - Time taken: ${Date.now() - start!}ms`);
+    return parseInt(data);
   }
 }
