@@ -72,8 +72,12 @@ async function handleDMMessageUpdate(
       return;
     }
 
-    // Clean and update the message content
-    const cleanContent = removeMentions(newMessage.content || "");
+    // Process the updated content with forwarded message detection
+    const { prepModmailMessage } = await import("../../utils/TinyUtils");
+    const processedContent = await prepModmailMessage(client, newMessage as Message, 2000);
+    if (!processedContent) return;
+
+    const cleanContent = removeMentions(processedContent);
     await messageService.editMessage(
       newMessage.author.id,
       trackedMessage.messageId,
@@ -122,8 +126,13 @@ async function handleThreadMessageUpdate(
       return;
     }
 
+    // Process the updated content with forwarded message detection
+    const { prepModmailMessage } = await import("../../utils/TinyUtils");
+    const processedContent = await prepModmailMessage(client, newMessage as Message, 1024);
+    if (!processedContent) return;
+
     // Update the message in our tracking system
-    const cleanContent = removeMentions(newMessage.content || "");
+    const cleanContent = removeMentions(processedContent);
     await messageService.editMessage(
       modmail.userId,
       trackedMessage.messageId,

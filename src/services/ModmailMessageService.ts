@@ -98,7 +98,13 @@ export class ModmailMessageFormatter {
   /**
    * Format a user message for webhook (maintains original format)
    */
-  static formatUserMessageForWebhook(content: string): string {
+  static formatUserMessageForWebhook(content: string, isForwarded?: boolean): string {
+    if (isForwarded) {
+      // If we know it's forwarded, ensure it has the indicator
+      if (!content.includes("[Forwarded Message]")) {
+        return `📤 **[Forwarded Message]**\n${content}`;
+      }
+    }
     // User messages in webhooks are sent as-is with user's avatar and name
     return content;
   }
@@ -117,6 +123,13 @@ export class ModmailMessageFormatter {
    */
   static isFormattedStaffReply(content: string): boolean {
     return this.STAFF_REPLY_CHECK_REGEX.test(content);
+  }
+
+  /**
+   * Check if a message contains forwarded message indicators
+   */
+  static isForwardedMessage(content: string): boolean {
+    return content.includes("[Forwarded Message]") || content.includes("📤");
   }
 }
 

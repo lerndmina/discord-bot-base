@@ -49,29 +49,6 @@ import FetchEnvs from "../../utils/FetchEnvs";
 import { debug } from "console";
 import log from "../../utils/log";
 import ModmailCache from "../../utils/ModmailCache";
-
-/**
- * Get guild with caching to reduce API calls
- */
-async function getCachedGuild(guildId: string, client: Client<true>): Promise<Guild | null> {
-  try {
-    // Check if we have cached guild info
-    const cachedInfo = await ModmailCache.getGuildInfo(guildId);
-
-    // Fetch from Discord API (we still need the full Guild object)
-    const guild = await client.guilds.fetch(guildId);
-
-    if (guild && (!cachedInfo || guild.name !== cachedInfo.name)) {
-      // Update cache with current guild info
-      await ModmailCache.setGuildInfo(guildId, guild.name);
-    }
-
-    return guild;
-  } catch (error) {
-    log.error(`Failed to fetch guild ${guildId}: ${error}`);
-    return null;
-  }
-}
 import { tryCatch } from "../../utils/trycatch";
 import { createAttachmentBuildersFromUrls } from "../../utils/AttachmentProcessor";
 import ModmailBanModel from "../../models/ModmailBans";
@@ -662,9 +639,34 @@ async function sendMessage( // Send a message from dms to the modmail thread
 
     const webhook = await client.fetchWebhook(config.webhookId, config.webhookToken);
 
+    // Get additional embeds for messages that reference other messages (like forwards/replies)
+    const { fetchReferencedMessageEmbeds } = await import("../../utils/TinyUtils");
+    const additionalEmbeds = await fetchReferencedMessageEmbeds(client, message);
+    const allEmbeds = [...(message.embeds || []), ...additionalEmbeds];
+
+    // Debug logging for embed forwarding
+    if (env.DEBUG_LOG || process.env.DEBUG_MODMAIL === "true") {
+      log.debug(`[Modmail Debug] Sending webhook message:`, {
+        hasContent: !!cleanMessageContent,
+        contentLength: cleanMessageContent.length,
+        originalEmbedsCount: message.embeds.length,
+        additionalEmbedsCount: additionalEmbeds.length,
+        totalEmbedsCount: allEmbeds.length,
+        embedsData: allEmbeds.map((embed) => ({
+          title: embed.title,
+          description: embed.description?.substring(0, 100),
+          color: embed.color,
+          fieldsCount: embed.fields?.length || 0,
+        })),
+        hasAttachments: attachmentBuilders.length > 0,
+        attachmentCount: attachmentBuilders.length,
+      });
+    }
+
     // Send message with the user's avatar and username from the stored data or current values
     const webhookMessage = await webhook.send({
       content: ModmailMessageService.truncateMessage(cleanMessageContent),
+      embeds: allEmbeds.length > 0 ? allEmbeds : undefined,
       files: attachmentBuilders,
       threadId: thread.id,
       username: mail.userDisplayName || message.author.displayName,
@@ -796,12 +798,37 @@ async function handleReply(message: Message, client: Client<true>, staffUser: Us
     guild.name
   );
 
+  // Get additional embeds for messages that reference other messages (like forwards/replies)
+  const { fetchReferencedMessageEmbeds } = await import("../../utils/TinyUtils");
+  const additionalEmbeds = await fetchReferencedMessageEmbeds(client, message);
+  const allEmbeds = [...(message.embeds || []), ...additionalEmbeds];
+
+  // Debug logging for embed forwarding (staff to user)
+  if (env.DEBUG_LOG || process.env.DEBUG_MODMAIL === "true") {
+    log.debug(`[Modmail Debug] Sending DM to user:`, {
+      hasContent: !!dmContent,
+      contentLength: dmContent.length,
+      originalEmbedsCount: message.embeds.length,
+      additionalEmbedsCount: additionalEmbeds.length,
+      totalEmbedsCount: allEmbeds.length,
+      embedsData: allEmbeds.map((embed) => ({
+        title: embed.title,
+        description: embed.description?.substring(0, 100),
+        color: embed.color,
+        fieldsCount: embed.fields?.length || 0,
+      })),
+      hasAttachments: attachmentBuilders.length > 0,
+      attachmentCount: attachmentBuilders.length,
+    });
+  }
+
   const data = await tryCatch(
     (
       await getter.getUser(mail.userId)
     ).send({
       content: dmContent,
       files: attachmentBuilders,
+      embeds: allEmbeds.length > 0 ? allEmbeds : undefined,
     })
   );
 
