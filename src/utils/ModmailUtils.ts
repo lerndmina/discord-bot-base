@@ -469,8 +469,12 @@ export async function createModmailThread(
     }
 
     // Send staff notification with action buttons
+    // If opened by staff, ping the staff member who opened it, otherwise ping the staff role
+    const notificationContent =
+      openedBy?.type === "Staff" ? `<@${openedBy.userId}>` : `<@&${modmailConfig.staffRoleId}>`;
+
     await thread.send({
-      content: `<@&${modmailConfig.staffRoleId}>`,
+      content: notificationContent,
       embeds: [
         BasicEmbed(
           client,
